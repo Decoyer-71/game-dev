@@ -150,7 +150,13 @@ namespace Jianghu.Tests.Combat
             //   **평타 전락은 살아 있되 영구적이지 않다.** 회복이 없으면 전투가 아예 끝나지 않았다
             //   (형태소 무공 첫 측정에서 전원 무승부 · 승률 0 이 나왔다).
             //   그래서 이 테스트가 지키는 것은 "전락이 일어나는가" 와 "다시 회복되는가" 둘이다.
-            Combatant a = Fighter("검객", BaseStats(health: 200, qi: 6), Learned(Sword()));
+            // ⚠⚠ 2026-07-30 재수정 — 기본 기력회복이 2 → 10 으로 오르면서 **6짜리 초식은 마를 수가 없어졌다**
+            //   (회복이 소모보다 크다). 전락 자체는 살아 있으므로, **회복보다 비싼 초식**으로 확인한다.
+            //   비싼 초식일수록 자주 마르는 관계가 그대로 드러난다.
+            MartialArt costly = MartialArt.Technique(
+                "costly", "기본검법", Discipline.Sword, Alignment.Orthodox, basePower: 20, qiCost: 30);
+
+            Combatant a = Fighter("검객", BaseStats(health: 200, qi: 30), Learned(costly));
             Combatant b = Fighter("허수아비", BaseStats(health: 400, attack: 0, defense: 0));
 
             CombatResult r = CombatResolver.Resolve(a, b, new XorShiftRandom(5u));

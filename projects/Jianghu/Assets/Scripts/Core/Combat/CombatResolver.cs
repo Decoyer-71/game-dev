@@ -20,7 +20,36 @@ namespace Jianghu.Core.Combat
         /// <summary>이 턴을 넘기면 무승부. 무한 교착(둘 다 피해 1)을 끊는 장치다.</summary>
         public const int DefaultMaxTurns = 50;
 
-        private const int BaseHitChance = 85;
+        /// <summary>
+        /// **형태소 명중 1점을 명중률 몇 %p 로 볼 것인가** (2026-07-30 신설).
+        ///
+        /// ⚠⚠ 정의서에 없는 환산이다. §1-1 은 명중을 스탯(기본 1)으로, 회피를 확률(5%)로 적어
+        /// **둘을 잇는 규칙을 정하지 않았다.** 그래서 여기서 정한다.
+        ///
+        /// 5 를 고른 근거 — 수식 '맞히다'(적·확 +2)가 **+10%p** 가 되어 검 숙달(+25%p)보다는 작지만
+        /// 체감되는 크기이고, 무공형태 '정직'의 명중 −2 가 **−10%p** 라 페널티가 실제로 아프다.
+        /// 정의서 §2-2 가 무공형태를 필수로 만든 이유("페널티가 열등함이 아니라 성격이 되게")가
+        /// 이 환산에서 비로소 성립한다.
+        ///
+        /// ⚠ **미검증 초기값이다.** 민감도표(§5-4)에서 수식 12자가 47~53% 로 죽어 있으면 올리고,
+        ///   65% 를 넘으면 내린다.
+        /// </summary>
+        public const int AccuracyPointToPercent = 5;
+
+        /// <summary>
+        /// 기본 명중률(%).
+        ///
+        /// ⚠⚠ **2026-07-30 측정 근거로 85 → 65 로 내렸다.**
+        ///   85 이면 검 숙달(+25)만으로 110 이 되어 상한 99 에 박히고, 그 순간
+        ///   **명중 축 전체가 무의미해진다** — 형태소 민감도표에서 수식 12자가 전부 승률 0% 로 나왔다.
+        ///   글자를 넣어도 명중은 99 그대로인데 기력만 4 더 쓰니 당연한 결과였다.
+        ///
+        ///   그리고 정의서 §1-1 은 **회피 기본 5%** 를 명시하는데, 명중 85 는 그 5% 도 무의미하게 만든다.
+        ///   65 로 내려야 명중과 회피가 **둘 다** 의미를 갖는다.
+        ///
+        /// ⚠ 여전히 미검증 초기값이다. 민감도표에서 수식 12자가 살아나는지로 판정한다.
+        /// </summary>
+        private const int BaseHitChance = 65;
         private const int MinHitChance = 25;
         private const int MaxHitChance = 99;
 
@@ -171,7 +200,14 @@ namespace Jianghu.Core.Combat
             int attempts = chosen.Art.HitCount < 1 ? 1 : chosen.Art.HitCount;
             int basePerHit = DamagePerHit(actor.Def, target.Def, chosen, attempts, mastery);
 
-            int accuracy = chosen.Art.AccuracyBonus
+            // ⚠⚠ 2026-07-30 — 명중도 형태소에서 읽는다(수식 '맞히다' 적·확 +2, 무공형태 '정직' −2 등).
+            //   이전에는 형태소 무공의 명중이 통째로 0 이라, **수식 12자가 민감도표에서 전부 승률 0%** 였다.
+            //   글자를 넣으면 기력만 4 더 쓰고 효과는 없었으니 당연한 결과였다.
+            int artAccuracy = chosen.Art.IsMorphemeDerived
+                ? (int)System.Math.Round(chosen.Art.Delta.Accuracy * AccuracyPointToPercent)
+                : chosen.Art.AccuracyBonus;
+
+            int accuracy = artAccuracy
                            + DisciplineCurve.AccuracyBonus(chosen.Art.Discipline, mastery)  // 검 숙달
                            - StaggerPenalty(actor);                                          // 자기가 경직이면 빗나간다
             int hitChance = Clamp(BaseHitChance + accuracy - target.Def.Evasion, MinHitChance, MaxHitChance);
