@@ -59,6 +59,8 @@ D:\GameDev\                          ← 이 폴더 (작업공간 루트)
 | Unity Hub | 설치됨 |
 | dotnet | **SDK 8.0.423 설치됨** — `D:\Tools\dotnet` (2026-07-27 설치, `-NoPath` 라 **PATH 미등록**). 호출은 `D:\Tools\dotnet\dotnet.exe` 전체 경로로. 시스템 기본 `dotnet` 은 여전히 런타임만 |
 | Unity MCP | **미연결.** 커넥터 레지스트리 검색 0건, 설정 파일에 mcpServers 항목 없음 |
+| git 원격 | `origin` = `https://github.com/Decoyer-71/game-dev.git` |
+| `gh` CLI | **⚠⚠ 미설치 (2026-07-30 실측 — Windows PATH·bash 양쪽 모두 `not found`).** PR 을 Claude 가 생성할 수 없다 → 브랜치를 푸시하고 `.../compare/main...<브랜치>?expand=1` **링크로 안내**한다 |
 | 기존 프로젝트 | `C:\Users\cvcv6\My project` (Unity Hub 기본 위치, 빈 프로젝트 — C 에 있으므로 이설 검토 대상) |
 | 3D 툴 | blender / maya / assimp **없음**. python `bpy`/`trimesh`/`numpy` **없음** |
 | 이미지 | **PIL 9.2.0 만 있음** (2D PNG/DDS 가능, DXT 압축 불가) |

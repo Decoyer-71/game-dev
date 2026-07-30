@@ -16,6 +16,13 @@
 /projects/*/Recordings/
 
 # Unity 가 만드는 IDE 프로젝트 파일 (소스가 아니다)
+#
+# ⚠ 프로젝트 루트의 *.csproj 는 Unity 가 asmdef 하나당 하나씩 재생성한다
+#   (파일 안에 "Generated file, do not modify" 가 박혀 있다). 에디터를 열
+#   때마다 diff 가 생기는 소음원이라 커밋하지 않는다. `*` 는 `/` 를 넘지
+#   않으므로 이 규칙은 루트만 잡고 Tools/ 아래 **수제** csproj 는 건드리지
+#   않는다 — Tools/*/*.csproj 가 `dotnet test` 진입점이다(§3 검증 1단계).
+/projects/*/*.csproj
 *.csproj.user
 *.unityproj
 *.sln
@@ -63,5 +70,7 @@ desktop.ini
 #   Packages/        ← manifest.json · packages-lock.json (패키지 버전 고정)
 #   ProjectSettings/ ← 에디터 설정. 빠지면 프로젝트가 다르게 열린다
 #   Tools/           ← csproj 들 (소스는 Assets 를 링크로 끌어온다)
+#                       ⚠ 프로젝트 **루트**의 *.csproj 는 Unity 생성물이라 제외.
+#                         커밋하는 csproj 는 Tools/ 아래 수제 파일들뿐이다
 #   docs/ CLAUDE.md  ← 설계 문서. **이 저장소에서 가장 값진 부분이다**
 # ─────────────────────────────────────────────────────────────
