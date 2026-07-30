@@ -142,7 +142,14 @@ namespace Jianghu.Tests.Combat
         [Test]
         public void 기력이_마르면_평타로_전환된다()
         {
-            // 기력 6 = 검법 1회분. 두 번째 턴부터는 평타여야 한다.
+            // 기력 6 = 검법 1회분. 두 번째 턴에는 기력이 없어 평타여야 한다.
+            //
+            // ⚠⚠ 2026-07-30 수정 — **턴 시작 기력 회복이 생기면서 단언이 바뀌었다.**
+            //   예전에는 "두 번째 턴부터 **끝까지** 평타" 였지만, 이제 기력이 턴당 2씩 차므로
+            //   3턴쯤 뒤에는 다시 검법을 쓴다. 그게 의도다 —
+            //   **평타 전락은 살아 있되 영구적이지 않다.** 회복이 없으면 전투가 아예 끝나지 않았다
+            //   (형태소 무공 첫 측정에서 전원 무승부 · 승률 0 이 나왔다).
+            //   그래서 이 테스트가 지키는 것은 "전락이 일어나는가" 와 "다시 회복되는가" 둘이다.
             Combatant a = Fighter("검객", BaseStats(health: 200, qi: 6), Learned(Sword()));
             Combatant b = Fighter("허수아비", BaseStats(health: 400, attack: 0, defense: 0));
 
@@ -150,8 +157,9 @@ namespace Jianghu.Tests.Combat
 
             List<CombatLogEntry> mine = r.Log.Where(e => e.ActorName == "검객").ToList();
             Assert.AreEqual("기본검법", mine[0].ArtName, "첫 턴에 검법을 못 썼다");
-            Assert.IsTrue(mine.Skip(1).All(e => e.ArtName == "평타"),
-                "기력이 마른 뒤에도 초식을 쓰고 있다");
+            Assert.AreEqual("평타", mine[1].ArtName, "기력이 말랐는데 초식을 쓰고 있다");
+            Assert.IsTrue(mine.Skip(2).Any(e => e.ArtName == "기본검법"),
+                "기력이 회복됐는데도 초식으로 돌아오지 못했다");
         }
 
         [Test]

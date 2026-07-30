@@ -92,6 +92,15 @@ namespace Jianghu.Core.Combat
             {
                 turn++;
 
+                // ⚠⚠ 턴 시작 회복 (2026-07-30 신설). 설계안 §2 격차표의 1순위 미구현 항목이었다.
+                //   이게 없으면 **기력이 영영 돌아오지 않아** 3턴 만에 평타(피해 1)로 전락하고,
+                //   체력 100 을 50턴 안에 못 깎아 무승부가 난다 — 형태소 무공으로 처음 싸운
+                //   2026-07-30 측정에서 실제로 승률 0 · 전원 무승부가 나왔다.
+                //
+                // ⚠ 회복은 **양쪽 모두** 턴 시작에 받는다. 선공 순서와 무관해야 공평하다.
+                Regenerate(a);
+                Regenerate(d);
+
                 Fighter first = attackerFirst ? a : d;
                 Fighter second = attackerFirst ? d : a;
 
@@ -414,6 +423,32 @@ namespace Jianghu.Core.Combat
         }
 
         /// <summary>
+        /// 턴 시작 회복 — 기력을 되돌린다.
+        ///
+        /// ⚠⚠ **이것이 없으면 전투가 성립하지 않는다** (2026-07-30 실측). 기력이 영영 안 돌아오면
+        ///   4자 무공(기력 16) 기준 3턴 만에 고갈되고, 그 뒤로는 평타(피해 1)만 나가
+        ///   체력 100 을 50턴 안에 못 깎는다. 실제로 **전원 무승부 · 승률 0** 이 나왔다.
+        ///
+        /// **기력 고갈 → 평타 전락은 살려 두되 영구적이지 않게 하는 것**이 이 단계의 목적이다.
+        /// 그 드라마가 현재 전투의 핵심이고(HANDOFF §3-2), 회복 속도가 그 빈도를 정한다.
+        /// 설계안 §5-3 의 **평타 전락률**(목표 10~30%)이 이 값의 적정성을 판정한다.
+        ///
+        /// ⚠ 회복량은 정의서 §1-1 의 **기력회복속도 2** 가 기준이며, 내공 형태소(음 +2 · 합 +0.5 ·
+        ///   수 +1 · 선 +3)가 더한다. ⚠ 전부 미검증 초기값이다.
+        /// ⚠ 체력 회복은 아직 없다 — 회복 형태소를 넣을 때 같은 자리에 붙인다(2026-07-30 설계).
+        /// </summary>
+        private static void Regenerate(Fighter f)
+        {
+            if (f.IsDown) return;
+
+            int max = f.Def.EffectiveMaxQi;
+            if (f.Qi >= max) return;
+
+            f.Qi += f.Def.QiRegenPerTurn;
+            if (f.Qi > max) f.Qi = max;
+        }
+
+        /// <summary>
         /// 한 번의 타격 피해.
         ///
         /// 총 위력을 먼저 구한 뒤 타격 횟수로 나눈다. 그래서 다단 초식(권법)은
@@ -422,7 +457,19 @@ namespace Jianghu.Core.Combat
         /// </summary>
         private static int DamagePerHit(Combatant actor, Combatant target, LearnedArt art, int attempts, int mastery)
         {
-            double artPower = art.Art.BasePower * art.PowerMultiplier;
+            // ⚠⚠ 2026-07-30 — 위력의 출처가 바뀌었다. 손으로 박은 `BasePower` 가 아니라
+            //   **무공명을 분해해 얻은 형태소 공격 합**(`Delta.Attack`)을 쓴다.
+            //   공식의 모양은 그대로다 — 정의서 §1-3 의 `캐릭터 공격 + (형태소 공격 합 × 성향 배율)` 과
+            //   이미 같은 꼴이었고, 곱할 대상만 교체됐다.
+            //
+            // ⚠ 레거시 36종(`MartialArtCatalog`)은 아직 손으로 박은 수치를 쓰므로 갈라서 읽는다.
+            //   카탈로그가 138종으로 교체되면 이 분기는 사라진다.
+            //
+            // ⚠⚠ **스케일이 완전히 다르다.** 레거시는 `BasePower` 22~28 인데 형태소 공격 합은 최대 5 다.
+            //   그래서 캐릭터 기본 능력치도 정의서 §1-1(공격 1)로 맞춰야 하며,
+            //   **2026-07-30 이전의 승률표 측정값은 전부 무의미하다**(HANDOFF §5-2).
+            double basePower = art.Art.IsMorphemeDerived ? art.Art.Delta.Attack : art.Art.BasePower;
+            double artPower = basePower * art.PowerMultiplier;
             double totalPower = (actor.Stats.Attack + artPower) * (100 + actor.PowerBonusPercent) / 100.0;
 
             // 도 숙달 → 방어 관통. 위력을 올리는 게 아니라 상대 방어를 무시한다 —

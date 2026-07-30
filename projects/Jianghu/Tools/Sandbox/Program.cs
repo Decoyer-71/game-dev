@@ -45,6 +45,9 @@ namespace Jianghu.Sandbox
                 PrintCrossTier(techniques, sessions);
             }
 
+            PrintSensitivity(100);
+            PrintSensitivity(200);
+
             PrintSampleBattle(200);
         }
 
@@ -149,16 +152,125 @@ namespace Jianghu.Sandbox
             return paren < 0 ? name : name.Substring(0, paren);
         }
 
+        // ─────────────────── 형태소 민감도표 (설계안 §5-4) ───────────────────
+
+        /// <summary>
+        /// **형태소 하나만 다른 무공 쌍**을 붙여 승률을 잰다. 어느 글자가 지배적인지 지목하는 유일한 도구다.
+        ///
+        /// ⚠⚠ **형태소 체계이기 때문에 비로소 가능해진 측정이다.** 무공을 개별 조정하던 시절에는
+        ///   "이 무공이 센 이유" 를 글자 단위로 분리할 수 없었다.
+        ///
+        /// 판정: **47~53% = 무의미한 형태소** · 53~65% = 정상 · **65% 이상 = 지배적 형태소**
+        /// ⚠ 성향 곡선 때문에 수련 시점마다 순위가 뒤집힐 수 있어 두 시점에서 잰다.
+        /// </summary>
+        private static void PrintSensitivity(int sessions)
+        {
+            Console.WriteLine();
+            Console.WriteLine("██ 형태소 민감도 (수련 " + sessions + "회) — 한 글자만 바꿔 " + FightsPerMatchup + "전 ██");
+
+            // 같은 카테고리 안은 서로 교체해 비교한다(카테고리당 1자 규칙 때문).
+            Compare("공격방식", "정", true, sessions, "벌", "참", "절", "단", "자", "창", "구", "타", "격", "박", "투", "척", "포", "사");
+            Compare("무공형태", "참", false, sessions, "정", "직", "중", "후", "쾌", "환", "궤", "유", "변");
+
+            // 선택 카테고리는 **넣음 vs 뺌** 으로 비교한다.
+            CompareOptional("수식", sessions, "속", "신", "급", "적", "확", "명", "광", "휘", "야", "암", "한", "현");
+            CompareOptional("자연속성", sessions, "풍", "뇌", "수", "화", "냉");
+            CompareOptional("상태이상", sessions, "독", "혈", "비", "염", "빙", "탈", "경");
+        }
+
+        /// <summary>같은 카테고리 형태소들을 서로 붙인다. 기준 글자 하나를 고정하고 나머지 한 자리를 바꾼다.</summary>
+        private static void Compare(string label, string fixedChar, bool varyFirst, int sessions, params string[] chars)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  ── " + label + " ──");
+
+            var rows = new List<KeyValuePair<string, double>>();
+            for (int i = 0; i < chars.Length; i++)
+            {
+                string name = varyFirst ? chars[i] + fixedChar : fixedChar + chars[i];
+                double sum = 0;
+                int n = 0;
+                for (int j = 0; j < chars.Length; j++)
+                {
+                    if (i == j) continue;
+                    string other = varyFirst ? chars[j] + fixedChar : fixedChar + chars[j];
+                    sum += Duel(name, other, sessions);
+                    n++;
+                }
+                rows.Add(new KeyValuePair<string, double>(chars[i], sum / n));
+            }
+            Report(rows);
+        }
+
+        /// <summary>선택 카테고리 — 그 글자를 넣은 무공 vs 안 넣은 무공.</summary>
+        private static void CompareOptional(string label, int sessions, params string[] chars)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  ── " + label + " (넣음 vs 뺌) ──");
+
+            var rows = new List<KeyValuePair<string, double>>();
+            for (int i = 0; i < chars.Length; i++)
+            {
+                rows.Add(new KeyValuePair<string, double>(chars[i], Duel("참정" + chars[i], "참정", sessions)));
+            }
+            Report(rows);
+        }
+
+        private static void Report(List<KeyValuePair<string, double>> rows)
+        {
+            rows.Sort((x, y) => y.Value.CompareTo(x.Value));
+            for (int i = 0; i < rows.Count; i++)
+            {
+                double rate = rows[i].Value * 100;
+                string flag = rate >= 65 ? "  ⚠ 지배적"
+                    : (rate >= 47 && rate <= 53) ? "  ⚠ 무의미"
+                    : "";
+                Console.WriteLine("     " + Pad(rows[i].Key, 4) + rate.ToString("F1").PadLeft(6) + "%" + flag);
+            }
+        }
+
+        /// <summary>두 무공명을 붙여 앞쪽의 승률을 낸다. 조합 규칙을 어기는 이름은 0.5(무효)로 돌린다.</summary>
+        private static double Duel(string nameA, string nameB, int sessions)
+        {
+            MartialArt a = TryBuild(nameA);
+            MartialArt b = TryBuild(nameB);
+            if (a == null || b == null) return 0.5;
+
+            return WinRate(ToCombatant(a, sessions), ToCombatant(b, sessions));
+        }
+
+        private static MartialArt TryBuild(string name)
+        {
+            MartialArt art;
+            IReadOnlyList<string> problems;
+            // 대문파급·정파·검으로 고정한다 — 비교 대상이 형태소 하나뿐이어야 하므로 나머지는 전부 같게 둔다.
+            MartialArtFactory.TryCreate(
+                "s_" + name, name, ArtKind.Attack, ArtTier.Major,
+                Discipline.Sword, Alignment.Orthodox, "화산파", 1, null, out art, out problems);
+            return art;
+        }
+
         // ─────────────────────────── 캐릭터 구성 ───────────────────────────
 
+        /// <summary>
+        /// ⚠⚠ 2026-07-30 스케일 전환. 정의서 §1-1 의 기본 능력치로 바꿨다.
+        ///
+        /// 이전에는 공격 20 · 방어 25 였는데, 그건 손으로 박은 위력 22~28 에 맞춘 값이었다.
+        /// **형태소 공격 합은 최대 5** 이므로 캐릭터 기본값도 정의서대로 1 이어야 균형이 맞는다.
+        /// → **2026-07-30 이전의 승률표 측정값은 전부 무의미하다**(HANDOFF §5-2).
+        /// </summary>
         private static CharacterStats Stats()
         {
-            return new CharacterStats(maxHealth: 200, maxQi: 40, attack: 20, defense: 25, agility: 12);
+            return new CharacterStats(maxHealth: 100, maxQi: 50, attack: 1, defense: 1, agility: 1);
         }
 
         private static Combatant ToCombatant(MartialArt art, int sessions)
         {
-            var arts = new List<LearnedArt> { new LearnedArt(art, sessions) };
+            // ⚠ 강호무학은 성향이 없어 익힌 사람의 성향이 필요하다. 측정에서는 정파로 고정한다 —
+            //   성향별 비교는 문파 무공으로 하고, 강호무학은 계층 비교용 표본일 뿐이다.
+            Alignment owner = art.Alignment ?? Alignment.Orthodox;
+
+            var arts = new List<LearnedArt> { new LearnedArt(art, sessions, owner) };
             // 한 무공을 수련하면 성향 숙련과 유형 숙달이 함께 오른다는 전제.
             var masteries = new List<DisciplineMastery> { new DisciplineMastery(art.Discipline, sessions) };
             return new Combatant(art.Name, Stats(), arts, masteries);
@@ -274,9 +386,9 @@ namespace Jianghu.Sandbox
             Console.WriteLine();
             Console.WriteLine("══════ 전투 로그 표본 (수련 " + sessions + "회, 시드 42) ══════");
 
-            // 성격이 가장 대비되는 둘: 마도 경직·마비(천마검결) vs 사파 중독(절명비도)
-            MartialArt aArt = MartialArtCatalog.ById("cm_geomgyeol");
-            MartialArt bArt = MartialArtCatalog.ById("sm_jeolmyeong");
+            // 성격이 가장 대비되는 둘: 마도 전승무학(마한중참) vs 사파 대문파(궤암척혈)
+            MartialArt aArt = MartialArtCatalog.ByName("마한중참");
+            MartialArt bArt = MartialArtCatalog.ByName("궤암척혈");
             if (aArt == null || bArt == null)
             {
                 Console.WriteLine("  ⚠ 표본 무공 ID 를 찾지 못했다. 카탈로그가 바뀌었는지 확인할 것.");
