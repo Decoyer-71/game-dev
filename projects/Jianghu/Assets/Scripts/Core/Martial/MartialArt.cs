@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Jianghu.Core.Martial.Morphemes;
 
 namespace Jianghu.Core.Martial
 {
@@ -73,17 +74,55 @@ namespace Jianghu.Core.Martial
         /// </summary>
         public IReadOnlyList<StatusApplication> Effects { get; }
 
+        /// <summary>
+        /// **형태소에서 유도된 수치 묶음.** 무공명을 분해해 얻는다(정의서 §0).
+        ///
+        /// ⚠⚠ 2026-07-30 신설. 이전에는 <see cref="BasePower"/> 같은 int 필드에 수치를
+        ///   **손으로 박아** 넣었는데, 형태소 체계로 넘어오면서 그 출처가 이름이 됐다.
+        ///   기존 필드는 레거시 카탈로그(`MartialArtCatalog` 36종)가 아직 쓰고 있어 남겨 뒀다 —
+        ///   두 경로가 공존하는 과도기이며, 카탈로그가 138종으로 교체되면 정리한다.
+        ///
+        /// ⚠ int 가 아니라 <see cref="ArtStatDelta"/>(double) 인 이유 — 정의서에 `+1.5`(찌르기)·
+        ///   `+0.5`(던지기)·`+0.3`(치명배율) 이 있어 정수로 자르면 정보가 사라진다.
+        /// </summary>
+        public ArtStatDelta Delta { get; }
+
+        /// <summary>형태소에서 유도된 무공인가. false 면 레거시(손으로 수치를 박은) 무공이다.</summary>
+        public bool IsMorphemeDerived { get; }
+
         /// <summary>이 무공의 접근성 계층. 문파명으로부터 유도된다. 무소속이면 강호무학.</summary>
         public SchoolTier Tier => SchoolCatalog.TierOf(School);
 
         private static readonly StatusApplication[] NoEffects = new StatusApplication[0];
 
+        /// <summary>
+        /// **형태소에서 유도해 만든다.** 무공명을 분해한 결과를 그대로 받는다.
+        ///
+        /// ⚠ 수치를 인자로 받지 않는 것이 요점이다 — 수치의 출처는 오직 이름이다(정의서 §0).
+        ///   조합 규칙 검사는 호출자(`MartialArtFactory`)가 이미 통과시킨 뒤에 부른다.
+        /// </summary>
+        public static MartialArt FromMorphemes(
+            string id, string name, string school, Discipline discipline, Alignment? alignment,
+            ArtStatDelta delta, int qiCost, int hitCount = 1, params StatusApplication[] effects)
+        {
+            if (hitCount < 1) throw new ArgumentOutOfRangeException(nameof(hitCount), "타격 횟수는 1 이상이어야 한다.");
+
+            return new MartialArt(
+                id, name, school, discipline, alignment,
+                basePower: 0, qiCost: qiCost, hitCount: hitCount, accuracyBonus: 0,
+                maxQiBonus: 0, powerBonusPercent: 0, evasionBonus: 0, initiativeBonus: 0,
+                effects: effects, delta: delta, morphemeDerived: true);
+        }
+
         private MartialArt(
             string id, string name, string school, Discipline discipline, Alignment? alignment,
             int basePower, int qiCost, int hitCount, int accuracyBonus,
             int maxQiBonus, int powerBonusPercent, int evasionBonus, int initiativeBonus,
-            StatusApplication[] effects)
+            StatusApplication[] effects,
+            ArtStatDelta delta = default, bool morphemeDerived = false)
         {
+            Delta = delta;
+            IsMorphemeDerived = morphemeDerived;
             if (string.IsNullOrEmpty(id)) throw new ArgumentException("무공 Id 는 비어 있을 수 없다.", nameof(id));
             if (string.IsNullOrEmpty(name)) throw new ArgumentException("무공 이름은 비어 있을 수 없다.", nameof(name));
 

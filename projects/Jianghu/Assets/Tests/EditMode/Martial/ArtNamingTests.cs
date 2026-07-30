@@ -649,6 +649,189 @@ namespace Jianghu.Tests.Martial
             }
         }
 
+        // ─────────────────────────── 대형세력 16종 (4세력 × 4) ───────────────────────────
+
+        /// <summary>
+        /// 대형세력 4곳 × 4종(공격 2 · 내공 1 · 경공 1) = 16종. 정의서 §5-5.
+        ///
+        /// **급은 대문파급**(성능 형태소 3~4). 문파+세력 이중 조건이라 난이도가 대문파에 준한다.
+        /// ⚠ 계층을 늘리지 않는다 — 계층은 수직축(얼마나 얻기 어려운가)이고 세력은 수평축(어느 경로로 얻는가)이다.
+        ///
+        /// 세력도 문파처럼 **무학분류**를 갖는다(상성이 갈 곳). 그리고 축을 하나씩 나눠 가진다 —
+        /// 무림맹 상성 · 사도련 광역 · 제천성 가중치 · 천마신교 광역.
+        ///
+        /// ⚠⚠ **천마신교는 문파 무공과 세력 무공의 성격이 다르다.** 문파로서는 무거움·경직·순수 위력이고,
+        ///   세력으로서는 기만·마비·광역이다. 두 층이 같은 조직인데도 다른 얼굴을 갖는다.
+        /// </summary>
+        private static readonly Draft[] FactionArts =
+        {
+            // ── 무림맹 (정파 연맹체 · 양기무학 · 창·검) ── 【상성】
+            // 특징: '정직한' '찌르기' 창술과 '베기' 검술이 특징인 연맹. 색은 밝음(明·光).
+            new Draft("무림맹", "명정자탈", ArtKind.Attack),    // 明正刺奪 — 밝고 정직하게 찔러 기력을 뺏는다
+            new Draft("무림맹", "절지낙월", ArtKind.Attack),    // 截地落月 — 땅을 베어 달을 떨어뜨린다 [상성 음기]
+            new Draft("무림맹", "광양직공", ArtKind.Internal),  // 光陽直功
+            new Draft("무림맹", "방직명보", ArtKind.Movement),  // 防直明步
+
+            // ── 사도련 (사파 연맹체 · 음기무학 · 비도·도) ── 【광역】
+            // 특징: '기만적인' '던지기' 암기술과 '베기' 도법 + 출혈이 특징인 연맹. 색은 밤(夜)·차가움(寒).
+            new Draft("사도련", "궤야척혈", ArtKind.Attack),    // 詭夜擲血 — 밤에 속여 던져 피를 낸다
+            new Draft("사도련", "환벌혈군", ArtKind.Attack),    // 幻伐血群 — 현혹하며 베어 무리에게 피를 낸다 [광역 3인]
+            new Draft("사도련", "한음궤공", ArtKind.Internal),  // 寒陰詭功
+            new Draft("사도련", "둔궤야보", ArtKind.Movement),  // 遁詭夜步
+
+            // ── 제천성 (황실 산하 기관 · 혼합무학 · 검·권) ── 【가중치】
+            // 특징: '무거운' '베기' 검술과 '때리기' 권법 + 경직이 특징인 관부 기관. 색은 차가움(冷).
+            // ⚠⚠ 정·사·마 출신을 다 받는 유일한 세력이라 분류도 **혼합**이다.
+            //   경직(硬)을 쓰는 것은 포박·제압이 관의 일이기 때문이다.
+            new Draft("제천성", "중냉참경", ArtKind.Attack),    // 重冷斬硬 — 무겁고 차갑게 베어 굳게 만든다
+            new Draft("제천성", "후명격경", ArtKind.Attack),    // 厚明擊硬 — 두텁고 밝게 쳐서 굳게 만든다
+            new Draft("제천성", "냉음중공", ArtKind.Internal),  // 冷陰重功
+            new Draft("제천성", "거후명보", ArtKind.Movement),  // 拒厚明步
+
+            // ── 천마신교 (문파 겸 마도 연맹체 · 음기무학 · 검·권) ── 【광역】
+            // 특징: '기만적인' '베기' 검술과 '때리기' 권법 + 마비가 특징인 마교. 색은 밤(夜)·어둠(暗).
+            // ⚠ 문파 무공(무거움·경직·순수 위력)과 **일부러 다르게** 잡았다. 같은 조직의 다른 얼굴이다.
+            new Draft("천마신교", "환야참비", ArtKind.Attack),  // 幻夜斬痺 — 어둠 속에서 현혹해 베고 마비시킨다
+            new Draft("천마신교", "궤격비전", ArtKind.Attack),  // 詭擊痺全 — 속여 쳐서 전원을 마비시킨다 [광역 전원]
+            new Draft("천마신교", "암음환결", ArtKind.Internal),// 暗陰幻訣
+            new Draft("천마신교", "섬환야술", ArtKind.Movement),// 閃幻夜術
+        };
+
+        [Test]
+        public void 대형세력_열여섯종이_조합_규칙을_지킨다()
+        {
+            foreach (Draft draft in FactionArts)
+            {
+                ParsedArtName parsed;
+                IReadOnlyList<string> problems;
+
+                Assert.IsTrue(MorphemeParser.TryParse(draft.Name, draft.Kind, out parsed, out problems),
+                    "{0} 의 {1} 을(를) 분해하지 못했다: {2}",
+                    draft.School, draft.Name, string.Join(" · ", problems));
+
+                // 세력 무공은 대문파급이다 — 광역은 허용되고 극한경지는 허용되지 않는다.
+                IReadOnlyList<ArtRuleViolation> violations = ArtCompositionRule.Validate(parsed, ArtTier.Major);
+
+                var messages = new List<string>();
+                for (int i = 0; i < violations.Count; i++) messages.Add(violations[i].Message);
+                Assert.AreEqual(0, violations.Count,
+                    "{0} 의 {1} 이(가) 규칙을 어긴다: {2}",
+                    draft.School, draft.Name, string.Join(" · ", messages));
+            }
+        }
+
+        [Test]
+        public void 대형세력은_네_곳이_각각_공격둘_내공하나_경공하나다()
+        {
+            var counts = new Dictionary<string, Dictionary<ArtKind, int>>();
+            foreach (Draft draft in FactionArts)
+            {
+                if (!counts.ContainsKey(draft.School)) counts[draft.School] = new Dictionary<ArtKind, int>();
+                Dictionary<ArtKind, int> byKind = counts[draft.School];
+                byKind[draft.Kind] = byKind.ContainsKey(draft.Kind) ? byKind[draft.Kind] + 1 : 1;
+            }
+
+            Assert.AreEqual(4, counts.Count, "대형세력은 4곳이다.");
+            foreach (KeyValuePair<string, Dictionary<ArtKind, int>> faction in counts)
+            {
+                Assert.AreEqual(2, Count(faction.Value, ArtKind.Attack), "{0} 의 공격 무공", faction.Key);
+                Assert.AreEqual(1, Count(faction.Value, ArtKind.Internal), "{0} 의 내공 무공", faction.Key);
+                Assert.AreEqual(1, Count(faction.Value, ArtKind.Movement), "{0} 의 경공 무공", faction.Key);
+            }
+        }
+
+        [Test]
+        public void 대형세력_무공은_대문파급이고_극한경지가_없다()
+        {
+            // 정의서 §5-5 — 급은 대문파급(성능 3~4). 전승무학이 없는 대신 **절대경지의 첫 통로**가 보상이다.
+            foreach (Draft draft in FactionArts)
+            {
+                ParsedArtName parsed = MorphemeParser.Parse(draft.Name, draft.Kind);
+
+                Assert.GreaterOrEqual(parsed.EffectiveMorphemeCount, 3, "{0} 의 성능 형태소", draft.Name);
+                Assert.LessOrEqual(parsed.EffectiveMorphemeCount, 4, "{0} 의 성능 형태소", draft.Name);
+                Assert.AreEqual(0, parsed.CountOf(MorphemeCategory.Pinnacle),
+                    "{0} 에 극한경지가 들어갔다 — 전승무학 전용이다.", draft.Name);
+            }
+        }
+
+        // ─────────────────────────── 절대경지 4종 ───────────────────────────
+
+        /// <summary>
+        /// 절대경지 무학 4종 — 기연(奇緣)으로만 얻는다. 정의서 §5-3.
+        ///
+        /// **⚠⚠ 전부 내공 무공이다** (2026-07-30 결정). 정의서 §5-3 이 *"수치로 강하게 만들지 않는다.
+        ///   대신 규칙을 바꾼다"* 고 못박았는데, **공격 무공은 위력 수치가 본체**라 서로 맞지 않는다.
+        ///   공격 무공으로 만들면 전승무학보다 수치가 낮은 "절세무공" 이 나와 이름값을 못 한다.
+        ///
+        /// **그리고 내공으로 두는 쪽이 오히려 더 화려하다** — "한 턴 2회 행동" 이 붙으면
+        ///   두 번 나가는 것은 절대경지가 아니라 **플레이어가 10성까지 올린 자기 무공**이다.
+        ///   공격 무공으로 만들면 그것만 쓰게 되어 134개를 지은 의미가 사라지고,
+        ///   §5-3 이 경계한 *"전승무학을 압도하면 문파 성장 경로가 무의미해진다"* 가 그대로 일어난다.
+        ///
+        /// ⚠ 규칙 변경 4종은 형태소가 아니라 **별도 플래그**로 붙는다(설계안 §3-4).
+        ///   그래서 이름은 다른 무공과 **똑같은 방식**으로 짓는다 — 작명 규칙을 새로 만들지 않았다.
+        /// ⚠ 극한경지는 쓸 수 없다. 정의서 §5-2 가 전승무학 전용으로 못박았고 절대경지는 별개 계층이다.
+        /// </summary>
+        private static readonly Draft[] AbsoluteArts =
+        {
+            // 규칙 변경: 모든 상태이상 면역 — 사파·마도를 무력화한다.
+            // 양기의 정광(正光)이 사기(邪氣)를 물리친다는 그림.
+            new Draft("절대경지", "정합광일", ArtKind.Internal),  // 正合光日 [양기무학]
+
+            // 규칙 변경: 기력을 소모하지 않음 — 평타 전락이 영원히 사라진다.
+            // 숨(息)이 물처럼 부드럽게 순환한다는 그림.
+            new Draft("절대경지", "식유수혼", ArtKind.Internal),  // 息柔水混 [혼합무학]
+
+            // 규칙 변경: 한 턴에 2회 행동 — 행동 경제를 깬다.
+            // 그림자처럼 빠르다. 쾌(속도+2)와 신(속도+2)이 겹쳐 속도 4 가 되는 것도 그림과 맞는다.
+            new Draft("절대경지", "음쾌신월", ArtKind.Internal),  // 陰快迅月 [음기무학]
+
+            // 규칙 변경: 모든 분류에 상성 +2, 상대 상성 무효 — 상성 절대우위.
+            // 합(合)과 혼(混)이 "모든 것을 아우른다" 를 그대로 말한다.
+            new Draft("절대경지", "합현혼유", ArtKind.Internal),  // 合玄混柔 [혼합무학]
+        };
+
+        [Test]
+        public void 절대경지_네종이_조합_규칙을_지킨다()
+        {
+            foreach (Draft draft in AbsoluteArts)
+            {
+                ParsedArtName parsed;
+                IReadOnlyList<string> problems;
+
+                Assert.IsTrue(MorphemeParser.TryParse(draft.Name, draft.Kind, out parsed, out problems),
+                    "{0} 을(를) 분해하지 못했다: {1}", draft.Name, string.Join(" · ", problems));
+
+                IReadOnlyList<ArtRuleViolation> violations = ArtCompositionRule.Validate(parsed, ArtTier.Absolute);
+
+                var messages = new List<string>();
+                for (int i = 0; i < violations.Count; i++) messages.Add(violations[i].Message);
+                Assert.AreEqual(0, violations.Count,
+                    "{0} 이(가) 규칙을 어긴다: {1}", draft.Name, string.Join(" · ", messages));
+            }
+        }
+
+        [Test]
+        public void 절대경지는_전부_내공_무공이다()
+        {
+            // ⚠⚠ 이 테스트가 2026-07-30 설계 결정을 고정한다.
+            //   공격 무공으로 만들면 ⓐ 위력이 전승무학보다 낮아 초라해지고
+            //   ⓑ 그것만 쓰게 되어 나머지 134종이 죽는다.
+            foreach (Draft draft in AbsoluteArts)
+            {
+                Assert.AreEqual(ArtKind.Internal, draft.Kind, "{0} 이(가) 내공 무공이 아니다.", draft.Name);
+
+                ParsedArtName parsed = MorphemeParser.Parse(draft.Name, draft.Kind);
+                Assert.AreEqual(4, parsed.EffectiveMorphemeCount,
+                    "{0} 의 성능 형태소가 4가 아니다 — 절대경지는 최상위다.", draft.Name);
+                Assert.AreEqual(0, parsed.CountOf(MorphemeCategory.Pinnacle),
+                    "{0} 에 극한경지가 들어갔다 — 전승무학 전용이다(정의서 §5-2).", draft.Name);
+                Assert.AreEqual(0, parsed.BackgroundCount,
+                    "{0} 에 배경어가 들어갔다 — 성능이 3으로 줄어 대문파급이 된다.", draft.Name);
+            }
+        }
+
         [Test]
         public void 문파_무공은_이름이_겹치지_않는다()
         {
@@ -657,10 +840,11 @@ namespace Jianghu.Tests.Martial
             foreach (Draft draft in MinorSchoolArts) Assert.IsTrue(seen.Add(draft.Name), "{0} 이(가) 중복이다.", draft.Name);
             foreach (Draft draft in MajorSchoolArts) Assert.IsTrue(seen.Add(draft.Name), "{0} 이(가) 중복이다.", draft.Name);
             foreach (Draft draft in LegacyArts) Assert.IsTrue(seen.Add(draft.Name), "{0} 이(가) 중복이다.", draft.Name);
+            foreach (Draft draft in FactionArts) Assert.IsTrue(seen.Add(draft.Name), "{0} 이(가) 중복이다.", draft.Name);
+            foreach (Draft draft in AbsoluteArts) Assert.IsTrue(seen.Add(draft.Name), "{0} 이(가) 중복이다.", draft.Name);
 
-            // 강호 9 + 소문파 28 + 대문파 72 + 전승 9 = 118.
-            // 남은 것은 절대경지 4 + 대형세력 16 = 20 → 최종 138.
-            Assert.AreEqual(118, seen.Count, "지금까지 지은 무공명 수");
+            // ✅ 강호 9 + 소문파 28 + 대문파 72 + 전승 9 + 대형세력 16 + 절대경지 4 = **138. 전부 지었다.**
+            Assert.AreEqual(138, seen.Count, "무공명 총수 — 정의서 §5-4 의 138 과 맞아야 한다");
         }
 
         private static int Count(Dictionary<ArtKind, int> byKind, ArtKind kind)
