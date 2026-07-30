@@ -315,13 +315,15 @@ namespace Jianghu.Sandbox
             }
         }
 
-        private static string Short(Alignment a)
+        /// <summary>⚠ 성향이 null 이면 강호무학이다 — 익힌 사람의 성향을 따르므로 무공 자체에는 성향이 없다.</summary>
+        private static string Short(Alignment? a)
         {
             switch (a)
             {
                 case Alignment.Orthodox: return "정";
                 case Alignment.Unorthodox: return "사";
                 case Alignment.Demonic: return "마";
+                case null: return "-";
                 default: return "?";
             }
         }

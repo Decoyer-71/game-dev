@@ -167,7 +167,9 @@ namespace Jianghu.Core.Combat
                            - StaggerPenalty(actor);                                          // 자기가 경직이면 빗나간다
             int hitChance = Clamp(BaseHitChance + accuracy - target.Def.Evasion, MinHitChance, MaxHitChance);
 
-            int variance = AlignmentCurve.DamageVariancePercent(chosen.Art.Alignment);
+            // ⚠ 무공 자신의 성향이 아니라 **유효 성향**을 쓴다 — 강호무학은 성향이 없고
+            //   익힌 사람의 성향을 따르기 때문이다(2026-07-30 결정).
+            int variance = AlignmentCurve.DamageVariancePercent(chosen.EffectiveAlignment);
 
             int landed = 0;
             int damage = 0;

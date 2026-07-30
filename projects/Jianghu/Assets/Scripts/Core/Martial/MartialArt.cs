@@ -28,7 +28,22 @@ namespace Jianghu.Core.Martial
         public string School { get; }
 
         public Discipline Discipline { get; }
-        public Alignment Alignment { get; }
+
+        /// <summary>
+        /// 이 무공의 성향(正邪魔). **null 이면 성향이 없다 — 강호무학이 그렇다.**
+        ///
+        /// ⚠⚠ 2026-07-30 결정. 성향 배타 규칙(정파 무공을 배우면 사파·마도를 못 배운다)이 들어오면서
+        ///   강호무학에 성향을 박아 두면 **`절정검법` 하나 배우는 순간 성향이 확정**된다.
+        ///   정의서 §5-1 이 강호무학을 *"무소속 낭인의 무학. 시작점이자 최후의 보루"* 라고 한 것과 어긋난다.
+        ///
+        /// 그래서 강호무학은 성향을 갖지 않고 **익힌 사람의 성향을 따라 자란다**
+        /// (<see cref="LearnedArt.EffectiveAlignment"/>). 시작점에서 성향이 강제되지 않고,
+        /// 어느 성향이 되든 계속 쓸 수 있어 "최후의 보루" 가 말 그대로 성립한다.
+        /// </summary>
+        public Alignment? Alignment { get; }
+
+        /// <summary>성향이 없는 무공인가(강호무학). 익힌 사람의 성향을 따른다.</summary>
+        public bool IsAlignmentFree => Alignment == null;
 
         // ── 공격 초식용 ──
         /// <summary>기본 위력. 숙련 배율이 여기에 곱해진다.</summary>
@@ -64,7 +79,7 @@ namespace Jianghu.Core.Martial
         private static readonly StatusApplication[] NoEffects = new StatusApplication[0];
 
         private MartialArt(
-            string id, string name, string school, Discipline discipline, Alignment alignment,
+            string id, string name, string school, Discipline discipline, Alignment? alignment,
             int basePower, int qiCost, int hitCount, int accuracyBonus,
             int maxQiBonus, int powerBonusPercent, int evasionBonus, int initiativeBonus,
             StatusApplication[] effects)
@@ -90,7 +105,7 @@ namespace Jianghu.Core.Martial
 
         /// <summary>공격 초식을 만든다. 유형은 검·도·권 중 하나여야 한다.</summary>
         public static MartialArt Technique(
-            string id, string name, Discipline discipline, Alignment alignment,
+            string id, string name, Discipline discipline, Alignment? alignment,
             int basePower, int qiCost, int hitCount = 1, int accuracyBonus = 0, string school = null,
             params StatusApplication[] effects)
         {
@@ -107,7 +122,7 @@ namespace Jianghu.Core.Martial
 
         /// <summary>보조 무공을 만든다. 유형은 내공·경공 중 하나여야 한다.</summary>
         public static MartialArt Support(
-            string id, string name, Discipline discipline, Alignment alignment,
+            string id, string name, Discipline discipline, Alignment? alignment,
             int maxQiBonus = 0, int powerBonusPercent = 0, int evasionBonus = 0, int initiativeBonus = 0,
             string school = null)
         {
