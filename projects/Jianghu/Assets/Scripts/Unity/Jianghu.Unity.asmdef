@@ -1,0 +1,16 @@
+{
+    "name": "Jianghu.Unity",
+    "rootNamespace": "Jianghu.Unity",
+    "references": [
+        "Jianghu.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

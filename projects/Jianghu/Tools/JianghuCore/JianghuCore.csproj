@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Assets/Scripts/Core 의 소스를 '복사하지 않고 링크로' 컴파일한다.
+    소스의 원본은 어디까지나 Assets 아래이고, 이 프로젝트는 Unity 없이 컴파일·테스트하기 위한 통로일 뿐이다.
+
+    TargetFramework 를 netstandard2.1 로 잡은 것이 핵심이다.
+    Unity 6 의 API 프로파일이 .NET Standard 2.1 이라, 여기서 통과하면 Unity 에서도 통과할 가능성이 높다.
+    net8.0 으로 잡으면 Unity 에 없는 API 를 써도 dotnet 은 통과해버려서, 'dotnet 은 되는데 Unity 에서 깨지는'
+    가장 짜증나는 실패가 생긴다. LangVersion 9.0 도 같은 이유다(Unity 6 = C# 9).
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>Jianghu.Core</AssemblyName>
+    <RootNamespace>Jianghu.Core</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\Assets\Scripts\Core\**\*.cs" LinkBase="Core" />
+  </ItemGroup>
+
+</Project>

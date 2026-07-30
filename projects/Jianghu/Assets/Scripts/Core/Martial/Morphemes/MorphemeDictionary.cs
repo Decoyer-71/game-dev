@@ -1,0 +1,290 @@
+using System;
+using System.Collections.Generic;
+
+namespace Jianghu.Core.Martial.Morphemes
+{
+    /// <summary>
+    /// 형태소 사전 — **정의서 §3 을 코드로 옮기는 유일한 지점이다.**
+    ///
+    /// 다른 어디에도 형태소 수치를 적지 않는다. 무공 122개의 수치가 전부 이 파일에서 나오므로,
+    /// 여기가 정의서와 어긋나면 게임 전체가 어긋난다. 수정할 때는 반드시 정의서를 먼저 고친다
+    /// (정의서 머리말: *"이 문서가 무공 리소스의 유일한 진실의 원천이다"*).
+    ///
+    /// ── 배경어 규제 4조 (2026-07-29 사용자 요구) ────────────────────────────────
+    /// 배경어는 수치도 비용도 0 인 중립 글자라, 규제가 없으면 "공짜로 이름을 길게 만드는 장치" 가 된다.
+    ///
+    ///   **R1  배경어는 화이트리스트다.** 등록된 글자만 배경어이고 미등록 글자는 예외다.
+    ///   **R2  무공당 배경어 최대 1자** (파서 층에서 강제 · 설계안 §4 3단계)
+    ///   **R3  배경어만으로 필수 카테고리를 대체할 수 없다** (필수 규칙이 이미 강제하나 테스트로 고정)
+    ///   **R4  배경어 추가는 형태소 추가보다 엄격하게.** 추가할 때마다 *"이 글자는 정말 수치가
+    ///         없어야 하는가"* 를 먼저 답하고 근거를 설계안에 남긴다
+    ///
+    /// ⚠⚠ **R1 하나가 나머지 셋을 합친 것보다 중요하다.** 배경어를 "사전에 없는 글자" 로 정의하면
+    ///   파서가 모르는 글자를 전부 조용히 삼킨다. 그러면 ⓐ 오타가 검출되지 않고
+    ///   ⓑ **사전에 추가했어야 할 형태소가 배경어로 묻히며** ⓒ 역산 리포트(설계안 §5-2)가
+    ///   통째로 무의미해진다. 정의서가 75자를 공들여 고른 이유가 거기서 증발한다.
+    ///   그래서 <see cref="TryGet"/> 은 미등록 글자에 대해 **false 를 돌려주고**, 파서가 예외를 던진다.
+    /// ────────────────────────────────────────────────────────────────────────────
+    /// </summary>
+    public static class MorphemeDictionary
+    {
+        // ─────────────────────────── 형태소 75자 (정의서 §3) ───────────────────────────
+
+        private static readonly Morpheme[] MorphemeList = BuildMorphemes();
+
+        private static Morpheme[] BuildMorphemes()
+        {
+            var list = new List<Morpheme>();
+
+            // 한 행에 여러 글자가 같은 수치를 갖는 정의서 표 구조를 그대로 옮긴다.
+            // 표의 행 하나 = 아래 호출 하나가 되도록 맞춘 것이며, 옮겨 적는 실수를 줄이는 것이 목적이다.
+            void Row(
+                string korean, string hanja, string meaning, MorphemeCategory category, ArtStatDelta delta,
+                ArtLineage lineage = ArtLineage.None, bool isNegation = false, bool doublesFormEffect = false,
+                AttackScope scope = AttackScope.Single)
+            {
+                if (korean.Length != hanja.Length)
+                {
+                    throw new InvalidOperationException(
+                        "형태소 행 '" + meaning + "' 의 한글(" + korean.Length + "자)과 한자(" + hanja.Length + "자) 개수가 다르다.");
+                }
+
+                for (int i = 0; i < korean.Length; i++)
+                {
+                    list.Add(new Morpheme(
+                        korean[i], hanja[i], meaning, category, delta, lineage, isNegation, doublesFormEffect, scope));
+                }
+            }
+
+            // ── §3-1 공격 방식 (14자) · 택 1 · **공격 무공 필수** ──
+            Row("벌참절단", "伐斬截斷", "베기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 2));
+            Row("자창", "刺槍", "찌르기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 1.5, speed: 0.5));
+            Row("구타격박", "毆打擊拍", "때리기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 1, speed: 1));
+            Row("투척포사", "投擲拋射", "던지기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 0.5, speed: 1.5));
+
+            // ── §3-2 방어 (11자) · 택 1 · **경공 무공 필수** ──
+            Row("방거항어호", "防拒抗禦護", "막기", MorphemeCategory.Defense, ArtStatDelta.Of(defense: 2, blockChance: 10));
+            Row("피둔섬", "避遁閃", "회피", MorphemeCategory.Defense, ArtStatDelta.Of(evasion: 15));
+            Row("반역응", "反逆應", "반격", MorphemeCategory.Defense, ArtStatDelta.Of(defense: 1, counterRate: 10));
+            // ⚠ 종교 형태소 (2026-07-30). 소림사(불교)를 다른 문파와 구별하는 글자다.
+            //   **기존 축의 복제가 아니라 새 자리여야 한다** — 방어군 5자는 전부 페널티가 없는데
+            //   계(戒)만 페널티를 갖는다. 막기에 극단적으로 몰되 속도를 판다.
+            //   근거: 지계(持戒)는 육바라밀의 하나로 "지켜서 막는" 개념이다. ⚠ 무협 사용례는 미검증.
+            Row("계", "戒", "지계", MorphemeCategory.Defense, ArtStatDelta.Of(blockChance: 25, speed: -2));
+
+            // ── §3-3 내공 (3자) · 택 1 · **내공 무공 필수** ──
+            Row("양", "陽", "양기", MorphemeCategory.Internal, ArtStatDelta.Of(maxQi: 10));
+            Row("음", "陰", "음기", MorphemeCategory.Internal, ArtStatDelta.Of(qiRegen: 2));
+            Row("합", "合", "합일", MorphemeCategory.Internal, ArtStatDelta.Of(maxQi: 5, qiRegen: 0.5));
+            // ⚠ 종교 형태소 (2026-07-30). 도교의 조식(調息)이자 불교의 호흡 수련이라 소림·무당 공통이다.
+            //   **내공 3자는 전부 기력의 양(量)을 다루는데 식(息)만 소모율을 다룬다** — 새 자리다.
+            //   극한경지 선(仙, −30%)의 일반형 하위 단계이기도 하다.
+            Row("식", "息", "조식", MorphemeCategory.Internal, ArtStatDelta.Of(qiCostPercent: -10, maxQi: 3));
+
+            // ── §3-4 상태이상 (7자) ──
+            Row("독", "毒", "중독", MorphemeCategory.Status, ArtStatDelta.Of(poisonChance: 10));
+            Row("혈", "血", "출혈", MorphemeCategory.Status, ArtStatDelta.Of(bleedChance: 10));
+            Row("비", "痺", "마비", MorphemeCategory.Status, ArtStatDelta.Of(paralysisStack: 1));
+            Row("염", "炎", "화상", MorphemeCategory.Status, ArtStatDelta.Of(burnChance: 10));
+            Row("빙", "氷", "동상", MorphemeCategory.Status, ArtStatDelta.Of(frostbiteChance: 10));
+            // ⚠⚠ 아래 2자는 2026-07-29 추가분이다(정의서 원안 5자 → 7자).
+            //   추가 근거: 엔진 `StatusEffectKind` 는 5종인데 형태소는 그중 3종만 가리킬 수 있었다.
+            //   그래서 **정파에 배정된 기력소실과 마도의 경직을 무공명으로 표현할 수 없었고**,
+            //   정파 7문파가 상태이상 형태소를 하나도 쓰지 못하는 상태였다.
+            //   무공명을 실제로 지어보고서야 드러난 구멍이다(`docs/martial-art-naming.md` §4).
+            //   ✅ 한글 '탈'·'경' 은 기존 75자에 없어 충돌이 없다.
+            Row("탈", "奪", "기력소실", MorphemeCategory.Status, ArtStatDelta.Of(qiDrainChance: 10));
+            Row("경", "硬", "경직", MorphemeCategory.Status, ArtStatDelta.Of(staggerChance: 10));
+
+            // ── §3-5 무공형태 (9자) · 택 1 · **공격 무공 필수** ──
+            // ⚠ 5종 전부 페널티가 있고, 그게 의도다(정의서 §2-2). 페널티 없는 상위호환이 다른
+            //   카테고리에 있으므로 선택제로 두면 아무도 고르지 않는다.
+            Row("정직", "正直", "정직", MorphemeCategory.Form, ArtStatDelta.Of(attack: 2, accuracy: -2));
+            Row("중후", "重厚", "무거움", MorphemeCategory.Form, ArtStatDelta.Of(attack: 2, speed: -2));
+            Row("쾌", "快", "빠름", MorphemeCategory.Form, ArtStatDelta.Of(speed: 2, accuracy: -2));
+            Row("환궤", "幻詭", "기만", MorphemeCategory.Form, ArtStatDelta.Of(accuracy: 2, attack: -2));
+            Row("유변", "柔變", "변화", MorphemeCategory.Form, ArtStatDelta.Of(accuracy: 2, speed: -2));
+
+            // ── §3-6 수식 (11자) · 택 1 ──
+            // 밝다/어둡다의 대비가 정의서 §1-2 용어 정리의 산물이다 — 밝다 = 자주 터진다(치명률),
+            // 어둡다 = 크게 터진다(치명배율).
+            Row("속신급", "速迅急", "빠르다", MorphemeCategory.Modifier, ArtStatDelta.Of(speed: 2));
+            Row("적확", "的確", "맞히다", MorphemeCategory.Modifier, ArtStatDelta.Of(accuracy: 2));
+            Row("명광휘", "明光輝", "밝다", MorphemeCategory.Modifier, ArtStatDelta.Of(critChance: 10));
+            Row("야암한", "夜暗寒", "어둡다", MorphemeCategory.Modifier, ArtStatDelta.Of(critMultiplier: 0.3));
+            // ⚠ 종교 형태소 (2026-07-30). 무당파(도교)를 구별하는 글자다. 노자 「玄之又玄」.
+            //   **수식 11자는 전부 페널티가 없는데 현(玄)만 페널티를 갖는다.** 그리고 수식 카테고리에
+            //   회피 축이 들어오는 것도 처음이다 — 두 겹으로 새 자리다.
+            //   "종잡을 수 없으나 나 또한 상대를 놓친다."  ⚠ 무협 사용례는 미검증.
+            Row("현", "玄", "현묘", MorphemeCategory.Modifier, ArtStatDelta.Of(evasion: 10, accuracy: -1));
+
+            // ── §3-7 자연속성 (5자) · 택 1 ──
+            // ⚠ 원안은 "꾸밈말이라 의미 없음" 이었으나 +1 수준의 수치를 준다. 이 시스템의 핵심 가치가
+            //   "이름에서 성능을 읽는다" 인데 의미 없는 글자가 섞이면 그 원칙이 깨지기 때문이다.
+            //   화(火)는 약한 꾸밈, 염(炎)은 실제 화상 — 한자 의미로도 짝이 맞는다.
+            Row("풍", "風", "바람", MorphemeCategory.Element, ArtStatDelta.Of(speed: 1));
+            Row("뇌", "雷", "벼락", MorphemeCategory.Element, ArtStatDelta.Of(critChance: 5));
+            Row("수", "水", "물", MorphemeCategory.Element, ArtStatDelta.Of(qiRegen: 1));
+            Row("화", "火", "불", MorphemeCategory.Element, ArtStatDelta.Of(attack: 1));
+            Row("냉", "冷", "차가움", MorphemeCategory.Element, ArtStatDelta.Of(accuracy: 1));
+
+            // ── §3-8 극한경지 (9자) · **전승무학 전용 · 무공당 1자** (정의서 §5-2) ──
+            // ⚠⚠ 이 9자만 페널티가 없다. 제약이 없으면 무조건 이득이 되므로 계층·개수 제한이
+            //   페널티를 대신한다. 제약은 파서 층에서 강제한다(설계안 §4 3단계).
+            Row("존", "尊", "지존", MorphemeCategory.Pinnacle, ArtStatDelta.Of(speed: 3, attack: 3, accuracy: 2));
+            Row("제", "帝", "황제", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 2, defense: 2, accuracy: 2, speed: 2));
+            Row("마", "魔", "천마", MorphemeCategory.Pinnacle, ArtStatDelta.Of(defenseIgnore: 20, attack: 2));
+            Row("패", "霸", "패도", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 3, critMultiplier: 0.3, critChance: 5));
+            Row("성", "聖", "검성", MorphemeCategory.Pinnacle, ArtStatDelta.Of(defense: 3, blockChance: 15, statusResist: 20));
+            Row("선", "仙", "검선", MorphemeCategory.Pinnacle, ArtStatDelta.Of(maxQi: 20, qiRegen: 3, qiCostPercent: -30));
+            Row("왕", "王", "검왕", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 2, defense: 2, statusApplyBonus: 15));
+            Row("황", "皇", "검황", MorphemeCategory.Pinnacle, ArtStatDelta.Of(accuracy: 3, critChance: 15));
+            // 종(宗)만 수치가 아니라 규칙을 만진다 — 무공형태 효과를 페널티까지 함께 2배로 키운다.
+            Row("종", "宗", "종주", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 1), doublesFormEffect: true);
+
+            // ── §3-9 부정 (5자) · 자체 수치 없음 ──
+            Row("낙망멸산소", "落亡滅散消", "부정", MorphemeCategory.Negation, ArtStatDelta.Zero, isNegation: true);
+
+            // ── §3-12 범위 (4자) · 택 1 · **공격 무공 전용 · 대문파 이상 전용** (2026-07-30 신설) ──
+            // ⚠⚠ 대가가 이 카테고리의 본체다. 대가가 없으면 다대다 전투가 생기는 순간
+            //   모든 무공이 광역이 되어 "광역이냐 단일이냐" 라는 선택이 사라진다.
+            //   대가를 **두 축으로 갈랐다** — 전(全)은 위력을 팔고, 만(萬)은 기력을 판다.
+            //   그래서 전원 타격 두 글자가 성능이 아니라 **성격**으로 구분된다.
+            // ⚠ 최대 공격 합은 공격방식2 + 무공형태2 + 자연1 = 5 다. 전(全)의 −3 이면 2 가 남는다.
+            //   즉 전원을 때리되 위력은 40% 수준이 된다.  ⚠ 전부 미검증 초기값이다.
+            Row("다", "多", "여럿", MorphemeCategory.Scope, ArtStatDelta.Of(attack: -1), scope: AttackScope.Two);
+            Row("군", "群", "무리", MorphemeCategory.Scope, ArtStatDelta.Of(attack: -2), scope: AttackScope.Three);
+            Row("전", "全", "전부", MorphemeCategory.Scope, ArtStatDelta.Of(attack: -3), scope: AttackScope.All);
+            // 만(萬) — 위력을 유지하는 대신 기력 소모가 3배가 된다(만인적萬人敵).
+            //   4자 무공 기준 16 → 48 이라 기력 50 으로 사실상 한 번 쓰고 고갈된다. 필살기 성격이다.
+            Row("만", "萬", "만인", MorphemeCategory.Scope, ArtStatDelta.Of(qiCostPercent: 200), scope: AttackScope.All);
+
+            // ── §3-10 무학분류 (3자) · 태그일 뿐 자체 수치 없음 ──
+            Row("일", "日", "양기무학", MorphemeCategory.Tag, ArtStatDelta.Zero, ArtLineage.Yang);
+            Row("월", "月", "음기무학", MorphemeCategory.Tag, ArtStatDelta.Zero, ArtLineage.Yin);
+            Row("혼", "混", "혼합무학", MorphemeCategory.Tag, ArtStatDelta.Zero, ArtLineage.Mixed);
+
+            return list.ToArray();
+        }
+
+        // ─────────────────────────── 배경어 화이트리스트 (R1) ───────────────────────────
+
+        /// <summary>
+        /// 배경어 사전. **1자로 시작한다 — 최소로 시작하는 것이 규제의 본체다** (R4).
+        ///
+        /// ⚠⚠ **정의서 §3-7 의 선언("의미 없는 글자가 섞이면 이름에서 성능을 읽는 원칙이 깨진다")과
+        ///   충돌한다.** 2026-07-29 결정 A 로 **배경어에 한해 그 문장을 무효화**했다. 정의서에 역반영이 필요하다.
+        ///
+        /// ⚠⚠ **중(中)은 배경어가 될 수 없다 (2026-07-29 구현 중 확인).**
+        ///   설계안은 초기 배경어를 천·중 2자로 잡았으나, 한글 '중' 은 이미 무공형태 **중(重, 무거움)** 이
+        ///   차지하고 있다(§3-5). 사전의 키는 한자가 아니라 **한글**이므로(<see cref="Morpheme.Korean"/>),
+        ///   중을 배경어로 등록하면 중(重)을 가리거나 사전이 중복 키로 터진다.
+        ///   정의서 §3-6 이 *"중 | 맞히다 中 | 무공형태 重 | 맞히다에서 제외"* 로 이미 정리한 충돌이,
+        ///   배경어로 되살리려는 순간 그대로 되돌아온 것이다.
+        ///   → **R4 의 질문("이 글자는 정말 수치가 없어야 하는가")이 스스로 답한다** — 중은 수치가 있다.
+        ///   → 결과: `암중독환` 은 파서에서 중을 重(무공형태)으로 읽으므로 환(幻)과 함께 **무공형태 2자**가
+        ///     되어 §2-2 규칙 2 위반이다. 이 예시는 어감 설명용이며 게임에 들어갈 무공이 아니다(설계안 §1-A).
+        /// </summary>
+        private static readonly Morpheme[] BackgroundList =
+        {
+            // 천(天) — 정의서가 직접 인정한 유일한 배경어다. §3-1 이 찌르기 후보 穿 을 제외하며
+            //          "사용례 창천낙월의 천(天)과 한글이 겹친다" 고 적었다. 즉 정의서는 天 이
+            //          형태소가 아닌 글자임을 알면서 무공명에 들어간다고 전제했다.
+            new Morpheme('천', '天', "하늘", MorphemeCategory.Background, ArtStatDelta.Zero),
+
+            // ── 2026-07-30 추가 4자 (`game-research` → `verify` 통과) ──
+            // 추가 사유: 배경어가 천(天) 하나뿐이라 **문장형 상성 무공이 전부 `○천○○` 이 됐다.**
+            //   목적어가 될 글자가 하나뿐이었기 때문이다(`docs/martial-art-naming.md` §4-B).
+            // ⚠ 조사가 낸 후보 12자 중 4자만 넣는다 — 12자를 한 번에 넣으면 R4("최소로 시작하는 것이
+            //   규제의 본체다")를 형해화한다. 122개를 지으며 부족하면 R4 절차로 추가한다.
+            new Morpheme('지', '地', "땅", MorphemeCategory.Background, ArtStatDelta.Zero),
+            new Morpheme('해', '海', "바다", MorphemeCategory.Background, ArtStatDelta.Zero),
+            new Morpheme('운', '雲', "구름", MorphemeCategory.Background, ArtStatDelta.Zero),
+            new Morpheme('몽', '夢', "꿈", MorphemeCategory.Background, ArtStatDelta.Zero),
+
+            // ⚠⚠ 채택하지 않은 것과 그 이유 (다시 묻지 않기 위해 남긴다):
+            //   봉(峰)·무(霧)·령(靈) 보류 · 강(江)·곡(谷)·세(世)·계(界)·진(塵) 탈락 · 파(波)·극(極)·옥(獄) 탈락
+            //   성(星)·공(空)·산(山)은 **애초에 불가능** — 성(聖)·공(功)·산(散)이 한글을 선점했다
+            //   상세 판정은 `docs/martial-art-naming.md` §4-B
+        };
+
+        // ─────────────────────────── 조회 ───────────────────────────
+
+        private static readonly Dictionary<char, Morpheme> Lookup = BuildLookup();
+
+        private static Dictionary<char, Morpheme> BuildLookup()
+        {
+            var map = new Dictionary<char, Morpheme>();
+
+            // ⚠ Add 는 키가 겹치면 예외를 던진다. **그게 여기서 원하는 동작이다** —
+            //   한글 표기가 겹치는 두 글자가 사전에 들어오면 조용히 덮이는 대신 즉시 터진다.
+            //   정의서 §3-6 이 신·중·명·일 네 건의 충돌을 정리한 이유가 이것이고,
+            //   배경어 중(中)이 걸러진 것도 이 규칙 덕분이다.
+            for (int i = 0; i < MorphemeList.Length; i++) map.Add(MorphemeList[i].Korean, MorphemeList[i]);
+            for (int i = 0; i < BackgroundList.Length; i++) map.Add(BackgroundList[i].Korean, BackgroundList[i]);
+
+            return map;
+        }
+
+        /// <summary>
+        /// 형태소 개수. **81** 이어야 한다 — 정의서 §3 원안 75자
+        /// + 상태이상 보강 2자(탈奪·경硬, 2026-07-29) + 범위 4자(다多·군群·전全·만萬, 2026-07-30).
+        /// 배경어는 포함하지 않는다.
+        /// </summary>
+        public static int Count => MorphemeList.Length;
+
+        /// <summary>배경어 개수. R4 에 따라 최소로 유지한다.</summary>
+        public static int BackgroundCount => BackgroundList.Length;
+
+        /// <summary>형태소 75자 전체. 배경어는 들어 있지 않다.</summary>
+        public static IReadOnlyList<Morpheme> All => MorphemeList;
+
+        /// <summary>배경어 전체.</summary>
+        public static IReadOnlyList<Morpheme> BackgroundWords => BackgroundList;
+
+        /// <summary>
+        /// 한 글자를 형태소로 바꾼다. 배경어도 여기서 찾힌다.
+        ///
+        /// ⚠⚠ **미등록 글자는 false 다 (R1).** 배경어로 삼키지 않는다. 이 한 줄이 규제의 전부다.
+        /// </summary>
+        public static bool TryGet(char korean, out Morpheme morpheme)
+        {
+            return Lookup.TryGetValue(korean, out morpheme);
+        }
+
+        /// <summary>한 글자를 형태소로 바꾼다. 미등록이면 예외.</summary>
+        public static Morpheme Get(char korean)
+        {
+            Morpheme found;
+            if (!Lookup.TryGetValue(korean, out found))
+            {
+                throw new ArgumentException(
+                    "'" + korean + "' 은(는) 형태소 사전에도 배경어 사전에도 없다. "
+                    + "형태소로 추가할 글자인지 먼저 검토할 것 (배경어 추가는 언제나 차선책이다 · R4).",
+                    nameof(korean));
+            }
+            return found;
+        }
+
+        /// <summary>사전에 있는 글자인가. 형태소와 배경어를 함께 본다.</summary>
+        public static bool Contains(char korean)
+        {
+            return Lookup.ContainsKey(korean);
+        }
+
+        /// <summary>카테고리에 속한 형태소들. 조합 규칙 검사와 민감도 측정(설계안 §5-4)이 쓴다.</summary>
+        public static IReadOnlyList<Morpheme> ByCategory(MorphemeCategory category)
+        {
+            var found = new List<Morpheme>();
+            for (int i = 0; i < MorphemeList.Length; i++)
+            {
+                if (MorphemeList[i].Category == category) found.Add(MorphemeList[i]);
+            }
+            for (int i = 0; i < BackgroundList.Length; i++)
+            {
+                if (BackgroundList[i].Category == category) found.Add(BackgroundList[i]);
+            }
+            return found;
+        }
+    }
+}

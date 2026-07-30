@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Assets/Tests/EditMode 의 테스트를 Unity 없이 실행한다.
+    테스트 코드를 복제하지 않는다 — Unity Test Runner 와 `dotnet test` 가 같은 파일 한 벌을 공유한다.
+    그래서 테스트 파일은 UnityEngine 을 참조하면 안 된다(참조하는 순간 여기서 깨진다 = 규칙이 강제된다).
+
+    실행: D:\Tools\dotnet\dotnet.exe test D:\GameDev\projects\Jianghu\Tools\CoreTests\CoreTests.csproj
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>Jianghu.CoreTests</AssemblyName>
+    <RootNamespace>Jianghu.Tests</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\Assets\Tests\EditMode\**\*.cs" LinkBase="Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\JianghuCore\JianghuCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+  </ItemGroup>
+
+</Project>

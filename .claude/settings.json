@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "PowerShell(D:\\Tools\\dotnet\\dotnet.exe test *)",
+      "PowerShell(D:\\Tools\\dotnet\\dotnet.exe build *)",
+      "PowerShell(D:\\Tools\\dotnet\\dotnet.exe --version)",
+      "PowerShell(D:\\Tools\\dotnet\\dotnet.exe --list-sdks)",
+      "Bash(D:/Tools/dotnet/dotnet.exe test *)",
+      "Bash(D:/Tools/dotnet/dotnet.exe build *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Grep|Glob|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"D:/GameDev/.claude/hooks/guard_logs.py\"",
+            "timeout": 15,
+            "statusMessage": "§5 가드: 대용량 로그/생성물 직접 열람 점검"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"D:/GameDev/.claude/hooks/session_banner.py\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
