@@ -331,7 +331,7 @@ namespace Jianghu.Tests.Martial
             //   **정확히 같은 수를 요구하는 것이 의도다** — 한 자라도 늘리면 이 테스트가 깨지고,
             //   그때 R4 절차("이 글자는 정말 수치가 없어야 하는가")를 밟았는지 되묻게 된다.
             //   근거는 `docs/martial-art-naming.md` §4-B 에 남긴다.
-            Assert.AreEqual(5, MorphemeDictionary.BackgroundCount,
+            Assert.AreEqual(6, MorphemeDictionary.BackgroundCount,
                 "배경어가 {0} 자다. 늘렸다면 R4 절차를 밟았는지 확인하고 이 수를 함께 고칠 것.",
                 MorphemeDictionary.BackgroundCount);
         }
@@ -341,7 +341,11 @@ namespace Jianghu.Tests.Martial
         {
             // 배경어의 존재 이유는 **문장형 무공명의 목적어**다 — `창천낙월`(하늘을 찔러 달을 떨어뜨린다).
             // 그래서 전부 명사여야 하고, 수치를 붙일 축이 있으면 형태소이지 배경어가 아니다.
-            var expected = new Dictionary<char, char> { { '천', '天' }, { '지', '地' }, { '해', '海' }, { '운', '雲' }, { '몽', '夢' } };
+            var expected = new Dictionary<char, char>
+            {
+                { '천', '天' }, { '지', '地' }, { '해', '海' }, { '운', '雲' }, { '몽', '夢' },
+                { '우', '雨' },   // 2026-07-30 추가 — 사천당가 전승무학 `만우쾌사` 하나를 위해
+            };
 
             foreach (Morpheme m in MorphemeDictionary.BackgroundWords)
             {

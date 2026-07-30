@@ -405,6 +405,118 @@ namespace Jianghu.Tests.Martial
             new Draft("혈교", "반궤경보", ArtKind.Movement),    // 反詭硬步
         };
 
+        // ─────────────────────────── 전승무학 9종 (대문파당 1) ───────────────────────────
+
+        /// <summary>
+        /// 전승무학 9종 — 대문파 장문제자 전용. 정의서 §5-1·§5-2.
+        ///
+        /// **성능 형태소 4 · 극한경지 1자 포함 · 기력 16.** 극한경지를 쓸 수 있는 유일한 계층이다.
+        ///
+        /// ⚠⚠ **극한경지 9자와 대문파 9곳이 하나씩 맞아떨어진다.** 우연이 아니라 정의서 §3-8 이
+        ///   9자를 고를 때부터 문파 성격을 염두에 뒀기 때문이다 — 남궁세가(제왕검형)에 제(帝),
+        ///   천마신교에 마(魔), 소림사(금강불괴)에 성(聖), 무당파(도교)에 선(仙) 처럼
+        ///   **이름이 곧 그 문파인** 자리가 여럿 있다.
+        ///
+        /// ⚠ 배경어를 쓰지 않는다 — 4자 중 1자가 극한경지라 배경어까지 넣으면 성능이 3으로 줄어
+        ///   전승무학이 대문파 무공보다 약해진다.
+        /// </summary>
+        private static readonly Draft[] LegacyArts =
+        {
+            new Draft("소림사", "성뇌후격", ArtKind.Attack),      // 聖雷厚擊 — 성(聖 수호) · 금강불괴
+            new Draft("무당파", "선음유수", ArtKind.Internal),    // 仙陰柔水 — 선(仙 지속) · 도가의 신선
+            new Draft("화산파", "존풍쾌절", ArtKind.Attack),      // 尊風快截 — 존(尊 속공) · 빠른 매화검
+            new Draft("남궁세가", "제화정참", ArtKind.Attack),    // 帝火正斬 — 제(帝 균형) · 제왕검형
+            // ⚠⚠ **유일하게 극한경지를 쓰지 않는 전승무학**이다(2026-07-30 결정). 만천화우(滿天花雨)를
+            //   예외 없이 재현하려다 나온 결과다 — 본체 4자 중 공격방식·무공형태 2자가 필수로 고정이라
+            //   남는 2자를 두고 **만(萬)·우(雨)·극한경지가 경합**했고, 셋 다 넣을 수는 없었다.
+            //   당가는 위력이 아니라 **물량·상태이상·타격 횟수**로 이기는 문파이므로 극한경지를 포기했다.
+            //   ⚠ 정의서 §5-2 는 *"극한경지는 전승무학에만 허용"* 이라고 했지 *"전승무학은 반드시 쓴다"* 고
+            //     하지 않았다. 규칙 위반이 아니라 **쓰지 않기로 한 선택**이다. 그 대가로 왕(王)이 미사용으로 남는다.
+            //   ⚠ `만우환사`(幻)가 아니라 `만우쾌사`(快)인 이유 — 환은 공격 −2 라 사(0.5)와 합치면
+            //     **공격이 −1.5 로 음수**가 된다(설계안 §1-E). 쾌(快)는 당가 특징 문장의
+            //     *'극히 빠른 던지기'* 와도 정확히 맞는다.
+            new Draft("사천당가", "만우쾌사", ArtKind.Attack),    // 萬雨快射 — 만 개의 비를 빠르게 쏜다 [광역 전원]
+            new Draft("서량군문", "패혈중창", ArtKind.Attack),    // 霸血重槍 — 패(霸 파괴) · 군부의 정복
+            new Draft("살문", "황야환투", ArtKind.Attack),        // 皇夜幻投 — 황(皇 정밀) · 암살은 정밀이다
+            new Draft("천마신교", "마한중참", ArtKind.Attack),    // 魔寒重斬 — 마(魔 관통) · 이름 그대로
+            new Draft("혈교", "종환화격", ArtKind.Attack),        // 宗火幻擊 — 종(宗 극단) · 광란을 끝까지 민다
+        };
+
+        [Test]
+        public void 전승무학_아홉종이_조합_규칙을_지킨다()
+        {
+            foreach (Draft draft in LegacyArts)
+            {
+                ParsedArtName parsed;
+                IReadOnlyList<string> problems;
+
+                Assert.IsTrue(MorphemeParser.TryParse(draft.Name, draft.Kind, out parsed, out problems),
+                    "{0} 의 {1} 을(를) 분해하지 못했다: {2}",
+                    draft.School, draft.Name, string.Join(" · ", problems));
+
+                IReadOnlyList<ArtRuleViolation> violations = ArtCompositionRule.Validate(parsed, ArtTier.Legacy);
+
+                var messages = new List<string>();
+                for (int i = 0; i < violations.Count; i++) messages.Add(violations[i].Message);
+                Assert.AreEqual(0, violations.Count,
+                    "{0} 의 {1} 이(가) 규칙을 어긴다: {2}",
+                    draft.School, draft.Name, string.Join(" · ", messages));
+            }
+        }
+
+        [Test]
+        public void 전승무학은_극한경지를_정확히_한_자씩_쓴다()
+        {
+            // 정의서 §5-2 제약 2 — 한 무공에 극한경지 1자. 그리고 **9자가 9문파에 하나씩** 배분된다.
+            var used = new HashSet<char>();
+
+            foreach (Draft draft in LegacyArts)
+            {
+                ParsedArtName parsed = MorphemeParser.Parse(draft.Name, draft.Kind);
+
+                // ⚠ 사천당가만 예외다 — 극한경지 대신 만(萬 전원 타격)과 배경어 우(雨)를 택했다.
+                //   위력이 아니라 물량으로 이기는 문파라 그 교환이 정체성에 맞는다.
+                bool usesPinnacle = parsed.CountOf(MorphemeCategory.Pinnacle) == 1;
+                if (draft.School == "사천당가")
+                {
+                    Assert.AreEqual(0, parsed.CountOf(MorphemeCategory.Pinnacle),
+                        "사천당가 전승무학은 극한경지를 쓰지 않기로 했다.");
+                    Assert.AreNotEqual(AttackScope.Single, parsed.Scope,
+                        "극한경지를 포기한 대가로 광역을 얻어야 한다.");
+                }
+                else
+                {
+                    Assert.IsTrue(usesPinnacle, "{0} 의 극한경지 형태소는 1자여야 한다.", draft.Name);
+                    Assert.AreEqual(4, parsed.EffectiveMorphemeCount,
+                        "{0} 의 성능 형태소가 4가 아니다 — 전승무학은 최상위 계층이다.", draft.Name);
+                    Assert.AreEqual(0, parsed.BackgroundCount,
+                        "{0} 에 배경어가 들어갔다 — 성능이 3으로 줄어 대문파보다 약해진다.", draft.Name);
+                }
+
+                foreach (Morpheme m in parsed.Body)
+                {
+                    if (m.Category != MorphemeCategory.Pinnacle) continue;
+                    Assert.IsTrue(used.Add(m.Korean), "극한경지 {0} 이(가) 두 문파에 배분됐다.", m);
+                }
+            }
+
+            // ⚠ 8자다. 사천당가가 극한경지를 포기하면서 **왕(王)이 미사용으로 남았다.**
+            //   9↔9 대응이 깨진 것은 아쉽지만, 만천화우의 그림을 예외 없이 재현한 값이다.
+            //   왕(王)은 사전에 그대로 있으므로 나중에 절대경지나 다른 자리에서 쓸 수 있다.
+            Assert.AreEqual(8, used.Count, "극한경지 배분 수 — 왕(王)만 미사용이어야 한다.");
+            Assert.IsFalse(used.Contains('왕'), "미사용으로 남기기로 한 것은 왕(王)이다.");
+        }
+
+        [Test]
+        public void 전승무학은_전승_계층에서만_적법하다()
+        {
+            // 극한경지는 전승무학 전용이다(정의서 §5-2 제약 1). 대문파로 검사하면 걸려야 한다.
+            ParsedArtName parsed = MorphemeParser.Parse("마한중참", ArtKind.Attack);
+
+            AssertHasRule(ArtCompositionRule.Validate(parsed, ArtTier.Major), ArtRule.PinnacleRestricted);
+            Assert.AreEqual(0, ArtCompositionRule.Validate(parsed, ArtTier.Legacy).Count);
+        }
+
         [Test]
         public void 대문파_일흔두종이_조합_규칙을_지킨다()
         {
@@ -465,6 +577,8 @@ namespace Jianghu.Tests.Martial
         }
 
         /// <summary>어떤 문파가 어떤 특징 축을 갖는지. **갖지 않는 문파가 있는 것이 요점이다.**</summary>
+        // ⚠ 사천당가는 여기 없다 — 당가의 광역은 **전승무학**(`만우쾌사`)에 있고,
+        //   이 표는 **문파무학 8종**의 축 배분을 본다. 층이 다르다.
         private static readonly string[] WideAttackSchools = { "소림사", "서량군문", "혈교" };
         private static readonly string[] CounterSchools = { "무당파", "살문", "종남파", "점창파" };
 
@@ -489,6 +603,11 @@ namespace Jianghu.Tests.Martial
                 if (parsed.CounterTargets.Count > 0 && !counter.Contains(draft.School)) counter.Add(draft.School);
             }
 
+            // ⚠ 2026-07-30 사천당가가 넷째로 합류했다(`만천환사`). 가중치를 이미 가진 문파인데
+            //   광역까지 갖는 것이 예외처럼 보이지만, **두 축은 층이 다르다** —
+            //   가중치는 **문파 특징 층**(정의서 §6-3, 문파 데이터에 직접 기입)에서 오고
+            //   광역은 **무공 형태소 층**(§3-12, 이름에서 유도)에서 온다.
+            //   그리고 암기를 뿌리는 문파에 광역이 없는 편이 오히려 부자연스럽다.
             Assert.AreEqual(3, wide.Count, "광역을 가진 대문파 수 — 전부가 갖거나 아무도 안 갖으면 축이 아니다.");
             Assert.AreEqual(2, counter.Count, "상성을 가진 대문파 수");
             Assert.Less(wide.Count + counter.Count, 9, "9곳이 모두 축을 가지면 다시 템플릿이 된다.");
@@ -537,9 +656,11 @@ namespace Jianghu.Tests.Martial
             foreach (string name in WandererArts) Assert.IsTrue(seen.Add(name), "{0} 이(가) 중복이다.", name);
             foreach (Draft draft in MinorSchoolArts) Assert.IsTrue(seen.Add(draft.Name), "{0} 이(가) 중복이다.", draft.Name);
             foreach (Draft draft in MajorSchoolArts) Assert.IsTrue(seen.Add(draft.Name), "{0} 이(가) 중복이다.", draft.Name);
+            foreach (Draft draft in LegacyArts) Assert.IsTrue(seen.Add(draft.Name), "{0} 이(가) 중복이다.", draft.Name);
 
-            // 강호 9 + 소문파 28 + 대문파 72 = 109. 남은 것은 전승무학 9 + 절대경지 4 = 13 이다.
-            Assert.AreEqual(109, seen.Count, "지금까지 지은 무공명 수");
+            // 강호 9 + 소문파 28 + 대문파 72 + 전승 9 = 118.
+            // 남은 것은 절대경지 4 + 대형세력 16 = 20 → 최종 138.
+            Assert.AreEqual(118, seen.Count, "지금까지 지은 무공명 수");
         }
 
         private static int Count(Dictionary<ArtKind, int> byKind, ArtKind kind)

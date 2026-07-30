@@ -202,6 +202,13 @@ namespace Jianghu.Core.Martial.Morphemes
             new Morpheme('운', '雲', "구름", MorphemeCategory.Background, ArtStatDelta.Zero),
             new Morpheme('몽', '夢', "꿈", MorphemeCategory.Background, ArtStatDelta.Zero),
 
+            // 우(雨) — 2026-07-30 추가. R4 절차("이 글자는 정말 수치가 없어야 하는가")를 밟았다:
+            //   비는 순수 자연물 명사이고 붙일 성능축이 없다. 물(水)은 이미 기력회복으로 있고,
+            //   "쏟아짐" 은 타격 횟수(문파 가중치)나 범위(§3-12)가 이미 담당한다.
+            //   ⚠ 추가 사유는 사천당가 전승무학 `만우쾌사` 하나다 — 만천화우(滿天花雨)의 그림을
+            //     예외 없이 재현하려면 '비' 가 필요했다. 배경어 5자 → 6자.
+            new Morpheme('우', '雨', "비", MorphemeCategory.Background, ArtStatDelta.Zero),
+
             // ⚠⚠ 채택하지 않은 것과 그 이유 (다시 묻지 않기 위해 남긴다):
             //   봉(峰)·무(霧)·령(靈) 보류 · 강(江)·곡(谷)·세(世)·계(界)·진(塵) 탈락 · 파(波)·극(極)·옥(獄) 탈락
             //   성(星)·공(空)·산(山)은 **애초에 불가능** — 성(聖)·공(功)·산(散)이 한글을 선점했다
