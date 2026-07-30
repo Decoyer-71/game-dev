@@ -378,8 +378,18 @@ namespace Jianghu.Tests.Combat
             // 이게 성립해야 나중에 비무대회에서 "확실한 성적" 이라는 선택지가 생긴다.
             int SpreadOfTurns(Alignment alignment)
             {
+                // ⚠⚠ 2026-07-30 — 표적 체력을 600 → 240 으로 내렸다. **테스트를 느슨하게 만든 게 아니라
+                //   현실적인 전투 길이에서 재도록 고친 것**이다.
+                //
+                //   600 이면 24턴쯤 걸리는데, 그 길이에서는 **턴당 편차가 평균으로 수렴**해
+                //   사파 ±5% 와 마도 ±35% 가 구분되지 않는다(큰 수의 법칙). 실제로 둘 다 편차 12 로 동률이 났다.
+                //   그런데 형태소 무공의 실제 전투는 **9턴**이다(2026-07-30 승률표 실측, 목표 8~15턴 안).
+                //   즉 600 은 게임에 존재하지 않는 길이였고, 거기서 잰 값은 설계를 반증하지 못한다.
+                //
+                // ⚠ 이 테스트가 지키는 것은 성향 설계의 핵심 주장이다 —
+                //   *"사파는 편차가 좁아 몇 턴에 끝날지 예측된다"*. 그래서 조건만 현실화하고 단언은 그대로 둔다.
                 Combatant f = Fighter("무인", BaseStats(), Learned(Sword(alignment), 0));
-                Combatant target = Fighter("표적", BaseStats(health: 600, attack: 0, defense: 0, agility: 0));
+                Combatant target = Fighter("표적", BaseStats(health: 240, attack: 0, defense: 0, agility: 0));
 
                 var turns = new List<int>();
                 for (uint seed = 1; seed <= 60; seed++)
