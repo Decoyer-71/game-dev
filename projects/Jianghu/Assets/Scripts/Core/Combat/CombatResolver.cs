@@ -53,6 +53,28 @@ namespace Jianghu.Core.Combat
         private const int MinHitChance = 25;
         private const int MaxHitChance = 99;
 
+        /// <summary>
+        /// 기본 치명률(%). 정의서 §1-1 의 캐릭터 기본값 전사 (2026-07-31 축 연결).
+        ///
+        /// **누구나 10% 는 터진다.** 치명 형태소를 하나도 안 넣은 무공도 이 값으로 굴린다 —
+        /// 정의서가 이것을 무공 속성이 아니라 **캐릭터 기본 능력치**로 적었기 때문이다.
+        /// 형태소(명·광·휘 +10%p · 뇌/패 +5%p · 황 +15%p)는 여기에 더해진다.
+        /// </summary>
+        public const int BaseCritChance = 10;
+
+        /// <summary>
+        /// 기본 치명배율(배). 정의서 §1-1 전사.
+        ///
+        /// ⚠⚠ **여기에 숙련 배율(`PowerMultiplier`)도 성향 배율도 곱하지 않는다** (2026-07-31 확정).
+        ///   HANDOFF §5 의 *"곱셈 누적은 후반을 독식한다"* — 유형 숙달을 위력에서 뺀 것과 같은 이유다.
+        ///   치명배율을 **형태소 상수**로 묶어두면 최대치가 `2.0 + 0.6 = 2.6배` 에서 멈추므로
+        ///   수련이 쌓여도 이 축이 후반을 삼킬 수 없다. 성장으로 커지는 배율을 새로 만들지 않는다.
+        /// </summary>
+        public const double BaseCritMultiplier = 2.0;
+
+        /// <summary>치명배율 하한. 음수 델타가 들어와도 피해가 줄거나 회복되지 않게 막는다.</summary>
+        private const double MinCritMultiplier = 1.0;
+
         // ── 상태이상 규칙 상수. 근거: docs/martial-system-proposal.md §5 ──
         /// <summary>중독 최대 중첩.</summary>
         public const int MaxPoisonStacks = 5;
@@ -216,15 +238,45 @@ namespace Jianghu.Core.Combat
             //   익힌 사람의 성향을 따르기 때문이다(2026-07-30 결정).
             int variance = AlignmentCurve.DamageVariancePercent(chosen.EffectiveAlignment);
 
+            // ⚠⚠ 2026-07-31 — 치명 축 연결. 그전까지 사전에는 값이 있는데 엔진이 안 읽어
+            //   치명 형태소(명·광·휘·야·암·한·뇌)가 민감도표에서 전부 **49% = 무영향**이었다.
+            //   글자를 넣으면 기력만 4 더 쓰고 얻는 게 없었으니 넣을 이유가 없는 글자였다.
+            //
+            // ⚠ **확률축에는 숙련 배율을 곱하지 않는다.** 바로 위 명중이 이미 그렇게 돼 있고,
+            //   곱하면 수련이 확률을 밀어올려 위 `BaseCritMultiplier` 주석의 함정이 확률 쪽으로 되살아난다.
+            // ⚠ 레거시 36종에는 치명 필드 자체가 없다 — 기본값 10% / 2.0배로만 굴린다.
+            //   위력·명중과 같은 과도기 분기이며, 카탈로그가 138종으로 온전히 넘어가면 함께 사라진다.
+            int critChance = BaseCritChance;
+            double critMultiplier = BaseCritMultiplier;
+            if (chosen.Art.IsMorphemeDerived)
+            {
+                critChance += (int)Math.Round(chosen.Art.Delta.CritChance, MidpointRounding.AwayFromZero);
+                critMultiplier += chosen.Art.Delta.CritMultiplier;
+            }
+            critChance = Clamp(critChance, 0, 100);
+            if (critMultiplier < MinCritMultiplier) critMultiplier = MinCritMultiplier;
+
             int landed = 0;
+            int crits = 0;
             int damage = 0;
             for (int i = 0; i < attempts; i++)
             {
-                if (rng.Chance(hitChance))
+                if (!rng.Chance(hitChance)) continue;
+
+                landed++;
+                int perHit = RollDamage(basePerHit, variance, rng);
+
+                // ⚠⚠ **타격당 판정**이다 (2026-07-31 확정). 행동당 한 번이 아니다.
+                //   3타 권법은 치명 기회가 3번이지만 한 번 터져도 그 턴 피해의 1/3 만 부푼다 —
+                //   `DamagePerHit` 주석의 *"다단은 분산이 낮다"* 는 성격이 치명 축에서도 유지된다.
+                //   행동당으로 굴리면 단타와 다단의 치명 가치가 같아져 그 정체성이 지워진다.
+                if (rng.Chance(critChance))
                 {
-                    landed++;
-                    damage += RollDamage(basePerHit, variance, rng);
+                    crits++;
+                    perHit = (int)Math.Round(perHit * critMultiplier, MidpointRounding.AwayFromZero);
                 }
+
+                damage += perHit;
             }
 
             target.Health -= damage;
@@ -232,6 +284,14 @@ namespace Jianghu.Core.Combat
 
             // 4) 명중했으면 상태이상 부여를 판정한다.
             string note = landed > 0 ? ApplyEffects(turn, actor, target, chosen.Art, mastery, rng, log) : null;
+
+            // ⚠ 치명은 로그에 **반드시 보여야 한다.** 안 보이면 "왜 갑자기 크게 맞았지" 가 남고,
+            //   그건 설계 §1 의 반증 조건 1("차이를 체감할 수 없다")에 그대로 걸린다.
+            if (crits > 0)
+            {
+                string mark = "[치명" + (crits > 1 ? " ×" + crits : "") + "]";
+                note = string.IsNullOrEmpty(note) ? mark : mark + " " + note;
+            }
 
             log.Add(CombatLogEntry.Action(
                 turn, actor.Def.Name, target.Def.Name, chosen.Art.Name,
