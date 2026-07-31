@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Jianghu.Core.Martial;
+using Jianghu.Core.Martial.Morphemes;
 using Jianghu.Core.Rng;
 
 namespace Jianghu.Core.Combat
@@ -79,14 +80,117 @@ namespace Jianghu.Core.Combat
         /// <summary>중독 최대 중첩.</summary>
         public const int MaxPoisonStacks = 5;
 
+        /// <summary>
+        /// **상태이상 형태소가 있을 때의 기본 부여확률(%)** (2026-07-31 축 연결에서 신설).
+        ///
+        /// ⚠⚠ 정의서에 없는 값이다. §3-4 는 일곱 글자를 전부 *"부여 +10%"* 로만 적어
+        /// **무엇에 더하는지를 정하지 않았다** — 명중 환산(<see cref="AccuracyPointToPercent"/>)과 같은 종류의 구멍이다.
+        ///
+        /// 30 을 고른 근거 — 제안서 §5-2/§5-4 가 설계 구간을 **출혈 35~45% · 중독 30~40% ·
+        /// 기력소실 40~50% · 경직 40~50%** 로 적어 뒀다. `30 + 형태소 10 = 40%` 는 그 넷 모두의 구간 안이다.
+        ///
+        /// ⚠ **0 을 기본으로 삼을 수는 없다.** 조합 규칙이 상태이상을 **카테고리당 1자**로 묶어
+        /// 일곱 글자가 전부 `+10%p` 로 같으므로, 기본이 0 이면 모든 상태이상 무공이 10% 로 균일해지고
+        /// *"확률 × 효과" 의 확률 쪽이 통째로 죽는다* — 치명배율이 죽은 것과 같은 구조다(HANDOFF §5).
+        /// 글자 간 차이는 확률이 아니라 **효과의 성격**에서 나오게 하는 것이 이 설계의 선택이다.
+        /// </summary>
+        public const int BaseStatusChance = 30;
+
+        // ── 세기·지속. ⚠⚠ 정의서에 **한 줄도 없어** 여기서 정한다 ──
+        //
+        // 제안서 §5 의 원래 수치(출혈 세기 6~10 · 기력소실 6~10)는 **위력 22~28 시절**의 값이다.
+        // 지금은 형태소 스케일이라 타격 한 번이 7~8 이고, 그 값을 그대로 쓰면
+        // 상태이상 하나가 무공 본체보다 세진다. **비율을 유지한 채 스케일만 낮춰 옮겼다.**
+        // ⚠ 전부 미검증 초기값이며 민감도표(§5-4)로 판정한다.
+
+        /// <summary>
+        /// 출혈 — 매 턴 고정 피해. 방어 무시.
+        /// ⚠⚠ 2026-07-31 측정으로 2 → 1 로 내렸다. 2 이면 민감도 **70~76% = 지배적**이었다 —
+        ///   부여확률 40% 로 매 턴 갱신되니 사실상 상시 유지되어 턴당 피해가 25%씩 늘어난 셈이다.
+        /// </summary>
+        public const int BleedPotency = 1;
+        public const int BleedTurns = 3;
+
+        /// <summary>
+        /// 중독 — **중첩 1겹당** 매 턴 피해. 5중첩이면 턴당 10.
+        /// ⚠⚠ 2026-07-31 측정으로 1 → 2 로 올렸다. 1 이면 **52~53% = 무의미**였다.
+        ///   매 턴 한 겹씩 빠지는 구조라 실제 중첩이 1~2 에 머물러 턴당 1 밖에 안 됐다.
+        /// </summary>
+        public const int PoisonPotencyPerStack = 2;
+
+        /// <summary>
+        /// 기력소실 — 매 턴 깎이는 기력.
+        ///
+        /// ⚠ 제안서 §5-4 가 *"초식 1회분 이상"* 을 조건으로 달았다. 3자 무공이 12, 회복이 10 이므로
+        ///   8 이면 **초식을 한 턴 걸러 쓰게 만든다** — 봉인까지는 아니되 체감되는 크기다.
+        /// </summary>
+        /// ⚠⚠ 2026-07-31 측정으로 8 → 10. 8 이면 **47~53% = 무의미**였다 —
+        ///   기력 회복이 턴당 10 이라 8 은 회복에 먹혀 초식 사용 리듬을 바꾸지 못했다.
+        ///   회복과 같은 10 이어야 그 턴의 회복이 통째로 상쇄되어 **실제로 한 턴을 평타로 만든다.**
+        ///   ⚠ 12 도 재봤으나 65~66% 로 지배적이었다.
+        public const int QiDrainPotency = 10;
+        public const int QiDrainTurns = 2;
+
+        /// <summary>
+        /// 경직 — 중첩당 명중 감소(%p). 제안서 §5-3 의 −8 을 그대로 쓴다.
+        /// ⚠⚠ 지속은 2026-07-31 측정으로 2 → 3턴. 2턴이면 중첩이 쌓이기 전에 만료돼
+        ///   **3중첩 마비에 사실상 도달하지 못했고**(민감도 47~50% = 무의미), 그러면 경직은
+        ///   명중을 조금 깎는 것 말고 하는 일이 없다 — 게이팅 설계 자체가 죽는다.
+        /// </summary>
+        public const int StaggerPotency = 8;
+        public const int StaggerTurns = 3;
+
+        /// <summary>
+        /// 화상 — **체증형.** 걸린 뒤 1 → 2 → 3 으로 커지고 3턴이면 꺼진다.
+        ///
+        /// ⚠⚠ **다시 걸어도 연장되지 않는다** (2026-07-31 측정 후 확정). *"이미 타고 있으면 더 타지 않는다"*.
+        ///   갱신을 허용했더니 부여확률 40% 로 상시 유지되어 턴당 피해가 상한에 고정됐고,
+        ///   민감도 **70~79% = 지배적**이 나왔다. 갱신을 끊으면 **꺼졌다 다시 붙는 리듬**이 생겨
+        ///   출혈(상시 유지·일정)과 성격이 갈린다 — 세기를 깎아 해결하면 이 대비가 사라진다.
+        /// </summary>
+        /// ⚠⚠ 지속은 2026-07-31 측정으로 3 → 2턴. 3턴이면 갱신을 끊고 체증을 2단계로 묶어도
+        ///   **66~67% 로 여전히 지배적**이었다. 한 번 붙었을 때의 총량(1+2=3)이 출혈 한 주기와
+        ///   같아지는 지점이 여기다.
+        public const int BurnPotency = 1;
+        public const int BurnTurns = 2;
+
+        /// <summary>화상 체증 상한(단계). ⚠ 2026-07-31 측정으로 3 → 2 — 3단계면 68~74% 로 지배적이었다.</summary>
+        public const int MaxBurnEscalation = 2;
+
+        /// <summary>
+        /// 동상 — 걸린 동안 **받는 피해 증가(%)**. 스스로는 피해를 주지 않는다.
+        /// ⚠ 2026-07-31 측정으로 20 → 25. 20 이면 수련 100회 시점에 52.2% 로 무의미 구간이었다 —
+        ///   피해를 주지 않는 축이라 다른 여섯 글자보다 체감이 늦게 온다.
+        /// </summary>
+        public const int FrostbiteVulnerabilityPercent = 25;
+        public const int FrostbiteTurns = 2;
+
+        /// <summary>
+        /// 비(痺) 형태소가 한 번에 쌓는 경직 중첩. 경(硬)은 1 이다.
+        ///
+        /// ⚠⚠ 2026-07-31 사용자 확정. 정의서 §3-4 의 *"마비 스택 +1"* 을 **경직 중첩 +1**로 읽는다 —
+        ///   엔진의 마비는 확률이 아니라 **경직 3중첩 게이팅**이고(제안서 §5-3), 그 구조를 우회하면
+        ///   *"확률형 행동불가"* 라는 조사에서 가장 일관되게 실패한 형태로 되돌아간다.
+        ///   그래서 비는 마비를 직접 걸지 않고 **두 겹씩 쌓아** 2회 성공에 마비에 닿는다.
+        /// </summary>
+        public const int ParalysisMorphemeStaggerGain = 2;
+
         /// <summary>⚠⚠ 경직이 이만큼 쌓이면 **마비가 확정 발동**한다. 확률이 개입하지 않는다.</summary>
         public const int StaggerStacksForParalysis = 3;
 
         /// <summary>마비 지속(턴). 연장 불가.</summary>
         public const int ParalysisTurns = 1;
 
-        /// <summary>마비 발동 후 이 턴 수만큼 경직을 새로 걸 수 없다 — 연속 마비 차단.</summary>
-        public const int StaggerLockAfterParalysis = 2;
+        /// <summary>
+        /// 마비 발동 후 이 턴 수만큼 경직을 새로 걸 수 없다 — 연속 마비 차단.
+        ///
+        /// ⚠⚠ 2026-07-31 측정으로 2 → 4. 비(痺)가 두 겹씩 쌓아 **2회 성공에 마비**에 닿다 보니
+        ///   락이 짧으면 마비가 반복돼 민감도 **65~69% = 지배적**이 나왔다.
+        ///   락을 늘리는 것이 이 축에서 유일하게 **비만 골라 누르는 손잡이**다 —
+        ///   경(硬)은 애초에 3회를 모아야 해서 마비에 거의 닿지 않으므로 영향을 덜 받는다.
+        ///   지속·세기를 건드리면 둘이 같이 움직여 벌어진 간격이 그대로 남는다.
+        /// </summary>
+        public const int StaggerLockAfterParalysis = 4;
 
         /// <summary>쓸 수 있는 초식이 없을 때의 맨손 공격. 기력을 쓰지 않는다.</summary>
         private static readonly LearnedArt BasicStrike = new LearnedArt(
@@ -97,8 +201,19 @@ namespace Jianghu.Core.Combat
         {
             public StatusEffectKind Kind;
             public int Potency;
-            public int RemainingTurns;  // 출혈 · 기력소실 · 경직
-            public int Stacks;          // 중독 · 경직
+            public int RemainingTurns;  // 출혈 · 기력소실 · 경직 · 동상 · 화상
+            public int Stacks;          // 중독 · 경직(명중 페널티 중첩) · 화상(경과 턴수)
+
+            /// <summary>
+            /// 경직 전용 — **마비 게이지.** 이게 <see cref="StaggerStacksForParalysis"/> 에 닿으면 마비가 확정 발동한다.
+            ///
+            /// ⚠⚠ 명중 페널티 중첩(<see cref="Stacks"/>)과 **갈라 둔 이유** (2026-07-31 측정): 비(痺)가
+            ///   한 번에 두 겹을 쌓게 했더니 마비만 빨라지는 게 아니라 **명중 페널티도 즉시 −16** 이 되어
+            ///   민감도 65~69% 로 지배적이 됐다. 정의서 §3-4 는 비를 *"마비 스택 +1"* 이라 적었지
+            ///   *"경직 세기 2배"* 라고 하지 않았다 — 둘을 나누면 글자 뜻 그대로가 된다.
+            ///   **비는 마비에 빨리 닿고, 경직의 아픔 자체는 경(硬)과 같다.**
+            /// </summary>
+            public int ParalysisGauge;
         }
 
         /// <summary>전투 중에만 존재하는 가변 상태. Combatant 를 오염시키지 않기 위해 분리했다.</summary>
@@ -279,6 +394,17 @@ namespace Jianghu.Core.Combat
                 damage += perHit;
             }
 
+            // ⚠⚠ 동상(취약) — 걸린 상대는 더 아프게 맞는다 (2026-07-31 신설).
+            //   ⚠ 타격마다가 아니라 **행동의 총 피해에** 곱한다. 타격당 곱하면 반올림 손실이
+            //     타격 수만큼 누적되어, 다단 초식일수록 취약이 옅어지는 엉뚱한 성질이 생긴다.
+            //   ⚠ 지속 피해(출혈·중독·화상)에는 곱하지 않는다 — 그쪽은 이미 방어를 무시하므로
+            //     둘을 겹치면 "무시 × 증폭" 이 되어 한쪽 조합만 과하게 커진다.
+            int vulnerability = VulnerabilityPercent(target);
+            if (vulnerability > 0 && damage > 0)
+            {
+                damage = (int)Math.Round(damage * (100 + vulnerability) / 100.0, MidpointRounding.AwayFromZero);
+            }
+
             target.Health -= damage;
             if (target.Health < 0) target.Health = 0;
 
@@ -340,6 +466,24 @@ namespace Jianghu.Core.Combat
                         break;
                     }
 
+                    case StatusEffectKind.Burn:
+                    {
+                        // ⚠⚠ 체증형. `Stacks` 를 **경과 턴수**로 쓴다 — 중독의 `Stacks`(중첩 수)와
+                        //   이름은 같지만 의미가 다르다. 다시 걸려도 이 값은 리셋되지 않는다.
+                        if (s.Stacks < MaxBurnEscalation) s.Stacks++;
+                        int burn = s.Potency * s.Stacks;
+                        f.Health -= burn;
+                        if (f.Health < 0) f.Health = 0;
+                        log.Add(CombatLogEntry.StatusTick(turn, f.Def.Name, "화상 " + s.Stacks + "단계", burn, 0, f.Health));
+                        expired = --s.RemainingTurns <= 0;
+                        break;
+                    }
+
+                    case StatusEffectKind.Frostbite:
+                        // 발동 효과가 없다. 피해 계산에서 증폭으로 작용한다(`VulnerabilityPercent`).
+                        expired = --s.RemainingTurns <= 0;
+                        break;
+
                     case StatusEffectKind.Stagger:
                         // 발동 효과가 없다. 명중 판정에서 깎인다.
                         expired = --s.RemainingTurns <= 0;
@@ -363,15 +507,33 @@ namespace Jianghu.Core.Combat
             return s == null ? 0 : s.Potency * s.Stacks;
         }
 
+        /// <summary>동상(취약)으로 이 사람이 **더 받는** 피해 비율(%). 안 걸렸으면 0.</summary>
+        private static int VulnerabilityPercent(Fighter f)
+        {
+            return f.Find(StatusEffectKind.Frostbite) == null ? 0 : FrostbiteVulnerabilityPercent;
+        }
+
         /// <summary>명중한 초식의 상태이상 부여를 판정한다. 로그에 붙일 설명을 돌려준다.</summary>
         private static string ApplyEffects(
             int turn, Fighter actor, Fighter target, MartialArt art, int mastery,
             IRandomSource rng, List<CombatLogEntry> log)
         {
-            if (art.Effects.Count == 0) return null;
-
             // 비도 숙달 → 상태이상이 더 잘 걸린다.
             int chanceBonus = DisciplineCurve.StatusChanceBonus(art.Discipline, mastery);
+
+            // ⚠⚠ 2026-07-31 — 상태이상 축 연결. 그전까지 형태소 7자(독·혈·비·염·빙·탈·경)는
+            //   사전에 값이 있는데 엔진에 **도달할 경로 자체가 없었다** — 카탈로그 138종은
+            //   `StatusApplication` 을 하나도 넘기지 않으므로 `art.Effects` 가 항상 비어 있었다.
+            //   측정에서 7자 전부 **45~46%**, 즉 무의미(47~53%)보다도 **낮게** 나온 이유가 이것이다.
+            //   기력은 글자 수로 매겨지는데 얻는 것이 0 이었으니 **넣으면 손해인 글자**였다.
+            if (art.IsMorphemeDerived)
+            {
+                // 극한경지 왕(王) — 모든 상태이상 부여확률 +15%p. 여기가 그 축이 붙는 유일한 자리다.
+                chanceBonus += (int)Math.Round(art.Delta.StatusApplyBonus, MidpointRounding.AwayFromZero);
+                return ApplyMorphemeStatus(turn, target, art, chanceBonus, rng, log);
+            }
+
+            if (art.Effects.Count == 0) return null;
 
             StringBuilder note = null;
             for (int i = 0; i < art.Effects.Count; i++)
@@ -380,7 +542,7 @@ namespace Jianghu.Core.Combat
                 int chance = Clamp(app.ChancePercent + chanceBonus, 0, 100);
                 if (!rng.Chance(chance)) continue;
 
-                string applied = Apply(turn, target, app, log);
+                string applied = Apply(turn, target, app.Kind, app.Potency, app.DurationTurns, 1, log);
                 if (applied == null) continue;
 
                 if (note == null) note = new StringBuilder();
@@ -391,31 +553,132 @@ namespace Jianghu.Core.Combat
             return note?.ToString();
         }
 
-        /// <summary>상태이상 하나를 실제로 건다. 걸리지 않았으면 null.</summary>
-        private static string Apply(int turn, Fighter target, StatusApplication app, List<CombatLogEntry> log)
+        /// <summary>
+        /// **형태소에서 상태이상을 유도해 부여한다.** 형태소 체계의 마지막 미연결 축이었다(2026-07-31).
+        ///
+        /// ⚠⚠ 무공 하나가 거는 상태이상은 **최대 1종**이다. 손으로 정한 제약이 아니라
+        ///   조합 규칙 §2-2 의 *"카테고리당 1자"* 에서 자동으로 나오는 성질이다 —
+        ///   그래서 여기서 델타를 위에서부터 훑어 **처음 걸리는 하나**로 끝낸다.
+        ///
+        /// ⚠ 세기·지속은 델타에 없다. 정의서 §3-4 가 확률만 적었기 때문이며,
+        ///   그래서 상수(<see cref="BleedPotency"/> 등)로 둔다 — **무공별로 다르지 않다.**
+        ///   달라지는 것은 "무엇이 걸리는가" 뿐이고, 그게 일곱 글자를 가르는 축이다.
+        /// </summary>
+        private static string ApplyMorphemeStatus(
+            int turn, Fighter target, MartialArt art, int chanceBonus, IRandomSource rng, List<CombatLogEntry> log)
         {
-            switch (app.Kind)
+            ArtStatDelta d = art.Delta;
+
+            StatusEffectKind kind;
+            double points;
+            int potency;
+            int duration;
+            int stackGain = 1;
+
+            if (d.PoisonChance > 0)
+            {
+                kind = StatusEffectKind.Poison; points = d.PoisonChance;
+                potency = PoisonPotencyPerStack; duration = 1;   // 스택제 — 지속 개념이 없다
+            }
+            else if (d.BleedChance > 0)
+            {
+                kind = StatusEffectKind.Bleed; points = d.BleedChance;
+                potency = BleedPotency; duration = BleedTurns;
+            }
+            else if (d.BurnChance > 0)
+            {
+                kind = StatusEffectKind.Burn; points = d.BurnChance;
+                potency = BurnPotency; duration = BurnTurns;
+            }
+            else if (d.FrostbiteChance > 0)
+            {
+                kind = StatusEffectKind.Frostbite; points = d.FrostbiteChance;
+                potency = 0; duration = FrostbiteTurns;          // 스스로는 피해를 주지 않는다
+            }
+            else if (d.QiDrainChance > 0)
+            {
+                kind = StatusEffectKind.QiDrain; points = d.QiDrainChance;
+                potency = QiDrainPotency; duration = QiDrainTurns;
+            }
+            else if (d.StaggerChance > 0)
+            {
+                kind = StatusEffectKind.Stagger; points = d.StaggerChance;
+                potency = StaggerPotency; duration = StaggerTurns;
+            }
+            else if (d.ParalysisStack > 0)
+            {
+                // ⚠⚠ 비(痺). 유일하게 확률이 아니라 스택으로 적힌 글자다 —
+                //   확률은 경(硬)과 같게 두고(그래서 `points` 를 형태소 1자분으로 환산),
+                //   **한 번에 두 겹을 쌓아** 2회 성공에 마비에 닿는다. 경은 3회다.
+                kind = StatusEffectKind.Stagger;
+                points = d.ParalysisStack * StatusPointsPerMorpheme;
+                potency = StaggerPotency; duration = StaggerTurns;
+                stackGain = ParalysisMorphemeStaggerGain;
+            }
+            else
+            {
+                return null;   // 상태이상 형태소가 없는 무공. 대다수가 여기로 빠진다
+            }
+
+            int chance = Clamp(
+                BaseStatusChance + (int)Math.Round(points, MidpointRounding.AwayFromZero) + chanceBonus, 0, 100);
+            if (!rng.Chance(chance)) return null;
+
+            string applied = Apply(turn, target, kind, potency, duration, stackGain, log);
+            return applied == null ? null : "[" + applied + "]";
+        }
+
+        /// <summary>
+        /// 상태이상 형태소 **1자가 주는 부여확률(%p)**. 정의서 §3-4 가 일곱 글자에 똑같이 적어 둔 값이다.
+        /// ⚠ 비(痺)만 확률이 아니라 스택으로 적혀 있어, 그 스택을 이 값으로 환산해 확률을 맞춘다.
+        /// </summary>
+        private const int StatusPointsPerMorpheme = 10;
+
+        /// <summary>상태이상 하나를 실제로 건다. 걸리지 않았으면 null.</summary>
+        private static string Apply(
+            int turn, Fighter target, StatusEffectKind kind, int potency, int durationTurns, int stackGain,
+            List<CombatLogEntry> log)
+        {
+            switch (kind)
             {
                 case StatusEffectKind.Bleed:
                 case StatusEffectKind.QiDrain:
+                case StatusEffectKind.Frostbite:
                 {
                     // 지속제 — 중첩하지 않고 지속만 갱신한다.
-                    ActiveStatus s = target.Find(app.Kind);
+                    // ⚠ 동상도 여기다. 세기가 0 이고 지속만 의미를 갖는다(효과는 피해 계산 쪽에 있다).
+                    ActiveStatus s = target.Find(kind);
                     if (s == null)
                     {
                         target.Statuses.Add(new ActiveStatus
                         {
-                            Kind = app.Kind,
-                            Potency = app.Potency,
-                            RemainingTurns = app.DurationTurns,
+                            Kind = kind,
+                            Potency = potency,
+                            RemainingTurns = durationTurns,
                         });
                     }
                     else
                     {
-                        s.Potency = app.Potency;
-                        s.RemainingTurns = app.DurationTurns;
+                        s.Potency = potency;
+                        s.RemainingTurns = durationTurns;
                     }
-                    return StatusApplication.NameOf(app.Kind);
+                    return StatusApplication.NameOf(kind);
+                }
+
+                case StatusEffectKind.Burn:
+                {
+                    // ⚠⚠ 체증형이고 **갱신되지 않는다.** 이미 타고 있으면 이번 부여는 버린다 —
+                    //   갱신을 허용하면 상시 유지되어 지배적 형태소가 된다(상수 주석 참조).
+                    if (target.Find(StatusEffectKind.Burn) != null) return null;
+
+                    target.Statuses.Add(new ActiveStatus
+                    {
+                        Kind = StatusEffectKind.Burn,
+                        Potency = potency,
+                        RemainingTurns = durationTurns,
+                        Stacks = 0,   // 경과 턴수. 매 턴 오르며 그게 곧 피해 배수다
+                    });
+                    return "화상";
                 }
 
                 case StatusEffectKind.Poison:
@@ -427,14 +690,14 @@ namespace Jianghu.Core.Combat
                         target.Statuses.Add(new ActiveStatus
                         {
                             Kind = StatusEffectKind.Poison,
-                            Potency = app.Potency,
+                            Potency = potency,
                             Stacks = 1,
                         });
                         return "중독 1중첩";
                     }
                     if (s.Stacks >= MaxPoisonStacks) return null;   // 이미 최대
                     s.Stacks++;
-                    s.Potency = app.Potency;
+                    s.Potency = potency;
                     return "중독 " + s.Stacks + "중첩";
                 }
 
@@ -450,24 +713,27 @@ namespace Jianghu.Core.Combat
                         s = new ActiveStatus
                         {
                             Kind = StatusEffectKind.Stagger,
-                            Potency = app.Potency,
-                            RemainingTurns = app.DurationTurns,
+                            Potency = potency,
+                            RemainingTurns = durationTurns,
                             Stacks = 0,
                         };
                         target.Statuses.Add(s);
                     }
-                    s.Potency = app.Potency;
-                    s.RemainingTurns = app.DurationTurns;
-                    s.Stacks++;
+                    s.Potency = potency;
+                    s.RemainingTurns = durationTurns;
 
-                    if (s.Stacks >= StaggerStacksForParalysis)
+                    // ⚠ 명중 페널티는 언제나 한 겹씩. 비(痺)가 더 쌓는 것은 **마비 게이지뿐**이다.
+                    s.Stacks++;
+                    s.ParalysisGauge += stackGain;
+
+                    if (s.ParalysisGauge >= StaggerStacksForParalysis)
                     {
                         // 확정 발동. 경직은 전부 소멸하고, 한동안 다시 쌓을 수 없다.
                         target.Statuses.Remove(s);
                         target.ParalyzeTurns = ParalysisTurns;
                         target.StaggerLockTurns = StaggerLockAfterParalysis + ParalysisTurns;
                         log.Add(CombatLogEntry.StatusTick(turn, target.Def.Name,
-                            "경직 " + StaggerStacksForParalysis + "중첩 → 마비!", 0, 0, target.Health));
+                            "마비 게이지 " + StaggerStacksForParalysis + " → 마비!", 0, 0, target.Health));
                         return "마비 유발";
                     }
                     return "경직 " + s.Stacks + "중첩";

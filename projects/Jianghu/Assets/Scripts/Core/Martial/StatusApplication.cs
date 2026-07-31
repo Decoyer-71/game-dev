@@ -44,6 +44,8 @@ namespace Jianghu.Core.Martial
                 case StatusEffectKind.QiDrain: return "기력소실";
                 case StatusEffectKind.Paralysis: return "마비";
                 case StatusEffectKind.Stagger: return "경직";
+                case StatusEffectKind.Burn: return "화상";
+                case StatusEffectKind.Frostbite: return "동상";
                 default: return "?";
             }
         }

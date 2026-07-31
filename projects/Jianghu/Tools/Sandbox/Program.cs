@@ -21,6 +21,19 @@ namespace Jianghu.Sandbox
     internal static class Program
     {
         private const int FightsPerMatchup = 100;
+
+        /// <summary>
+        /// **민감도표 전용 표본 수** (2026-07-31 신설).
+        ///
+        /// ⚠⚠ 100전이면 승률 60% 근처에서 표준편차가 **약 4.9%p** 다. 목표 구간이 53~65% 인데
+        ///   측정 오차가 그 폭의 절반이라, 상수를 고쳐 얻은 변화인지 흔들림인지 구분되지 않는다 —
+        ///   실제로 상태이상 조정 중에 *"고쳤는데 값이 안 움직이는"* 상황이 나왔다.
+        ///   400전이면 편차가 절반(약 2.4%p)으로 줄고, 대상 매치업이 수십 개뿐이라 비용도 작다.
+        ///
+        /// ⚠ 계층 승률표(<see cref="FightsPerMatchup"/>)는 그대로 둔다 — 그쪽은 138×138 이라
+        ///   같은 배수를 곱하면 실행 시간이 통째로 늘어난다.
+        /// </summary>
+        private const int SensitivityFights = 400;
         private const double DominantThreshold = 0.65;
         private const double DeadThreshold = 0.35;
 
@@ -166,7 +179,7 @@ namespace Jianghu.Sandbox
         private static void PrintSensitivity(int sessions)
         {
             Console.WriteLine();
-            Console.WriteLine("██ 형태소 민감도 (수련 " + sessions + "회) — 한 글자만 바꿔 " + FightsPerMatchup + "전 ██");
+            Console.WriteLine("██ 형태소 민감도 (수련 " + sessions + "회) — 한 글자만 바꿔 " + SensitivityFights + "전 ██");
 
             // 같은 카테고리 안은 서로 교체해 비교한다(카테고리당 1자 규칙 때문).
             Compare("공격방식", "정", true, sessions, "벌", "참", "절", "단", "자", "창", "구", "타", "격", "박", "투", "척", "포", "사");
@@ -236,7 +249,7 @@ namespace Jianghu.Sandbox
             MartialArt b = TryBuild(nameB);
             if (a == null || b == null) return 0.5;
 
-            return WinRate(ToCombatant(a, sessions), ToCombatant(b, sessions));
+            return WinRate(ToCombatant(a, sessions), ToCombatant(b, sessions), SensitivityFights);
         }
 
         private static MartialArt TryBuild(string name)
@@ -278,16 +291,16 @@ namespace Jianghu.Sandbox
 
         // ─────────────────────────── 측정 ───────────────────────────
 
-        private static double WinRate(Combatant a, Combatant b)
+        private static double WinRate(Combatant a, Combatant b, int fights = FightsPerMatchup)
         {
             double score = 0;
-            for (uint seed = 1; seed <= FightsPerMatchup; seed++)
+            for (uint seed = 1; seed <= fights; seed++)
             {
                 CombatResult r = CombatResolver.Resolve(a, b, new XorShiftRandom(seed));
                 if (r.Outcome == CombatOutcome.AttackerWin) score += 1.0;
                 else if (r.Outcome == CombatOutcome.Draw) score += 0.5;
             }
-            return score / FightsPerMatchup;
+            return score / fights;
         }
 
         /// <summary>한 계층 안에서 전수 대전을 돌려 순위를 낸다.</summary>
