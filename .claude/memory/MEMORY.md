@@ -1,0 +1,6 @@
+- [Unity 초심자](unity-beginner.md) — 에디터 조작은 단계별로, C#·구조 설명은 눈높이 낮출 필요 없음
+- [구상안 검토 3단계 + 존댓말](concept-review-process.md) — 컨셉을 받으면 사전조사→구현가능성→재미검토 순으로 답한다
+- [설계 먼저, 구현은 승인 후](design-before-implement.md) — 바로 코드 쓰지 말 것. 뼈대는 프로토타입보다 넓게
+- [콘텐츠는 초안 승인 후 진행](content-draft-approval.md) — 무공명은 계층 한 묶음씩 올려 검증받는다
+- [규칙 변경은 정의서 원본까지](rules-back-to-spec.md) — 합의 즉시 martial-resource-spec.md 를 고친다
+- [Jianghu: Core/Unity 층 분리](jianghu-core-unity-split.md) — 게임 규칙을 Unity 밖 순수 C# 으로 둔 이유와 대가

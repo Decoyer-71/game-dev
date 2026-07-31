@@ -37,8 +37,12 @@ D:\GameDev\                          ← 이 폴더 (작업공간 루트)
 │   ├── agents\                      ← 위임용 sub-agent 4종
 │   │                                   diagnosis / docs-lookup / game-research / verify
 │   ├── skills\                      ← confirm-sync (확정 즉시 커밋·푸시, §5-A)
-│   └── hooks\                       ← 세션 배너 · 대용량 로그 가드
+│   ├── hooks\                       ← 세션 배너 · 대용량 로그 가드
+│   └── memory\                      ← ⚠ **이동용 사본이다.** Claude 가 실제로 읽는 곳은
+│                                       저장소 밖(`%USERPROFILE%\.claude\projects\...`)이라
+│                                       새 PC 에서는 직접 복사해 넣어야 한다 → `docs/SETUP.md` §4
 ├── docs\                            ← 조사·설계 문서 보관
+│   ├── SETUP.md                     ← **새 PC 셋업 체크리스트** (2026-07-31)
 │   ├── unity-mcp-research.md        ← Unity MCP 조사 결과 (2026-07-27)
 │   ├── jianghu-design.md            ← Jianghu 설계 (2026-07-27)
 │   └── concepts\                    ← 구상안 검토 문서 (§8). `_TEMPLATE.md` 복사해서 쓴다
