@@ -246,8 +246,41 @@ namespace Jianghu.Core.Combat
         }
 
         /// <summary>
+        /// **속도(速度)** — 신법 + 형태소 속도. 정의서 §1-1 의 독립 스탯이다.
+        ///
+        /// ⚠⚠ 2026-07-31 — **선공(<see cref="Initiative"/>)에서 갈라냈다.** 선공에는 창 숙달(+25)이
+        ///   섞여 있어서, 속도를 선공으로 대신 쓰면 **창을 든 사람이 추가 행동을 독식한다.**
+        ///   설계안 §2 가 요구한 *"속도/회피 분리"* 의 절반이 여기서 이뤄진다.
+        ///
+        /// ⚠ 숙련 배율을 곱하지 않는다 — 확률축·비교축 공통 규칙이다.
+        /// </summary>
+        public int Speed
+        {
+            get
+            {
+                double bonus = 0;
+                for (int i = 0; i < Arts.Count; i++)
+                {
+                    LearnedArt learned = Arts[i];
+                    if (learned.Art.IsMorphemeDerived) bonus += learned.Art.Delta.Speed;
+                }
+                return Stats.Agility + (int)Math.Round(bonus);
+            }
+        }
+
+        /// <summary>
         /// 선공 판정 수치. 높은 쪽이 먼저 친다.
-        /// 경공 무공 + **창 숙달**(백일창 — 먼저 찌른다)이 얹힌다.
+        /// **속도** + 경공 무공 + **창 숙달**(백일창 — 먼저 찌른다).
+        ///
+        /// ⚠⚠ 2026-07-31 — **형태소 속도를 잇는 유일한 자리다.** 정의서 §1-1 이 속도를
+        ///   *"행동 순서"* 로 규정했으므로 여기 말고 갈 곳이 없다.
+        ///   그전까지 속도는 사전에 값만 있고 엔진이 안 읽어, 속도를 주는 글자가 전부 죽어 있었다 —
+        ///   수식 속·신·급 **52%**(무의미) · 무공형태 쾌(속도+2/명중−2) **28.5%** ·
+        ///   공격방식 투·척·포·사(속도+1.5) **29%**. 반대로 속도를 **파는** 글자(중·후 −2, 유·변 −2)는
+        ///   페널티가 없는 셈이라 중·후가 **86.7% 로 지배적**이었다.
+        ///
+        /// ⚠ **숙련 배율을 곱하지 않는다.** 선공은 크기가 아니라 **비교**라서, 배율을 곱하면
+        ///   수련한 쪽이 항상 먼저 치게 되어 형태소 선택이 묻힌다.
         ///
         /// ⚠ 프로토타입 단순화: 창 숙달이 있으면 다른 무기를 쓸 때도 선공 보너스가 붙는다.
         ///   선공은 전투 시작 전에 정해지는데 그 시점엔 어느 초식을 쓸지 아직 모르기 때문이다.
@@ -261,14 +294,14 @@ namespace Jianghu.Core.Combat
                 for (int i = 0; i < Arts.Count; i++)
                 {
                     LearnedArt learned = Arts[i];
-                    if (learned.Art.Discipline == Discipline.Movement)
+                    if (learned.Art.Discipline == Discipline.Movement && !learned.Art.IsMorphemeDerived)
                     {
                         bonus += learned.Art.InitiativeBonus * learned.PowerMultiplier;
                     }
                 }
 
                 int spearBonus = DisciplineCurve.InitiativeBonus(Discipline.Spear, MasteryOf(Discipline.Spear));
-                return Stats.Agility + (int)Math.Round(bonus) + spearBonus;
+                return Speed + (int)Math.Round(bonus) + spearBonus;
             }
         }
 

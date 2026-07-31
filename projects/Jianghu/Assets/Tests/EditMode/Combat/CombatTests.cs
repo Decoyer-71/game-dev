@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Jianghu.Core.Characters;
@@ -378,7 +378,7 @@ namespace Jianghu.Tests.Combat
         {
             // 편차가 좁다는 것은 결국 "몇 턴에 끝나는지가 예측된다" 는 뜻이어야 한다.
             // 이게 성립해야 나중에 비무대회에서 "확실한 성적" 이라는 선택지가 생긴다.
-            int SpreadOfTurns(Alignment alignment)
+            double SpreadOfTurns(Alignment alignment)
             {
                 // ⚠⚠ 2026-07-30 — 표적 체력을 600 → 240 으로 내렸다. **테스트를 느슨하게 만든 게 아니라
                 //   현실적인 전투 길이에서 재도록 고친 것**이다.
@@ -390,25 +390,42 @@ namespace Jianghu.Tests.Combat
                 //
                 // ⚠ 이 테스트가 지키는 것은 성향 설계의 핵심 주장이다 —
                 //   *"사파는 편차가 좁아 몇 턴에 끝날지 예측된다"*. 그래서 조건만 현실화하고 단언은 그대로 둔다.
-                Combatant f = Fighter("무인", BaseStats(), Learned(Sword(alignment), 0));
+                // ⚠⚠ 2026-07-31 — 무인의 신법을 표적과 같은 **0** 으로 맞췄다.
+                //   속도 우위가 있으면 추가 행동(속공)이 터지는데, 그건 **성향과 무관한 흔들림**이라
+                //   사파 ±5% 와 마도 ±35% 의 차이를 덮어버린다. 기본 막기확률을 0 으로 되돌린 것과
+                //   같은 이야기다(HANDOFF §5) — 이 테스트는 성향 편차 하나만 봐야 한다.
+                Combatant f = Fighter("무인", BaseStats(agility: 0), Learned(Sword(alignment), 0));
+
                 // ⚠ 2026-07-31 눈금 배수(`DamageScale` 5) 도입에 맞춰 240 → 1200.
                 //   **턴 수를 그대로 유지하려는 것**이다 — 위 주석이 설명하듯 이 테스트는
                 //   전투 길이가 9턴 안팎일 때만 성향 편차를 구분할 수 있다.
                 Combatant target = Fighter("표적", BaseStats(health: 1200, attack: 0, defense: 0, agility: 0));
 
+                // ⚠⚠ 2026-07-31 — **최대−최소 대신 표준편차**로, 표본 60 → 300 으로 바꿨다.
+                //   극값 범위는 미스 한 번에 통째로 흔들려서, 성향 편차가 아니라 **명중 운**을 재고 있었다.
+                //   실제로 조정 중에 사파 9 · 마도 9 처럼 동률이 반복해서 나왔다.
+                //   측정하려는 것은 *"결과가 일정한가"* 이므로 분산 자체를 봐야 한다 —
+                //   측정 도구의 분해능을 먼저 본다는 §4-1-b 와 같은 이야기다.
                 var turns = new List<int>();
-                for (uint seed = 1; seed <= 60; seed++)
+                for (uint seed = 1; seed <= 300; seed++)
                 {
                     turns.Add(CombatResolver.Resolve(f, target, new XorShiftRandom(seed), maxTurns: 200).Turns);
                 }
-                return turns.Max() - turns.Min();
+
+                double mean = 0;
+                for (int i = 0; i < turns.Count; i++) mean += turns[i];
+                mean /= turns.Count;
+
+                double variance = 0;
+                for (int i = 0; i < turns.Count; i++) variance += (turns[i] - mean) * (turns[i] - mean);
+                return System.Math.Sqrt(variance / turns.Count);
             }
 
-            int unorthodox = SpreadOfTurns(Alignment.Unorthodox);
-            int demonic = SpreadOfTurns(Alignment.Demonic);
+            double unorthodox = SpreadOfTurns(Alignment.Unorthodox);
+            double demonic = SpreadOfTurns(Alignment.Demonic);
 
             Assert.Less(unorthodox, demonic,
-                "사파 턴 수 편차가 마도보다 크다 (사파 {0} vs 마도 {1})", unorthodox, demonic);
+                "사파 턴 수 편차가 마도보다 크다 (사파 {0:F2} vs 마도 {1:F2})", unorthodox, demonic);
         }
     }
 }

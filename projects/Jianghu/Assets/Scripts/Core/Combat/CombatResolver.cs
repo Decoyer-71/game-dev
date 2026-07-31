@@ -77,6 +77,20 @@ namespace Jianghu.Core.Combat
         private const double MinCritMultiplier = 1.0;
 
         /// <summary>
+        /// **속도 1점이 주는 추가 행동 확률(%p)** — 상대와의 속도 차이에 곱한다 (2026-07-31 사용자 확정).
+        ///
+        /// ⚠⚠ 이 상수가 **속도를 통화로 만든다.** 정의서 §1-1 대로 속도를 '행동 순서' 로만 이었더니
+        ///   ±2 든 ±5 든 결과가 소수점까지 같은 **이진값**이었다 — 선공은 크기를 반영하지 못한다.
+        ///
+        /// ⚠ 값의 근거는 측정이다. 무공형태 쾌(속도+2/명중−2)가 25.7% 로 죽어 있었고,
+        ///   명중 −2 의 실측 비용이 **−22%p** 라 속도 +2 가 그만큼을 갚아야 한다.
+        /// </summary>
+        public const int ExtraActionPercentPerSpeed = 6;
+
+        /// <summary>추가 행동 확률 상한. 속도 격차가 벌어져도 매 턴 두 번 치는 상대는 만들지 않는다.</summary>
+        public const int MaxExtraActionChance = 50;
+
+        /// <summary>
         /// **피해 눈금 배수** (2026-07-31 사용자 확정). 세지려는 값이 아니라 **잘게 쪼개려는 값**이다.
         ///
         /// ⚠⚠ 이걸 넣기 전에는 타격 한 번이 7~8 이라 `Math.Round` 가 **12% 미만의 차이를 통째로 지웠다.**
@@ -411,7 +425,33 @@ namespace Jianghu.Core.Combat
                 return;
             }
 
-            // 3) 행동
+            PerformAction(turn, actor, target, rng, log);
+            if (actor.IsDown || target.IsDown) return;
+
+            // 3) **속도 우위면 한 번 더 친다** (2026-07-31 사용자 확정).
+            //
+            // ⚠⚠ 이게 없으면 속도는 **이진값**이다. 선공 판정만으로는 ±2 든 ±5 든
+            //   "먼저 치느냐"만 바뀌어 승률이 소수점까지 같았다 — 실제로 재봤다.
+            //   그러면 속도를 사는 형태소(쾌 25.7%)는 사전 수치를 어떻게 만져도 살아나지 않는다.
+            //   *"빠른 무공은 몇 턴에 한 번 더 친다"* 는 무협적으로도 자연스럽고,
+            //   절대경지의 **2회 행동**(확정)과 개념이 이어진다 — 이쪽은 확률형 하위 단계다.
+            //
+            // ⚠ **상대와의 차이**로 굴린다. 절대 속도로 굴리면 양쪽이 같이 빨라져 전투만 짧아진다.
+            // ⚠ 상태이상 진행(1)과 마비(2)를 다시 거치지 않는다 — 추가 행동은 '행동'만이다.
+            int advantage = actor.Def.Speed - target.Def.Speed;
+            if (advantage <= 0) return;
+
+            int extraChance = Clamp(advantage * ExtraActionPercentPerSpeed, 0, MaxExtraActionChance);
+            if (!rng.Chance(extraChance)) return;
+
+            PerformAction(turn, actor, target, rng, log, extra: true);
+        }
+
+        /// <summary>초식 하나를 실제로 쓴다. 상태이상 진행·마비 판정은 포함하지 않는다.</summary>
+        private static void PerformAction(
+            int turn, Fighter actor, Fighter target, IRandomSource rng, List<CombatLogEntry> log,
+            bool extra = false)
+        {
             LearnedArt chosen = SelectArt(actor);
             int mastery = actor.Def.MasteryOf(chosen.Art.Discipline);
 
@@ -527,6 +567,9 @@ namespace Jianghu.Core.Combat
                 string mark = "[막기" + (blocks > 1 ? " ×" + blocks : "") + "]";
                 note = string.IsNullOrEmpty(note) ? mark : mark + " " + note;
             }
+
+            // ⚠ 추가 행동도 보여야 한다. 안 보이면 "왜 두 번 맞았지" 가 남는다.
+            if (extra) note = string.IsNullOrEmpty(note) ? "[속공]" : "[속공] " + note;
 
             log.Add(CombatLogEntry.Action(
                 turn, actor.Def.Name, target.Def.Name, chosen.Art.Name,

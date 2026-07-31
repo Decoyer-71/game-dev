@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Jianghu.Core.Martial.Morphemes
@@ -63,14 +63,14 @@ namespace Jianghu.Core.Martial.Morphemes
             Row("투척포사", "投擲拋射", "던지기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 0.5, speed: 1.5));
 
             // ── §3-2 방어 (11자) · 택 1 · **경공 무공 필수** ──
-            Row("방거항어호", "防拒抗禦護", "막기", MorphemeCategory.Defense, ArtStatDelta.Of(defense: 2, blockChance: 10));
+            Row("방거항어호", "防拒抗禦護", "막기", MorphemeCategory.Defense, ArtStatDelta.Of(defense: 1.2, blockChance: 8));
             Row("피둔섬", "避遁閃", "회피", MorphemeCategory.Defense, ArtStatDelta.Of(evasion: 15));
             Row("반역응", "反逆應", "반격", MorphemeCategory.Defense, ArtStatDelta.Of(defense: 1, counterRate: 10));
             // ⚠ 종교 형태소 (2026-07-30). 소림사(불교)를 다른 문파와 구별하는 글자다.
             //   **기존 축의 복제가 아니라 새 자리여야 한다** — 방어군 5자는 전부 페널티가 없는데
             //   계(戒)만 페널티를 갖는다. 막기에 극단적으로 몰되 속도를 판다.
             //   근거: 지계(持戒)는 육바라밀의 하나로 "지켜서 막는" 개념이다. ⚠ 무협 사용례는 미검증.
-            Row("계", "戒", "지계", MorphemeCategory.Defense, ArtStatDelta.Of(blockChance: 25, speed: -2));
+            Row("계", "戒", "지계", MorphemeCategory.Defense, ArtStatDelta.Of(blockChance: 25, speed: -1));
 
             // ── §3-3 내공 (3자) · 택 1 · **내공 무공 필수** ──
             Row("양", "陽", "양기", MorphemeCategory.Internal, ArtStatDelta.Of(maxQi: 10));
@@ -99,17 +99,17 @@ namespace Jianghu.Core.Martial.Morphemes
             // ── §3-5 무공형태 (9자) · 택 1 · **공격 무공 필수** ──
             // ⚠ 5종 전부 페널티가 있고, 그게 의도다(정의서 §2-2). 페널티 없는 상위호환이 다른
             //   카테고리에 있으므로 선택제로 두면 아무도 고르지 않는다.
-            Row("정직", "正直", "정직", MorphemeCategory.Form, ArtStatDelta.Of(attack: 2, accuracy: -2));
-            Row("중후", "重厚", "무거움", MorphemeCategory.Form, ArtStatDelta.Of(attack: 2, speed: -2));
+            Row("정직", "正直", "정직", MorphemeCategory.Form, ArtStatDelta.Of(attack: 0.75, accuracy: -2));
+            Row("중후", "重厚", "무거움", MorphemeCategory.Form, ArtStatDelta.Of(attack: 1, speed: -2));
             Row("쾌", "快", "빠름", MorphemeCategory.Form, ArtStatDelta.Of(speed: 2, accuracy: -2));
-            Row("환궤", "幻詭", "기만", MorphemeCategory.Form, ArtStatDelta.Of(accuracy: 2, attack: -2));
+            Row("환궤", "幻詭", "기만", MorphemeCategory.Form, ArtStatDelta.Of(accuracy: 2, attack: -0.75));
             Row("유변", "柔變", "변화", MorphemeCategory.Form, ArtStatDelta.Of(accuracy: 2, speed: -2));
 
             // ── §3-6 수식 (11자) · 택 1 ──
             // 밝다/어둡다의 대비가 정의서 §1-2 용어 정리의 산물이다 — 밝다 = 자주 터진다(치명률),
             // 어둡다 = 크게 터진다(치명배율).
-            Row("속신급", "速迅急", "빠르다", MorphemeCategory.Modifier, ArtStatDelta.Of(speed: 2));
-            Row("적확", "的確", "맞히다", MorphemeCategory.Modifier, ArtStatDelta.Of(accuracy: 2));
+            Row("속신급", "速迅急", "빠르다", MorphemeCategory.Modifier, ArtStatDelta.Of(speed: 1));
+            Row("적확", "的確", "맞히다", MorphemeCategory.Modifier, ArtStatDelta.Of(accuracy: 1.4));
             Row("명광휘", "明光輝", "밝다", MorphemeCategory.Modifier, ArtStatDelta.Of(critChance: 10));
             Row("야암한", "夜暗寒", "어둡다", MorphemeCategory.Modifier, ArtStatDelta.Of(critMultiplier: 0.3));
             // ⚠ 종교 형태소 (2026-07-30). 무당파(도교)를 구별하는 글자다. 노자 「玄之又玄」.
@@ -125,7 +125,7 @@ namespace Jianghu.Core.Martial.Morphemes
             Row("풍", "風", "바람", MorphemeCategory.Element, ArtStatDelta.Of(speed: 1));
             Row("뇌", "雷", "벼락", MorphemeCategory.Element, ArtStatDelta.Of(critChance: 5));
             Row("수", "水", "물", MorphemeCategory.Element, ArtStatDelta.Of(qiRegen: 1));
-            Row("화", "火", "불", MorphemeCategory.Element, ArtStatDelta.Of(attack: 1));
+            Row("화", "火", "불", MorphemeCategory.Element, ArtStatDelta.Of(attack: 0.6));
             Row("냉", "冷", "차가움", MorphemeCategory.Element, ArtStatDelta.Of(accuracy: 1));
 
             // ── §3-8 극한경지 (9자) · **전승무학 전용 · 무공당 1자** (정의서 §5-2) ──
