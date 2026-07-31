@@ -11,7 +11,7 @@
 | **git 이 나르는 것** | 설계 문서 · 소스 전부 · `.claude/` 규율(agent·훅·스킬·메모리) · Unity 프로젝트 설정 |
 | **git 이 못 나르는 것** | **툴 설치**(Unity·.NET·gh·Python) · `Library/` · MCP 연결 · 대화 기록 |
 | **⚠⚠ 가장 중요** | **`D:\GameDev` 와 `D:\Tools\dotnet` 경로가 하드코딩돼 있다.** 같은 경로를 쓰면 아무것도 안 고쳐도 된다 |
-| **완료 판정** | `dotnet test` 가 **138/138** 을 내면 끝이다 |
+| **완료 판정** | `dotnet test` 가 **159/159** 를 내면 끝이다 (2026-08-01 기준) |
 
 ---
 
@@ -79,7 +79,7 @@ mkdir -p "$USERPROFILE/.claude/projects/D--GameDev/memory" && cp D:/GameDev/.cla
 D:/Tools/dotnet/dotnet.exe test D:/GameDev/projects/Jianghu/Tools/CoreTests/CoreTests.csproj
 ```
 
-**138/138 통과가 나오면 로직 쪽 셋업은 완료다.** (2026-07-31 기준 — 그 뒤 테스트가 늘었다면 `HANDOFF.md` §0 의 숫자를 본다)
+**159/159 통과가 나오면 로직 쪽 셋업은 완료다.** (2026-08-01 기준 — 그 뒤 테스트가 늘었다면 `HANDOFF.md` §0 의 숫자를 본다)
 
 밸런싱 판정 도구도 같이 확인해 둔다:
 
