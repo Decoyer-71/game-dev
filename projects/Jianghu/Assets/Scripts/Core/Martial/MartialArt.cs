@@ -90,8 +90,20 @@ namespace Jianghu.Core.Martial
         /// <summary>형태소에서 유도된 무공인가. false 면 레거시(손으로 수치를 박은) 무공이다.</summary>
         public bool IsMorphemeDerived { get; }
 
-        /// <summary>이 무공의 접근성 계층. 문파명으로부터 유도된다. 무소속이면 강호무학.</summary>
-        public SchoolTier Tier => SchoolCatalog.TierOf(School);
+        /// <summary>
+        /// 이 무공의 접근성 계층.
+        ///
+        /// ⚠⚠ 2026-07-31 — **문파명에서 유도하던 것을 저장값으로 바꿨다.** 유도 방식은
+        ///   `SchoolCatalog` 에 없는 소속을 전부 강호무학으로 떨어뜨렸고, 그래서
+        ///   **대형세력 16종(무림맹·사도련·제천성)이 강호무학으로 분류돼 있었다.**
+        ///   승률표의 강호무학 그룹 11종 중 6종이 실제로는 대문파급 4자 무공이었고,
+        ///   *"계층 간 우위가 없다"* 는 측정 결과가 상당 부분 여기서 나왔다.
+        ///   ⚠ 카탈로그는 처음부터 정확한 계층을 알고 있었다 — 그걸 버리고 있었던 것이 문제다.
+        ///
+        /// ⚠ 전승무학(<see cref="ArtTier.Legacy"/>)·절대경지도 이제 구분된다.
+        ///   그전에는 소속 문파명을 따라 전부 대문파로 뭉뚱그려졌다.
+        /// </summary>
+        public ArtTier Tier { get; }
 
         private static readonly StatusApplication[] NoEffects = new StatusApplication[0];
 
@@ -103,7 +115,7 @@ namespace Jianghu.Core.Martial
         /// </summary>
         public static MartialArt FromMorphemes(
             string id, string name, string school, Discipline discipline, Alignment? alignment,
-            ArtStatDelta delta, int qiCost, int hitCount = 1, params StatusApplication[] effects)
+            ArtStatDelta delta, int qiCost, ArtTier tier, int hitCount = 1, params StatusApplication[] effects)
         {
             if (hitCount < 1) throw new ArgumentOutOfRangeException(nameof(hitCount), "타격 횟수는 1 이상이어야 한다.");
 
@@ -111,7 +123,7 @@ namespace Jianghu.Core.Martial
                 id, name, school, discipline, alignment,
                 basePower: 0, qiCost: qiCost, hitCount: hitCount, accuracyBonus: 0,
                 maxQiBonus: 0, powerBonusPercent: 0, evasionBonus: 0, initiativeBonus: 0,
-                effects: effects, delta: delta, morphemeDerived: true);
+                effects: effects, delta: delta, morphemeDerived: true, tier: tier);
         }
 
         private MartialArt(
@@ -119,10 +131,11 @@ namespace Jianghu.Core.Martial
             int basePower, int qiCost, int hitCount, int accuracyBonus,
             int maxQiBonus, int powerBonusPercent, int evasionBonus, int initiativeBonus,
             StatusApplication[] effects,
-            ArtStatDelta delta = default, bool morphemeDerived = false)
+            ArtStatDelta delta = default, bool morphemeDerived = false, ArtTier tier = ArtTier.Wanderer)
         {
             Delta = delta;
             IsMorphemeDerived = morphemeDerived;
+            Tier = tier;
             if (string.IsNullOrEmpty(id)) throw new ArgumentException("무공 Id 는 비어 있을 수 없다.", nameof(id));
             if (string.IsNullOrEmpty(name)) throw new ArgumentException("무공 이름은 비어 있을 수 없다.", nameof(name));
 

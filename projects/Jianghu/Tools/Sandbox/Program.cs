@@ -53,6 +53,19 @@ namespace Jianghu.Sandbox
         private const double DominantThreshold = 0.65;
         private const double DeadThreshold = 0.35;
 
+        /// <summary>
+        /// 순위표를 뽑는 계층들.
+        ///
+        /// ⚠⚠ 2026-07-31 — **전승무학·절대경지가 빠져 있었다.** 그리고 계층을 문파명에서
+        ///   유도하던 탓에 `SchoolCatalog` 에 없는 **대형세력 16종이 강호무학으로 분류**됐다.
+        ///   그래서 *"계층 간 우위가 없다"* 는 측정이 나왔던 것이다 — 강호무학 그룹 11종 중
+        ///   6종이 실제로는 대문파급 4자 무공이었다.
+        /// </summary>
+        private static readonly ArtTier[] RankedTiers =
+        {
+            ArtTier.Wanderer, ArtTier.Minor, ArtTier.Major, ArtTier.Legacy, ArtTier.Absolute,
+        };
+
         private static void Main()
         {
             Console.OutputEncoding = Encoding.UTF8;
@@ -71,7 +84,7 @@ namespace Jianghu.Sandbox
             {
                 Console.WriteLine();
                 Console.WriteLine("████ 무공 " + MartialStage.Describe(stage) + " 시점 ████");
-                foreach (SchoolTier tier in new[] { SchoolTier.Wanderer, SchoolTier.Minor, SchoolTier.Major })
+                foreach (ArtTier tier in RankedTiers)
                 {
                     PrintRanking(techniques, tier, stage);
                 }
@@ -348,7 +361,7 @@ namespace Jianghu.Sandbox
         }
 
         /// <summary>한 계층 안에서 전수 대전을 돌려 순위를 낸다.</summary>
-        private static void PrintRanking(List<MartialArt> all, SchoolTier tier, int stage)
+        private static void PrintRanking(List<MartialArt> all, ArtTier tier, int stage)
         {
             var group = new List<MartialArt>();
             for (int i = 0; i < all.Count; i++)
@@ -397,8 +410,8 @@ namespace Jianghu.Sandbox
         /// <summary>계층 간 격차 — 여기는 벌어지는 것이 **정상**이다. 다만 압도적이면 안 된다.</summary>
         private static void PrintCrossTier(List<MartialArt> all, int stage)
         {
-            var byTier = new Dictionary<SchoolTier, List<MartialArt>>();
-            foreach (SchoolTier t in new[] { SchoolTier.Wanderer, SchoolTier.Minor, SchoolTier.Major })
+            var byTier = new Dictionary<ArtTier, List<MartialArt>>();
+            foreach (ArtTier t in RankedTiers)
             {
                 byTier[t] = new List<MartialArt>();
             }
@@ -407,13 +420,15 @@ namespace Jianghu.Sandbox
             Console.WriteLine();
             Console.WriteLine("── 계층 간 (상위가 이기는 것이 정상. 다만 90% 이상이면 하위 계층이 무의미해진다) ──");
 
-            Report(byTier, SchoolTier.Minor, SchoolTier.Wanderer, stage);
-            Report(byTier, SchoolTier.Major, SchoolTier.Minor, stage);
-            Report(byTier, SchoolTier.Major, SchoolTier.Wanderer, stage);
+            Report(byTier, ArtTier.Minor, ArtTier.Wanderer, stage);
+            Report(byTier, ArtTier.Major, ArtTier.Minor, stage);
+            Report(byTier, ArtTier.Major, ArtTier.Minor, stage);
+            Report(byTier, ArtTier.Legacy, ArtTier.Major, stage);
+            Report(byTier, ArtTier.Major, ArtTier.Wanderer, stage);
         }
 
         private static void Report(
-            Dictionary<SchoolTier, List<MartialArt>> byTier, SchoolTier high, SchoolTier low, int stage)
+            Dictionary<ArtTier, List<MartialArt>> byTier, ArtTier high, ArtTier low, int stage)
         {
             List<MartialArt> hi = byTier[high];
             List<MartialArt> lo = byTier[low];
@@ -513,13 +528,15 @@ namespace Jianghu.Sandbox
 
         // ─────────────────────────── 표시 도우미 ───────────────────────────
 
-        private static string TierName(SchoolTier t)
+        private static string TierName(ArtTier t)
         {
             switch (t)
             {
-                case SchoolTier.Wanderer: return "강호무학";
-                case SchoolTier.Minor: return "소문파";
-                case SchoolTier.Major: return "대문파";
+                case ArtTier.Wanderer: return "강호무학";
+                case ArtTier.Minor: return "소문파";
+                case ArtTier.Major: return "대문파·세력";
+                case ArtTier.Legacy: return "전승무학";
+                case ArtTier.Absolute: return "절대경지";
                 default: return "?";
             }
         }

@@ -73,8 +73,10 @@ namespace Jianghu.Core.Martial.Morphemes
                 return false;
             }
 
+            // ⚠ 계층을 무공에 실어 보낸다(2026-07-31). 그전에는 여기서 버려지고 문파명에서
+            //   다시 유도해, `SchoolCatalog` 에 없는 대형세력이 전부 강호무학이 됐다.
             art = MartialArt.FromMorphemes(
-                id, name, school, discipline, alignment, parsed.Delta, parsed.QiCost, hitCount, effects);
+                id, name, school, discipline, alignment, parsed.Delta, parsed.QiCost, tier, hitCount, effects);
             return true;
         }
     }
