@@ -264,7 +264,12 @@ namespace Jianghu.Core.Combat
                     LearnedArt learned = Arts[i];
                     if (learned.Art.IsMorphemeDerived) bonus += learned.Art.Delta.Speed;
                 }
-                return Stats.Agility + (int)Math.Round(bonus);
+
+                // ⚠ 창 숙달(백일창)이 여기 얹힌다 — *"먼저 찌른다"* 에 *"자주 찌른다"* 를 더한 것이다.
+                //   선공에도 속도가 들어가므로 창은 두 축을 겸한다(2026-07-31 유형 재조정).
+                // ⚠ 프로토타입 단순화는 `Initiative` 와 같다 — 창 숙달자는 다른 무기를 들어도 받는다.
+                int spearSpeed = DisciplineCurve.SpeedBonus(Discipline.Spear, MasteryOf(Discipline.Spear));
+                return Stats.Agility + (int)Math.Round(bonus) + spearSpeed;
             }
         }
 

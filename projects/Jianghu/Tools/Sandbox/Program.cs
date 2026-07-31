@@ -228,6 +228,60 @@ namespace Jianghu.Sandbox
             CompareOptional("수식", stage, "속", "신", "급", "적", "확", "명", "광", "휘", "야", "암", "한", "현");
             CompareOptional("자연속성", stage, "풍", "뇌", "수", "화", "냉");
             CompareOptional("상태이상", stage, "독", "혈", "비", "염", "빙", "탈", "경");
+
+            PrintDisciplineSensitivity(stage);
+        }
+
+        /// <summary>
+        /// **유형(무기) 민감도** — 같은 무공명을 다섯 무기로 들려 붙인다 (2026-07-31 신설).
+        ///
+        /// ⚠⚠ 이 측정이 없어서 **계층 내 격차의 주범을 형태소라고 오해하고 있었다.**
+        ///   대문파 44종 순위표에서 상위 6종이 전부 검(劍)이었는데, 형태소 민감도표는
+        ///   검으로 고정해 재고 있었으므로 그 사실이 보이지 않았다.
+        ///
+        /// ⚠ 유형 숙달은 전부 **10성 고정**이다. 재는 것은 *"숙달했을 때 무엇을 얻는가"* 이지
+        ///   *"얼마나 빨리 숙달하는가"* 가 아니다 — 후자는 학습률(백일창·천일도·만일검)이고
+        ///   그건 시간 비용이라 승률로 환산되지 않는다.
+        /// ⚠ 상태이상 유무로 두 번 잰다. 비도의 특성(상태이상 확률 +30%p)은 상태이상 형태소를
+        ///   넣은 무공에서만 값을 하기 때문이다.
+        /// </summary>
+        private static void PrintDisciplineSensitivity(int stage)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  ── 유형(무기) — 같은 무공을 다섯 무기로 " + SensitivityFights + "전 ──");
+
+            var kinds = new[]
+            {
+                new KeyValuePair<string, Discipline>("검", Discipline.Sword),
+                new KeyValuePair<string, Discipline>("도", Discipline.Blade),
+                new KeyValuePair<string, Discipline>("창", Discipline.Spear),
+                new KeyValuePair<string, Discipline>("권", Discipline.Fist),
+                new KeyValuePair<string, Discipline>("비도", Discipline.Dagger),
+            };
+
+            // ⚠⚠ 2자(참정)는 기력 8 인데 회복이 10 이라 **기력이 절대 마르지 않는다** — 권의 특성이
+            //   측정에서 통째로 0 이 된다. 4자(기력 16)를 반드시 함께 재야 한다.
+            foreach (string name in new[] { "참정", "참정독", "참정독명" })
+            {
+                Console.WriteLine("     [" + name + "]");
+                var rows = new List<KeyValuePair<string, double>>();
+                for (int i = 0; i < kinds.Length; i++)
+                {
+                    double sum = 0;
+                    int n = 0;
+                    for (int j = 0; j < kinds.Length; j++)
+                    {
+                        if (i == j) continue;
+                        MartialArt a = TryBuild(name, kinds[i].Value);
+                        MartialArt b = TryBuild(name, kinds[j].Value);
+                        if (a == null || b == null) continue;
+                        sum += WinRate(ToCombatant(a, stage), ToCombatant(b, stage), SensitivityFights);
+                        n++;
+                    }
+                    if (n > 0) rows.Add(new KeyValuePair<string, double>(kinds[i].Key, sum / n));
+                }
+                Report(rows);
+            }
         }
 
         /// <summary>같은 카테고리 형태소들을 서로 붙인다. 기준 글자 하나를 고정하고 나머지 한 자리를 바꾼다.</summary>
@@ -291,14 +345,13 @@ namespace Jianghu.Sandbox
             return WinRate(ToCombatant(a, stage), ToCombatant(b, stage), SensitivityFights);
         }
 
-        private static MartialArt TryBuild(string name)
-        {
+        private static MartialArt TryBuild(string name)        {            return TryBuild(name, Discipline.Sword);        }                private static MartialArt TryBuild(string name, Discipline discipline)        {
             MartialArt art;
             IReadOnlyList<string> problems;
             // 대문파급·정파·검으로 고정한다 — 비교 대상이 형태소 하나뿐이어야 하므로 나머지는 전부 같게 둔다.
             MartialArtFactory.TryCreate(
                 "s_" + name, name, ArtKind.Attack, ArtTier.Major,
-                Discipline.Sword, Alignment.Orthodox, "화산파", 1, null, out art, out problems);
+                discipline, Alignment.Orthodox, "화산파", 1, null, out art, out problems);
             return art;
         }
 

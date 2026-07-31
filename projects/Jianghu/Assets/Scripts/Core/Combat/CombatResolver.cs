@@ -225,7 +225,7 @@ namespace Jianghu.Core.Combat
         ///   기력 회복이 턴당 10 이라 8 은 회복에 먹혀 초식 사용 리듬을 바꾸지 못했다.
         ///   회복과 같은 10 이어야 그 턴의 회복이 통째로 상쇄되어 **실제로 한 턴을 평타로 만든다.**
         ///   ⚠ 12 도 재봤으나 65~66% 로 지배적이었다.
-        public const int QiDrainPotency = 10;
+        public const int QiDrainPotency = 14;
         public const int QiDrainTurns = 2;
 
         /// <summary>

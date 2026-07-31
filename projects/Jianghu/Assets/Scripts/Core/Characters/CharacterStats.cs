@@ -70,7 +70,7 @@ namespace Jianghu.Core.Characters
         /// </remarks>
         public static CharacterStats MaxLevel()
         {
-            return new CharacterStats(maxHealth: 700, maxQi: 50, attack: 8, defense: 3, agility: 4);
+            return new CharacterStats(maxHealth: 600, maxQi: 50, attack: 8, defense: 3, agility: 4);
         }
 
         /// <summary>
@@ -81,7 +81,7 @@ namespace Jianghu.Core.Characters
         /// </summary>
         public static CharacterStats Starting()
         {
-            return new CharacterStats(maxHealth: 300, maxQi: 50, attack: 3, defense: 1, agility: 1);
+            return new CharacterStats(maxHealth: 260, maxQi: 50, attack: 3, defense: 1, agility: 1);
         }
     }
 }
