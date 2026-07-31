@@ -27,16 +27,25 @@ namespace Jianghu.Tests.Combat
             return CharacterStats.MaxLevel();
         }
 
-        /// <summary>⚠ 250 = 모든 축이 상한에 닿는 수련 횟수. 검(만일검)이 0.40/회로 가장 느리다.</summary>
-        private static Combatant Fighter(string name, int sessions = 250)
+        /// <summary>
+        /// **무공 경지 `stage`(1~10성)의 대전자.** 기본은 최종점인 10성이다.
+        /// ⚠ 유형 숙달은 **만렙 고정** — 무공 경지와 같이 움직이면 두 축이 섞인다(2026-07-31).
+        /// </summary>
+        private static Combatant Fighter(string name, int stage = MartialStage.MaxStage)
         {
             MartialArt art = MartialArtFactory.Create(
                 "d_" + name, name, ArtKind.Attack, ArtTier.Major,
                 Discipline.Sword, Alignment.Orthodox, "화산파");
 
+            int sessions = AlignmentCurve.SessionsToReach(
+                Alignment.Orthodox, MartialStage.ProficiencyForStage(stage));
+
             return new Combatant(name, SpecStats(),
                 new List<LearnedArt> { new LearnedArt(art, sessions, Alignment.Orthodox) },
-                new List<DisciplineMastery> { new DisciplineMastery(Discipline.Sword, sessions) });
+                new List<DisciplineMastery>
+                {
+                    new DisciplineMastery(Discipline.Sword, DisciplineCurve.SessionsToMaster(Discipline.Sword)),
+                });
         }
 
         /// <summary>`attacker` 가 `defender` 를 때려 실제로 넣은 총 피해. 반격분은 세지 않는다.</summary>
@@ -94,8 +103,8 @@ namespace Jianghu.Tests.Combat
             // ⚠⚠ 뺄셈 공식을 버리고 비율 경감으로 간 이유가 여기 있다(2026-07-31 사용자 확정).
             //   뺄셈은 방어가 공격을 넘어서는 순간 피해를 0(=하한 1)으로 만들어 전투를 끝나지 않게 한다.
             //   실제로 뺄셈일 때 방(防) 하나로 **승률 100%** 가 나왔다.
-            Combatant attacker = Fighter("참정", sessions: 0);       // 가장 약한 공격
-            Combatant wall = Fighter("참정방", sessions: 200);        // 가장 두꺼운 방어
+            Combatant attacker = Fighter("참정", stage: 1);                    // 가장 약한 공격
+            Combatant wall = Fighter("참정방", stage: MartialStage.MaxStage);   // 가장 두꺼운 방어
 
             Assert.Greater(DamageDealt(attacker, wall), 0,
                 "방어가 높은 상대에게 피해가 전혀 안 들어간다 — 전투가 성립하지 않는다.");

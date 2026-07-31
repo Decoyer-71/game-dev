@@ -26,11 +26,8 @@ namespace Jianghu.Tests.Combat
         /// <summary>측정 표본 수. 부여는 확률축이라 한 판으로는 아무것도 말할 수 없다.</summary>
         private const int Seeds = 200;
 
-        /// <summary>
-        /// ⚠⚠ **모든 축이 상한에 닿는 수련 횟수** (2026-07-31). 검(만일검)이 0.40/회로 가장 느려 250 이다.
-        ///   그전에는 200 을 만렙이라 부르며 쟀는데 그 시점의 검 숙달은 80/100 이었다.
-        /// </summary>
-        private const int MasterySessions = 250;
+        /// <summary>⚠ 무공 경지의 최종점. 축 검증은 **10성**에서 한다(2026-07-31 사용자 확정).</summary>
+        private const int MasterySessions = MartialStage.MaxStage;
 
         /// <summary>
         /// ⚠ **만렙 기준으로 잰다** (2026-07-31 사용자 확정). 캐릭터 능력치가 나중에 성장 요소가
@@ -41,16 +38,28 @@ namespace Jianghu.Tests.Combat
             return CharacterStats.MaxLevel();
         }
 
-        /// <summary>무공명 하나로 대전자를 만든다. `CritTests` 와 같은 전제(대문파·정파·검)다.</summary>
-        private static Combatant Fighter(string name, int sessions)
+        /// <summary>
+        /// **무공 경지 `stage`(1~10성)의 대전자**를 만든다. 대문파·정파·검 고정(Sandbox 와 같은 전제).
+        ///
+        /// ⚠⚠ 2026-07-31 — 그전에는 `sessions` 하나로 **무공 숙련과 유형 숙달을 동시에** 올렸다.
+        ///   둘은 다른 축이라(무공 경지 vs 무기 숙달) 뭉치면 원인이 갈리지 않는다.
+        ///   **유형 숙달은 만렙 고정**, 움직이는 것은 무공 경지뿐이다.
+        /// </summary>
+        private static Combatant Fighter(string name, int stage)
         {
             MartialArt art = MartialArtFactory.Create(
                 "s_" + name, name, ArtKind.Attack, ArtTier.Major,
                 Discipline.Sword, Alignment.Orthodox, "화산파");
 
+            int sessions = AlignmentCurve.SessionsToReach(
+                Alignment.Orthodox, MartialStage.ProficiencyForStage(stage));
+
             return new Combatant(name, SpecStats(),
                 new List<LearnedArt> { new LearnedArt(art, sessions, Alignment.Orthodox) },
-                new List<DisciplineMastery> { new DisciplineMastery(Discipline.Sword, sessions) });
+                new List<DisciplineMastery>
+                {
+                    new DisciplineMastery(Discipline.Sword, DisciplineCurve.SessionsToMaster(Discipline.Sword)),
+                });
         }
 
         /// <summary>전투 200판을 돌려 로그에 `mark` 가 몇 줄 나오는지 센다.</summary>

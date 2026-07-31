@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using Jianghu.Core.Characters;
@@ -36,12 +36,20 @@ namespace Jianghu.Sandbox
         private const int SensitivityFights = 400;
 
         /// <summary>
-        /// **모든 축이 상한에 닿는 수련 횟수** (2026-07-31 신설).
+        /// ⚠⚠ **측정에서 움직이는 변수는 무공 경지 하나뿐이다** (2026-07-31 사용자 교정).
         ///
-        /// ⚠⚠ 이 값이 250 인 이유는 **검(만일검)이 가장 느리기 때문**이다(0.40/회 → 250회).
-        ///   그전까지 "만렙" 이라 부르며 200회에서 쟀는데, 그 시점의 검 숙달은 80/100 이었다.
+        /// 그전에는 `sessions` 하나로 **무공 숙련과 유형 숙달을 동시에** 올리고 있었다.
+        /// 둘은 다른 축이다 — 무공 경지는 무공마다 따로 쌓고(1~10성), 유형 숙달(백일창·천일도·
+        /// 만일검)은 **사람이 그 무기를 얼마나 다뤘는가**로 캐릭터 쪽에 가깝다.
+        /// 뭉쳐서 재면 *"무공이 세진 것인지 사람이 세진 것인지"* 를 분리할 수 없다.
+        ///
+        /// → **유형 숙달은 만렙(숙련 100)으로 고정**한다. 캐릭터 능력치를 만렙으로 고정한 것과 같은 이유다.
         /// </summary>
-        private const int MasterySessions = 250;
+        private static int MasteredSessions(Discipline discipline)
+        {
+            return DisciplineCurve.SessionsToMaster(discipline);
+        }
+
         private const double DominantThreshold = 0.65;
         private const double DeadThreshold = 0.35;
 
@@ -55,26 +63,25 @@ namespace Jianghu.Sandbox
             Console.WriteLine("무공 " + MartialArtCatalog.All.Count + "종(공격 초식 " + techniques.Count + ")"
                               + " · 문파 " + SchoolCatalog.All.Count + "곳 · 매치업당 " + FightsPerMatchup + "전");
 
-            // ⚠⚠ 2026-07-31 — 두 번째 시점을 200 → **250** 으로 올렸다. 200 은 만렙이 아니었다.
-            //   숙련 상한(100)에 닿는 수련 횟수가 축마다 다르고, **검(만일검)은 0.40/회라 250회**가 필요하다.
-            //   민감도표는 정파·검으로 고정해 재므로, 200회 시점의 검 숙달은 **80/100** 이었다.
-            //   (참고: 창 50 · 권 84 · 비도 100 · 도/정파 143 · 사파 ~138 · 마도 222 · 검 250)
-            foreach (int sessions in new[] { 100, MasterySessions })
+            // ⚠⚠ 2026-07-31 사용자 교정 — 측정 축이 **수련 횟수에서 무공 경지(1~10성)로** 바뀌었다.
+            //   횟수는 성향마다 뜻이 달라진다(같은 200회가 정파 10성 · 마도 9성). 경지로 말하면
+            //   **10성은 어느 성향에게나 10성**이고, 다른 것은 거기 도달하는 비용뿐이다.
+            //   초반(3성) · 중반(6성) · 후반(10성= 무공 경지의 최종점) 세 지점에서 잰다.
+            foreach (int stage in MartialStage.MeasurementStages)
             {
                 Console.WriteLine();
-                Console.WriteLine("████ 수련 " + sessions + "회 시점 ████");
+                Console.WriteLine("████ 무공 " + MartialStage.Describe(stage) + " 시점 ████");
                 foreach (SchoolTier tier in new[] { SchoolTier.Wanderer, SchoolTier.Minor, SchoolTier.Major })
                 {
-                    PrintRanking(techniques, tier, sessions);
+                    PrintRanking(techniques, tier, stage);
                 }
-                PrintCrossTier(techniques, sessions);
+                PrintCrossTier(techniques, stage);
+
+                PrintSensitivity(stage);
             }
 
-            PrintSensitivity(100);
-            PrintSensitivity(MasterySessions);
-
             PrintStartingViability();
-            PrintSampleBattle(MasterySessions);
+            PrintSampleBattle(MartialStage.MaxStage);
         }
 
         // ─────────────────────────── 형태소 역산 리포트 (설계안 §5-2) ───────────────────────────
@@ -189,28 +196,29 @@ namespace Jianghu.Sandbox
         /// 판정: **47~53% = 무의미한 형태소** · 53~65% = 정상 · **65% 이상 = 지배적 형태소**
         /// ⚠ 성향 곡선 때문에 수련 시점마다 순위가 뒤집힐 수 있어 두 시점에서 잰다.
         /// </summary>
-        private static void PrintSensitivity(int sessions)
+        private static void PrintSensitivity(int stage)
         {
             Console.WriteLine();
-            Console.WriteLine("██ 형태소 민감도 (수련 " + sessions + "회) — 한 글자만 바꿔 " + SensitivityFights + "전 ██");
+            Console.WriteLine("██ 형태소 민감도 (무공 " + MartialStage.Describe(stage) + ") — 한 글자만 바꿔 "
+                              + SensitivityFights + "전 ██");
 
             // 같은 카테고리 안은 서로 교체해 비교한다(카테고리당 1자 규칙 때문).
-            Compare("공격방식", "정", true, sessions, "벌", "참", "절", "단", "자", "창", "구", "타", "격", "박", "투", "척", "포", "사");
-            Compare("무공형태", "참", false, sessions, "정", "직", "중", "후", "쾌", "환", "궤", "유", "변");
+            Compare("공격방식", "정", true, stage, "벌", "참", "절", "단", "자", "창", "구", "타", "격", "박", "투", "척", "포", "사");
+            Compare("무공형태", "참", false, stage, "정", "직", "중", "후", "쾌", "환", "궤", "유", "변");
 
             // 선택 카테고리는 **넣음 vs 뺌** 으로 비교한다.
             // ⚠⚠ 2026-07-31 신설. 방어 카테고리가 민감도표에 **통째로 빠져 있었다** —
             //   측정 대상이 아니었으니 방어 형태소 12자가 죽어 있는지조차 알 수 없었다.
             //   ⚠ 대표 1자씩만 잰다(방=거=항=어=호, 피=둔=섬, 반=역=응). 같은 행은 수치가 동일하다.
-            CompareOptional("방어", sessions, "방", "피", "반", "계");
+            CompareOptional("방어", stage, "방", "피", "반", "계");
 
-            CompareOptional("수식", sessions, "속", "신", "급", "적", "확", "명", "광", "휘", "야", "암", "한", "현");
-            CompareOptional("자연속성", sessions, "풍", "뇌", "수", "화", "냉");
-            CompareOptional("상태이상", sessions, "독", "혈", "비", "염", "빙", "탈", "경");
+            CompareOptional("수식", stage, "속", "신", "급", "적", "확", "명", "광", "휘", "야", "암", "한", "현");
+            CompareOptional("자연속성", stage, "풍", "뇌", "수", "화", "냉");
+            CompareOptional("상태이상", stage, "독", "혈", "비", "염", "빙", "탈", "경");
         }
 
         /// <summary>같은 카테고리 형태소들을 서로 붙인다. 기준 글자 하나를 고정하고 나머지 한 자리를 바꾼다.</summary>
-        private static void Compare(string label, string fixedChar, bool varyFirst, int sessions, params string[] chars)
+        private static void Compare(string label, string fixedChar, bool varyFirst, int stage, params string[] chars)
         {
             Console.WriteLine();
             Console.WriteLine("  ── " + label + " ──");
@@ -225,7 +233,7 @@ namespace Jianghu.Sandbox
                 {
                     if (i == j) continue;
                     string other = varyFirst ? chars[j] + fixedChar : fixedChar + chars[j];
-                    sum += Duel(name, other, sessions);
+                    sum += Duel(name, other, stage);
                     n++;
                 }
                 rows.Add(new KeyValuePair<string, double>(chars[i], sum / n));
@@ -234,7 +242,7 @@ namespace Jianghu.Sandbox
         }
 
         /// <summary>선택 카테고리 — 그 글자를 넣은 무공 vs 안 넣은 무공.</summary>
-        private static void CompareOptional(string label, int sessions, params string[] chars)
+        private static void CompareOptional(string label, int stage, params string[] chars)
         {
             Console.WriteLine();
             Console.WriteLine("  ── " + label + " (넣음 vs 뺌) ──");
@@ -242,7 +250,7 @@ namespace Jianghu.Sandbox
             var rows = new List<KeyValuePair<string, double>>();
             for (int i = 0; i < chars.Length; i++)
             {
-                rows.Add(new KeyValuePair<string, double>(chars[i], Duel("참정" + chars[i], "참정", sessions)));
+                rows.Add(new KeyValuePair<string, double>(chars[i], Duel("참정" + chars[i], "참정", stage)));
             }
             Report(rows);
         }
@@ -261,13 +269,13 @@ namespace Jianghu.Sandbox
         }
 
         /// <summary>두 무공명을 붙여 앞쪽의 승률을 낸다. 조합 규칙을 어기는 이름은 0.5(무효)로 돌린다.</summary>
-        private static double Duel(string nameA, string nameB, int sessions)
+        private static double Duel(string nameA, string nameB, int stage)
         {
             MartialArt a = TryBuild(nameA);
             MartialArt b = TryBuild(nameB);
             if (a == null || b == null) return 0.5;
 
-            return WinRate(ToCombatant(a, sessions), ToCombatant(b, sessions), SensitivityFights);
+            return WinRate(ToCombatant(a, stage), ToCombatant(b, stage), SensitivityFights);
         }
 
         private static MartialArt TryBuild(string name)
@@ -295,20 +303,33 @@ namespace Jianghu.Sandbox
             return CharacterStats.MaxLevel();
         }
 
-        private static Combatant ToCombatant(MartialArt art, int sessions)
+        private static Combatant ToCombatant(MartialArt art, int stage)
         {
-            return ToCombatant(art, sessions, Stats());
+            return ToCombatant(art, stage, Stats());
         }
 
-        private static Combatant ToCombatant(MartialArt art, int sessions, CharacterStats stats)
+        /// <summary>
+        /// **무공 경지 `stage`(1~10성) 의 대전자**를 만든다.
+        ///
+        /// ⚠⚠ 경지 → 수련 횟수 환산은 **성향마다 다르다**(정파 0.70/회 · 사파 1.60 → 소프트캡 후 1/5 ·
+        ///   마도 0.45). 그래서 횟수가 아니라 경지로 지정한다 — 그래야 세 성향의 **같은 지점**을 비교한다.
+        ///   같은 200회가 정파에게는 10성이고 마도에게는 9성이다.
+        /// </summary>
+        private static Combatant ToCombatant(MartialArt art, int stage, CharacterStats stats)
         {
             // ⚠ 강호무학은 성향이 없어 익힌 사람의 성향이 필요하다. 측정에서는 정파로 고정한다 —
             //   성향별 비교는 문파 무공으로 하고, 강호무학은 계층 비교용 표본일 뿐이다.
             Alignment owner = art.Alignment ?? Alignment.Orthodox;
 
+            int sessions = AlignmentCurve.SessionsToReach(owner, MartialStage.ProficiencyForStage(stage));
             var arts = new List<LearnedArt> { new LearnedArt(art, sessions, owner) };
-            // 한 무공을 수련하면 성향 숙련과 유형 숙달이 함께 오른다는 전제.
-            var masteries = new List<DisciplineMastery> { new DisciplineMastery(art.Discipline, sessions) };
+
+            // ⚠ 유형 숙달은 **만렙 고정**이다(위 `MasteredSessions` 주석). 무공 경지와 같이 움직이면
+            //   두 축이 섞여, 형태소 민감도가 무공 때문인지 무기 숙달 때문인지 갈리지 않는다.
+            var masteries = new List<DisciplineMastery>
+            {
+                new DisciplineMastery(art.Discipline, MasteredSessions(art.Discipline)),
+            };
             return new Combatant(art.Name, stats, arts, masteries);
         }
 
@@ -327,7 +348,7 @@ namespace Jianghu.Sandbox
         }
 
         /// <summary>한 계층 안에서 전수 대전을 돌려 순위를 낸다.</summary>
-        private static void PrintRanking(List<MartialArt> all, SchoolTier tier, int sessions)
+        private static void PrintRanking(List<MartialArt> all, SchoolTier tier, int stage)
         {
             var group = new List<MartialArt>();
             for (int i = 0; i < all.Count; i++)
@@ -340,7 +361,7 @@ namespace Jianghu.Sandbox
             Console.WriteLine("── " + TierName(tier) + " (" + group.Count + "종) " + new string('─', 40));
 
             var fighters = new List<Combatant>();
-            for (int i = 0; i < group.Count; i++) fighters.Add(ToCombatant(group[i], sessions));
+            for (int i = 0; i < group.Count; i++) fighters.Add(ToCombatant(group[i], stage));
 
             var rows = new List<KeyValuePair<MartialArt, double>>();
             for (int i = 0; i < group.Count; i++)
@@ -374,7 +395,7 @@ namespace Jianghu.Sandbox
         }
 
         /// <summary>계층 간 격차 — 여기는 벌어지는 것이 **정상**이다. 다만 압도적이면 안 된다.</summary>
-        private static void PrintCrossTier(List<MartialArt> all, int sessions)
+        private static void PrintCrossTier(List<MartialArt> all, int stage)
         {
             var byTier = new Dictionary<SchoolTier, List<MartialArt>>();
             foreach (SchoolTier t in new[] { SchoolTier.Wanderer, SchoolTier.Minor, SchoolTier.Major })
@@ -386,13 +407,13 @@ namespace Jianghu.Sandbox
             Console.WriteLine();
             Console.WriteLine("── 계층 간 (상위가 이기는 것이 정상. 다만 90% 이상이면 하위 계층이 무의미해진다) ──");
 
-            Report(byTier, SchoolTier.Minor, SchoolTier.Wanderer, sessions);
-            Report(byTier, SchoolTier.Major, SchoolTier.Minor, sessions);
-            Report(byTier, SchoolTier.Major, SchoolTier.Wanderer, sessions);
+            Report(byTier, SchoolTier.Minor, SchoolTier.Wanderer, stage);
+            Report(byTier, SchoolTier.Major, SchoolTier.Minor, stage);
+            Report(byTier, SchoolTier.Major, SchoolTier.Wanderer, stage);
         }
 
         private static void Report(
-            Dictionary<SchoolTier, List<MartialArt>> byTier, SchoolTier high, SchoolTier low, int sessions)
+            Dictionary<SchoolTier, List<MartialArt>> byTier, SchoolTier high, SchoolTier low, int stage)
         {
             List<MartialArt> hi = byTier[high];
             List<MartialArt> lo = byTier[low];
@@ -402,10 +423,10 @@ namespace Jianghu.Sandbox
             int n = 0;
             for (int i = 0; i < hi.Count; i++)
             {
-                Combatant h = ToCombatant(hi[i], sessions);
+                Combatant h = ToCombatant(hi[i], stage);
                 for (int j = 0; j < lo.Count; j++)
                 {
-                    sum += WinRate(h, ToCombatant(lo[j], sessions));
+                    sum += WinRate(h, ToCombatant(lo[j], stage));
                     n++;
                 }
             }
@@ -432,13 +453,15 @@ namespace Jianghu.Sandbox
             Console.WriteLine();
             Console.WriteLine("██ 시작 캐릭터 전투 성립 검사 — 목표 8~15턴 · 무승부 0 ██");
 
+            // ⚠ 두 축을 **양 끝으로만** 본다 — 시작 캐릭터 × 무공 1성 / 만렙 캐릭터 × 무공 10성.
+            //   중간은 민감도표가 3성·6성·10성으로 이미 훑는다.
             foreach (var row in new[]
             {
-                new KeyValuePair<string, CharacterStats>("시작(수련 0)", CharacterStats.Starting()),
-                new KeyValuePair<string, CharacterStats>("만렙(수련 " + MasterySessions + ")", CharacterStats.MaxLevel()),
+                new KeyValuePair<string, CharacterStats>("시작 캐릭터 · 무공 1성", CharacterStats.Starting()),
+                new KeyValuePair<string, CharacterStats>("만렙 캐릭터 · 무공 10성", CharacterStats.MaxLevel()),
             })
             {
-                int sessions = row.Key.StartsWith("시작") ? 0 : MasterySessions;
+                int stage = row.Key.StartsWith("시작") ? 1 : MartialStage.MaxStage;
                 MartialArt a = TryBuild("참정");
                 MartialArt b = TryBuild("참정");
                 if (a == null || b == null) return;
@@ -449,7 +472,7 @@ namespace Jianghu.Sandbox
                 for (uint seed = 1; seed <= FightsPerMatchup; seed++)
                 {
                     CombatResult r = CombatResolver.Resolve(
-                        ToCombatant(a, sessions, row.Value), ToCombatant(b, sessions, row.Value),
+                        ToCombatant(a, stage, row.Value), ToCombatant(b, stage, row.Value),
                         new XorShiftRandom(seed));
                     if (r.Outcome == CombatOutcome.Draw) draws++;
                     turnSum += r.Turns;
@@ -468,10 +491,10 @@ namespace Jianghu.Sandbox
 
         // ─────────────────────────── 표본 로그 ───────────────────────────
 
-        private static void PrintSampleBattle(int sessions)
+        private static void PrintSampleBattle(int stage)
         {
             Console.WriteLine();
-            Console.WriteLine("══════ 전투 로그 표본 (수련 " + sessions + "회, 시드 42) ══════");
+            Console.WriteLine("══════ 전투 로그 표본 (무공 " + MartialStage.Describe(stage) + ", 시드 42) ══════");
 
             // 성격이 가장 대비되는 둘: 마도 전승무학(마한중참) vs 사파 대문파(궤암척혈)
             MartialArt aArt = MartialArtCatalog.ByName("마한중참");
@@ -483,7 +506,7 @@ namespace Jianghu.Sandbox
             }
 
             CombatResult r = CombatResolver.Resolve(
-                ToCombatant(aArt, sessions), ToCombatant(bArt, sessions), new XorShiftRandom(42u));
+                ToCombatant(aArt, stage), ToCombatant(bArt, stage), new XorShiftRandom(42u));
             foreach (CombatLogEntry e in r.Log) Console.WriteLine("  " + e);
             Console.WriteLine("  → " + r);
         }

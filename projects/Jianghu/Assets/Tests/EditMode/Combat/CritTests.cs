@@ -24,8 +24,8 @@ namespace Jianghu.Tests.Combat
         /// <summary>측정 표본 수. 치명은 확률축이라 한 판으로는 아무것도 말할 수 없다.</summary>
         private const int Seeds = 200;
 
-        /// <summary>⚠ 250 = 모든 축이 상한에 닿는 수련 횟수. 검(만일검)이 0.40/회로 가장 느리다(2026-07-31).</summary>
-        private const int MasterySessions = 250;
+        /// <summary>⚠ 무공 경지의 최종점. 축 검증은 **10성**에서 한다(2026-07-31 사용자 확정).</summary>
+        private const int MasterySessions = MartialStage.MaxStage;
 
         /// <summary>
         /// ⚠ **만렙 기준으로 잰다** (2026-07-31 사용자 확정). 캐릭터 능력치가 나중에 성장 요소가
@@ -40,15 +40,22 @@ namespace Jianghu.Tests.Combat
         /// 무공명 하나로 대전자를 만든다. 대문파·정파·검으로 고정한다 —
         /// 비교 대상이 형태소 하나뿐이어야 하므로 나머지는 전부 같게 둔다(Sandbox 와 같은 전제).
         /// </summary>
-        private static Combatant Fighter(string name, int sessions)
+        /// ⚠ 인자는 **무공 경지(1~10성)** 다. 유형 숙달은 만렙 고정 — 두 축을 뭉치지 않는다(2026-07-31).
+        private static Combatant Fighter(string name, int stage)
         {
             MartialArt art = MartialArtFactory.Create(
                 "t_" + name, name, ArtKind.Attack, ArtTier.Major,
                 Discipline.Sword, Alignment.Orthodox, "화산파");
 
+            int sessions = AlignmentCurve.SessionsToReach(
+                Alignment.Orthodox, MartialStage.ProficiencyForStage(stage));
+
             return new Combatant(name, SpecStats(),
                 new List<LearnedArt> { new LearnedArt(art, sessions, Alignment.Orthodox) },
-                new List<DisciplineMastery> { new DisciplineMastery(Discipline.Sword, sessions) });
+                new List<DisciplineMastery>
+                {
+                    new DisciplineMastery(Discipline.Sword, DisciplineCurve.SessionsToMaster(Discipline.Sword)),
+                });
         }
 
         /// <summary>
@@ -174,8 +181,8 @@ namespace Jianghu.Tests.Combat
             //   수련 0 과 200 은 위력·명중이 다르니 총 피해로는 분리할 수 없다.
             //   그래서 **치명 한 방 / 평타 한 방의 비율**을 본다 — 배율이 순수 상수라면
             //   수련이 아무리 쌓여도 이 비율은 그대로여야 한다.
-            double novice = CritToNormalRatio(0);
-            double master = CritToNormalRatio(200);
+            double novice = CritToNormalRatio(1);                    // 1성 — 갓 익힌 무공
+            double master = CritToNormalRatio(MartialStage.MaxStage); // 10성 — 경지의 최종점
 
             Assert.AreEqual(novice, master, 0.15,
                 "수련에 따라 치명 배율이 달라진다 — 어딘가에서 숙련 배율이 치명에 곱해지고 있다. " +
@@ -183,10 +190,10 @@ namespace Jianghu.Tests.Combat
         }
 
         /// <summary>치명 한 방 피해 ÷ 치명 아닌 한 방 피해. 배율이 상수면 수련과 무관해야 한다.</summary>
-        private static double CritToNormalRatio(int sessions)
+        private static double CritToNormalRatio(int stage)
         {
-            Combatant attacker = Fighter("참정암", sessions);
-            Combatant defender = Fighter("참정", sessions);
+            Combatant attacker = Fighter("참정암", stage);
+            Combatant defender = Fighter("참정", stage);
 
             long critSum = 0, normalSum = 0;
             int critN = 0, normalN = 0;

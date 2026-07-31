@@ -47,6 +47,12 @@ namespace Jianghu.Core.Martial
         /// <summary>현재 숙련도(0 ~ 성향별 상한).</summary>
         public int Proficiency => AlignmentCurve.ProficiencyFor(EffectiveAlignment, TrainingSessions);
 
+        /// <summary>
+        /// **현재 무공 경지(1~10성).** 숙련도를 사람이 쓰는 단위로 옮긴 것이다.
+        /// ⚠ 캐릭터 레벨과 다른 축이다 — 무공 하나하나가 따로 쌓는다(<see cref="MartialStage"/>).
+        /// </summary>
+        public int Stage => MartialStage.StageOf(Proficiency);
+
         /// <summary>현재 숙련도가 만드는 위력 배율.</summary>
         public double PowerMultiplier => AlignmentCurve.PowerMultiplier(EffectiveAlignment, Proficiency);
 
@@ -62,7 +68,7 @@ namespace Jianghu.Core.Martial
 
         public override string ToString()
         {
-            return Art.Name + " (숙련 " + Proficiency + ")";
+            return Art.Name + " (" + MartialStage.Describe(Stage) + " · 숙련 " + Proficiency + ")";
         }
     }
 }

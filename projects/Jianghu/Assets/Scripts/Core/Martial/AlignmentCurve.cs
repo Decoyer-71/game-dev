@@ -185,6 +185,26 @@ namespace Jianghu.Core.Martial
             }
         }
 
+        /// <summary>
+        /// **그 숙련도에 도달하는 데 필요한 최소 수련 횟수** — <see cref="ProficiencyFor"/> 의 역함수.
+        ///
+        /// ⚠⚠ 2026-07-31 신설. 측정을 **수련 횟수가 아니라 무공 경지**(<see cref="MartialStage"/>)로
+        ///   지정하기 위해 필요하다. 같은 200회가 정파에게는 10성이고 마도에게는 9성이라,
+        ///   횟수로 기준을 잡으면 **성향마다 다른 지점을 비교하게 된다.**
+        /// </summary>
+        public static int SessionsToReach(Alignment alignment, int proficiency)
+        {
+            EnsureKnown(alignment);
+            if (proficiency <= 0) return 0;
+
+            int p = proficiency > HardCap ? HardCap : proficiency;
+            int soft = SoftCap(alignment);
+
+            // 소프트 상한 이전은 그대로, 이후는 페널티 배수만큼 더 든다(ProficiencyFor 의 역).
+            double rawNeeded = p <= soft ? p : soft + (p - soft) * LateLearningPenalty(alignment);
+            return (int)Math.Ceiling(rawNeeded / LearningRate(alignment));
+        }
+
         /// <summary>절대 상한(100)에 도달하는 데 필요한 최소 수련 횟수.</summary>
         public static int SessionsToMaster(Alignment alignment)
         {
