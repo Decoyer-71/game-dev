@@ -230,6 +230,37 @@ namespace Jianghu.Sandbox
             CompareOptional("상태이상", stage, "독", "혈", "비", "염", "빙", "탈", "경");
 
             PrintDisciplineSensitivity(stage);
+            PrintMorphemeCountSensitivity(stage);
+        }
+
+        /// <summary>
+        /// **형태소 개수 민감도 — 계층의 대리 실험** (2026-07-31 신설).
+        ///
+        /// ⚠⚠ 계층은 곧 형태소 개수다(강호 2 · 소문파 3 · 대문파 3~4). 그런데 계층 승률표는
+        ///   무공마다 글자 구성이 달라 **개수만의 효과를 분리하지 못한다.**
+        ///   여기서는 **앞 글자를 그대로 두고 뒤에만 덧붙여** 개수 하나만 바꾼다.
+        ///
+        /// 기력 소모 = 글자 수 × 4 이고 회복이 턴당 10 이므로:
+        ///   2자 = 8(턴당 +2) · 3자 = 12(−2) · 4자 = 16(−6)
+        /// → **글자가 늘수록 능력은 하나 늘고 기력은 그보다 빨리 마른다.** 그 순손익을 잰다.
+        /// </summary>
+        private static void PrintMorphemeCountSensitivity(int stage)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  ── 형태소 개수 (계층 대리) — 앞 글자 고정, 뒤에만 덧붙임 ──");
+
+            var names = new[] { "참정", "참정독", "참정독명" };
+            for (int i = 0; i < names.Length; i++)
+            {
+                for (int j = i + 1; j < names.Length; j++)
+                {
+                    double rate = Duel(names[i], names[j], stage) * 100;
+                    Console.WriteLine("     " + Pad(names[i] + "(" + names[i].Length + "자) vs "
+                                                  + names[j] + "(" + names[j].Length + "자)", 26)
+                                      + rate.ToString("F1").PadLeft(6) + "%"
+                                      + (rate > 50 ? "  ⚠ 짧은 쪽이 이긴다" : ""));
+                }
+            }
         }
 
         /// <summary>
