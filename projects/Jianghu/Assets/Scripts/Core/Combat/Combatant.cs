@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Jianghu.Core.Characters;
 using Jianghu.Core.Martial;
@@ -68,6 +68,33 @@ namespace Jianghu.Core.Combat
         }
 
         /// <summary>
+        /// **무공이 더한 방어.** 캐릭터 방어 + 형태소 방어 합(× 숙련 배율).
+        ///
+        /// ⚠⚠ 2026-07-31 신설. 그전까지 엔진은 `Stats.Defense` 만 읽었고 —
+        ///   **무공이 방어를 올리는 경로가 아예 없었다.** 설계안 §1-D 가 방어 스케일을 계산하며
+        ///   *"이 표는 아직 존재하지 않는 경로를 전제한다"* 고 스스로 단서를 달았던 바로 그 구멍이다.
+        ///   방어 형태소(방·거·항·어·호 +2 · 반·역·응 +1)가 갈 곳이 없어 절반이 죽어 있었다.
+        ///
+        /// ⚠ **숙련 배율을 곱한다.** 공격이 `Delta.Attack × PowerMultiplier` 로 자라므로
+        ///   방어만 상수로 두면 수련할수록 방어의 상대가치가 무너진다(설계안 §1-D 표).
+        ///   ⚠ 확률축(막기·반격·회피)은 반대로 **곱하지 않는다** — 명중·치명과 같은 처리다.
+        /// </summary>
+        public int EffectiveDefense
+        {
+            get
+            {
+                double bonus = 0;
+                for (int i = 0; i < Arts.Count; i++)
+                {
+                    LearnedArt learned = Arts[i];
+                    if (!learned.Art.IsMorphemeDerived) continue;   // 레거시 36종엔 방어 필드가 없다
+                    bonus += learned.Art.Delta.Defense * learned.PowerMultiplier;
+                }
+                return Stats.Defense + (int)Math.Round(bonus);
+            }
+        }
+
+        /// <summary>
         /// 정의서 §1-1 의 기본 기력회복속도. ⚠ 미검증 초기값이다.
         /// `CharacterStats` 에 회복 속도 필드가 없어 상수로 둔다 — 필드로 올릴지는 측정 후 판단한다.
         /// </summary>
@@ -112,6 +139,48 @@ namespace Jianghu.Core.Combat
             }
         }
 
+        /// <summary>
+        /// **막기 확률(%p) 중 무공이 주는 몫.** 기본값은 <c>CombatResolver.BaseBlockChance</c> 가 갖는다.
+        ///
+        /// ⚠ 확률축이므로 **숙련 배율을 곱하지 않는다** — 명중·치명과 같은 처리다(정의서 §1-3-a).
+        /// ⚠ 방·거·항·어·호 +10%p · 계(戒) +25%p · 극한경지 성(聖) +15%p 가 여기로 들어온다.
+        /// </summary>
+        public int BlockChanceBonus
+        {
+            get
+            {
+                double bonus = 0;
+                for (int i = 0; i < Arts.Count; i++)
+                {
+                    LearnedArt learned = Arts[i];
+                    if (!learned.Art.IsMorphemeDerived) continue;
+                    bonus += learned.Art.Delta.BlockChance;
+                }
+                return (int)Math.Round(bonus);
+            }
+        }
+
+        /// <summary>
+        /// **반격 확률(%p).** 반·역·응 +10%p.
+        ///
+        /// ⚠⚠ 기본값이 없다. 막기·회피와 달리 **형태소 없이는 아예 일어나지 않는 일**로 둔다 —
+        ///   정의서 §1-1 이 막기·회피는 캐릭터 기본값으로 적었지만 반격은 적지 않았다.
+        /// </summary>
+        public int CounterRate
+        {
+            get
+            {
+                double bonus = 0;
+                for (int i = 0; i < Arts.Count; i++)
+                {
+                    LearnedArt learned = Arts[i];
+                    if (!learned.Art.IsMorphemeDerived) continue;
+                    bonus += learned.Art.Delta.CounterRate;
+                }
+                return (int)Math.Round(bonus);
+            }
+        }
+
         /// <summary>내공 무공이 주는 초식 위력 보너스(%). 모든 초식에 곱연산으로 적용된다.</summary>
         public int PowerBonusPercent
         {
@@ -130,7 +199,30 @@ namespace Jianghu.Core.Combat
             }
         }
 
-        /// <summary>회피 수치. 신법 절반이 기반이고 경공 무공이 얹힌다.</summary>
+        /// <summary>
+        /// **형태소 회피 1점을 회피율 몇 %p 로 볼 것인가** (2026-07-31 신설).
+        ///
+        /// ⚠⚠ 정의서 §3-2 는 피·둔·섬을 `회피 +15%` 로 적었는데, 그대로 %p 로 넣으면
+        ///   민감도 **77~80% = 지배적**이었다. 회피는 **모든 피격에** 걸리므로 방어(66%)보다도 크다 —
+        ///   방어 공식에서 배운 것과 같은 이야기다: *"받는 피해 −X% 는 주는 피해 +X% 보다 값이 크다."*
+        ///   0.4 로 환산하면 6%p 가 되어 60~61% 로 들어온다.
+        ///
+        /// ⚠ 사전 값을 고치지 않고 **엔진에서 환산**하는 쪽을 택했다. 명중이 이미 그렇게 돼 있고
+        ///   (`AccuracyPointToPercent`), 사전은 정의서를 옮기는 자리라 손대면 두 문서가 갈라진다.
+        /// </summary>
+        public const double EvasionPointToPercent = 0.4;
+
+        /// <summary>
+        /// 회피 수치. 신법 절반이 기반이고 경공 무공이 얹힌다.
+        ///
+        /// ⚠⚠ 2026-07-31 — **형태소 회피(피·둔·섬)를 잇었다.** 그전에는 경공 무공의
+        ///   레거시 `EvasionBonus` 만 읽어서, 방어 카테고리 12자 중 회피 3자가 통째로 죽어 있었다.
+        ///   ⚠ 민감도표에 방어 카테고리가 아예 없어서 **죽은 줄도 몰랐다** — 측정하지 않는 축은
+        ///   고장 나도 보이지 않는다는 사례로 남긴다.
+        ///
+        /// ⚠ 형태소분에는 **숙련 배율을 곱하지 않는다**(확률축 공통 규칙). 레거시분은 기존대로 곱한다 —
+        ///   과도기 분기이며 카탈로그가 138종으로 넘어가면 사라진다.
+        /// </summary>
         public int Evasion
         {
             get
@@ -139,6 +231,11 @@ namespace Jianghu.Core.Combat
                 for (int i = 0; i < Arts.Count; i++)
                 {
                     LearnedArt learned = Arts[i];
+                    if (learned.Art.IsMorphemeDerived)
+                    {
+                        bonus += learned.Art.Delta.Evasion * EvasionPointToPercent;
+                        continue;
+                    }
                     if (learned.Art.Discipline == Discipline.Movement)
                     {
                         bonus += learned.Art.EvasionBonus * learned.PowerMultiplier;

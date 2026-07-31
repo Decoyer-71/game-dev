@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using Jianghu.Core.Martial;
@@ -75,6 +75,63 @@ namespace Jianghu.Core.Combat
 
         /// <summary>치명배율 하한. 음수 델타가 들어와도 피해가 줄거나 회복되지 않게 막는다.</summary>
         private const double MinCritMultiplier = 1.0;
+
+        /// <summary>
+        /// **방어 1점이 피해를 얼마나 깎는가** — 비율 경감 공식의 계수 (2026-07-31 신설).
+        ///
+        /// `피해 = 공격 × 100 / (100 + 방어 × DefenseScale)`
+        ///
+        /// ⚠⚠ 정의서에 방어 공식이 없다. §1-3 은 **공격만** 정의하고 방어를 어떻게 쓰는지 적지 않았다 —
+        ///   명중 환산·상태이상 기본확률과 같은 종류의 구멍이며, 셋 중 가장 크게 터졌다.
+        ///
+        /// 값의 출처는 측정이다. 방(防) 형태소 하나를 넣음 vs 뺌으로 재면:
+        ///   뺄셈(기존 공식) **100%** · 뺄셈에 배율 미적용 90% · 비율 K=10 **95%** · **K=3 → 65.5/66.8%**.
+        /// ⚠ 목표 구간 53~65% 는 다른 선택 카테고리(상태이상·수식)와 같은 잣대다.
+        ///
+        /// ⚠⚠ **3 은 이 축에서 고를 수 있는 가장 작은 값이다.** K=2 와 2.5 도 재봤으나 수련 200회
+        ///   시점에 **49.8% = 완전 무의미**로 떨어졌다 — 값이 작아서가 아니라 **정수 반올림에 삼켜져서**다.
+        ///   타격 한 번이 7~8 이라 `Math.Round` 가 1 미만의 차이를 지운다. 이 축은 지금
+        ///   **"무의미(49.8%)" 아니면 "살짝 지배적(66%)"** 두 값 사이를 건너뛰고, 그 사이가 없다.
+        ///   → 더 곱게 맞추려면 **피해 스케일 자체를 키워야 한다**(체력·공격 전부). 그건 지금까지의
+        ///     모든 측정값을 무효로 만드는 변경이라 미뤄 뒀다.
+        /// </summary>
+        public const int DefenseScale = 3;
+
+        /// <summary>
+        /// 기본 막기확률(%) — **0 이다. 막기는 무공이 주는 것이지 누구나 하는 것이 아니다.**
+        ///
+        /// ⚠⚠ 처음엔 회피(5%)와 나란히 5 로 잡았다가 **테스트가 반증했다** (2026-07-31).
+        ///   `CombatTests.사파는_전투_결과가_가장_일정하다` 가 깨졌다 — 사파 턴수 편차 12 > 마도 8.
+        ///   원인: 막기는 **성향과 무관하게 5% 확률로 피해를 절반**으로 만든다. 그 흔들림이
+        ///   사파의 ±5% 피해 편차보다 크므로, 기본 막기를 두는 순간 *"사파는 결과가 일정하다"* 가
+        ///   수치에서 사라진다. **성향 3종의 정체성이 이 프로토타입의 검증 대상 그 자체**이므로
+        ///   (설계 §1 가설) 막기를 위해 그것을 내줄 수 없다.
+        ///
+        /// ⚠ 정의서 §1-1 은 회피만 `5%` 로 명시하고 막기는 **스탯 1** 로만 적었다 —
+        ///   확률 환산 규칙이 없으므로 0 을 기본으로 두는 것이 정의서와 충돌하지 않는다.
+        /// ⚠ 이 테스트가 설계를 지켜낸 두 번째 사례다(HANDOFF §7 — *"테스트부터 의심하지 말 것"*).
+        /// </summary>
+        public const int BaseBlockChance = 0;
+
+        /// <summary>막기확률 상한. 100% 막기가 나오면 전투가 끝나지 않는다.</summary>
+        public const int MaxBlockChance = 75;
+
+        /// <summary>
+        /// **막으면 그 타격 피해가 얼마나 줄어드는가(%)** — 2026-07-31 사용자 확정.
+        ///
+        /// ⚠⚠ **회피와 갈라 놓는 것이 이 값의 존재 이유다.** 회피는 이미 *"빗나감 = 피해 0"* 이므로
+        ///   막기를 무효화로 만들면 두 축이 같은 것이 되고, 그러면 섬(閃, 회피)과 방(防, 막기)을
+        ///   나눈 이유가 사라진다. 절반이면 **회피는 도박, 막기는 완충**이라는 대비가 선다.
+        /// </summary>
+        public const int BlockDamageReductionPercent = 50;
+
+        /// <summary>
+        /// **반격 피해 = 자기 초식 한 방의 몇 %인가.**
+        ///
+        /// ⚠ 100%면 반격 무공이 사실상 매 턴 두 번 때리게 된다 — 기력도 안 쓰고 턴도 안 잡아먹으므로
+        ///   그건 다른 어떤 형태소보다 크다. 절반이 *"받아친다"* 의 크기다. ⚠ 미검증 초기값.
+        /// </summary>
+        public const int CounterDamagePercent = 50;
 
         // ── 상태이상 규칙 상수. 근거: docs/martial-system-proposal.md §5 ──
         /// <summary>중독 최대 중첩.</summary>
@@ -371,8 +428,13 @@ namespace Jianghu.Core.Combat
             critChance = Clamp(critChance, 0, 100);
             if (critMultiplier < MinCritMultiplier) critMultiplier = MinCritMultiplier;
 
+            // ⚠⚠ 2026-07-31 — 막기 축 연결. 방어자의 무공 수치를 읽는 첫 경로다.
+            //   회피(빗나감 = 피해 0)와 갈리는 지점이 여기다 — **막기는 피해를 절반으로 줄인다.**
+            int blockChance = Clamp(BaseBlockChance + target.Def.BlockChanceBonus, 0, MaxBlockChance);
+
             int landed = 0;
             int crits = 0;
+            int blocks = 0;
             int damage = 0;
             for (int i = 0; i < attempts; i++)
             {
@@ -389,6 +451,18 @@ namespace Jianghu.Core.Combat
                 {
                     crits++;
                     perHit = (int)Math.Round(perHit * critMultiplier, MidpointRounding.AwayFromZero);
+                }
+
+                // ⚠ 막기도 **타격당 판정**이다. 치명과 같은 자리에서 굴려 대칭을 맞춘다 —
+                //   치명이 공격의 폭발이면 막기는 방어의 폭발이고, 다단 초식은 둘 다 기회가 많되
+                //   한 번의 결과가 그 턴 피해의 1/n 만 흔든다.
+                // ⚠ 치명 **뒤에** 적용한다. 그래야 "크게 터진 한 방을 막았다" 가 성립한다.
+                if (rng.Chance(blockChance))
+                {
+                    blocks++;
+                    perHit = (int)Math.Round(perHit * (100 - BlockDamageReductionPercent) / 100.0,
+                        MidpointRounding.AwayFromZero);
+                    if (perHit < 1) perHit = 1;   // 막아도 최소 1 은 들어간다(교착 방지)
                 }
 
                 damage += perHit;
@@ -419,9 +493,55 @@ namespace Jianghu.Core.Combat
                 note = string.IsNullOrEmpty(note) ? mark : mark + " " + note;
             }
 
+            // ⚠ 막기도 같은 이유로 보여야 한다. 피해가 왜 작았는지 설명되지 않으면
+            //   플레이어에게는 그냥 "약한 무공" 으로 보인다.
+            if (blocks > 0)
+            {
+                string mark = "[막기" + (blocks > 1 ? " ×" + blocks : "") + "]";
+                note = string.IsNullOrEmpty(note) ? mark : mark + " " + note;
+            }
+
             log.Add(CombatLogEntry.Action(
                 turn, actor.Def.Name, target.Def.Name, chosen.Art.Name,
                 attempts, landed, damage, qiCost, target.Health, note));
+
+            // 5) 맞은 쪽이 받아친다.
+            if (landed > 0 && !target.IsDown) Counter(turn, target, actor, rng, log);
+        }
+
+        /// <summary>
+        /// **반격** — 맞은 쪽이 확률로 되받아친다 (2026-07-31 사용자 확정).
+        ///
+        /// ⚠⚠ **막기 성공이 아니라 피격이 방아쇠다.** 막기·회피·반격 형태소는 전부 같은 `방어`
+        ///   카테고리라 조합 규칙상 **한 무공에 둘 이상 넣을 수 없다.** 반격을 막기에 매달면
+        ///   반·역·응을 넣은 무공은 막기가 기본치뿐이라 **반격이 거의 안 터진다** — 글자가 죽는다.
+        ///
+        /// ⚠ **행동당 1회**만 굴린다. 타격당으로 굴리면 3타 권법을 상대할 때 반격이 3배로 터져
+        ///   반격 무공이 다단 상대에게만 극단적으로 강해진다 — 상성이 아니라 왜곡이다.
+        ///
+        /// ⚠ 기력을 쓰지 않고 턴도 잡아먹지 않는다. 대신 **위력이 절반**이고 치명·상태이상이 없다.
+        ///   ⚠ 기력이 마르면 반격도 평타로 내려앉는다(`SelectArt` 가 쓸 수 있는 초식만 고른다) —
+        ///     "기력 고갈 → 평타 전락" 이라는 전투의 드라마를 반격만 예외로 두지 않는다.
+        /// </summary>
+        private static void Counter(
+            int turn, Fighter counterer, Fighter victim, IRandomSource rng, List<CombatLogEntry> log)
+        {
+            int rate = counterer.Def.CounterRate;
+            if (rate <= 0 || !rng.Chance(Clamp(rate, 0, 100))) return;
+
+            LearnedArt art = SelectArt(counterer);
+            int mastery = counterer.Def.MasteryOf(art.Art.Discipline);
+            int perHit = DamagePerHit(counterer.Def, victim.Def, art, 1, mastery);
+
+            int damage = (int)Math.Round(perHit * CounterDamagePercent / 100.0, MidpointRounding.AwayFromZero);
+            if (damage < 1) damage = 1;
+
+            victim.Health -= damage;
+            if (victim.Health < 0) victim.Health = 0;
+
+            log.Add(CombatLogEntry.Action(
+                turn, counterer.Def.Name, victim.Def.Name, art.Art.Name,
+                1, 1, damage, 0, victim.Health, "[반격]"));
         }
 
         // ─────────────────────────── 상태이상 ───────────────────────────
@@ -836,10 +956,18 @@ namespace Jianghu.Core.Combat
 
             // 도 숙달 → 방어 관통. 위력을 올리는 게 아니라 상대 방어를 무시한다 —
             // 그래서 단단한 상대에게만 강하고, 물렁한 상대에겐 이점이 거의 없다.
+            // ⚠ 2026-07-31 — `Stats.Defense` 가 아니라 **무공이 더한 방어**를 읽는다.
+            //   방어 형태소가 엔진에 닿는 유일한 경로다(`Combatant.EffectiveDefense`).
             int penetration = DisciplineCurve.DefensePenetrationPercent(art.Art.Discipline, mastery);
-            double effectiveDefense = target.Stats.Defense * (100 - penetration) / 100.0;
+            double effectiveDefense = target.EffectiveDefense * (100 - penetration) / 100.0;
 
-            double afterDefense = totalPower - effectiveDefense;
+            // ⚠⚠ 2026-07-31 — **뺄셈에서 비율 경감으로 바꿨다** (사용자 확정).
+            //   뺄셈은 이 스케일에서 어떤 형태로도 지배적이었다 — 무공 방어를 처음 이었을 때
+            //   방(防) 형태소 하나로 **승률 100%** 가 나왔다. 타격이 7~8 인데 형태소 방어 +2 에
+            //   숙련 배율까지 곱하면 −4.3, 상대 공격의 절반이 통째로 지워졌기 때문이다.
+            //   ⚠ 1:1 전투에서 *"받는 피해 −X%"* 는 *"주는 피해 +X%"* 보다 값이 크다 —
+            //     내 수명은 늘리고 상대 수명은 그대로다. 두 축을 같은 크기로 넣으면 안 된다.
+            double afterDefense = totalPower * 100.0 / (100.0 + effectiveDefense * DefenseScale);
 
             int perHit = (int)Math.Round(afterDefense / attempts, MidpointRounding.AwayFromZero);
             return perHit < 1 ? 1 : perHit;   // 아무리 단단해도 최소 1 은 들어간다(교착 방지)
