@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Jianghu.Core.Characters;
 using Jianghu.Core.Combat;
 using Jianghu.Core.Martial;
@@ -26,9 +26,19 @@ namespace Jianghu.Tests.Combat
         /// <summary>측정 표본 수. 부여는 확률축이라 한 판으로는 아무것도 말할 수 없다.</summary>
         private const int Seeds = 200;
 
+        /// <summary>
+        /// ⚠⚠ **모든 축이 상한에 닿는 수련 횟수** (2026-07-31). 검(만일검)이 0.40/회로 가장 느려 250 이다.
+        ///   그전에는 200 을 만렙이라 부르며 쟀는데 그 시점의 검 숙달은 80/100 이었다.
+        /// </summary>
+        private const int MasterySessions = 250;
+
+        /// <summary>
+        /// ⚠ **만렙 기준으로 잰다** (2026-07-31 사용자 확정). 캐릭터 능력치가 나중에 성장 요소가
+        ///   되므로 지금 맞추는 수치가 성장의 끝이어야 한다.
+        /// </summary>
         private static CharacterStats SpecStats()
         {
-            return new CharacterStats(maxHealth: 100, maxQi: 50, attack: 1, defense: 1, agility: 1);
+            return CharacterStats.MaxLevel();
         }
 
         /// <summary>무공명 하나로 대전자를 만든다. `CritTests` 와 같은 전제(대문파·정파·검)다.</summary>
@@ -46,8 +56,8 @@ namespace Jianghu.Tests.Combat
         /// <summary>전투 200판을 돌려 로그에 `mark` 가 몇 줄 나오는지 센다.</summary>
         private static int CountLines(string attackerArt, string mark)
         {
-            Combatant attacker = Fighter(attackerArt, 200);
-            Combatant defender = Fighter("참정", 200);
+            Combatant attacker = Fighter(attackerArt, MasterySessions);
+            Combatant defender = Fighter("참정", MasterySessions);
 
             int hits = 0;
             for (uint seed = 1; seed <= Seeds; seed++)
@@ -94,8 +104,8 @@ namespace Jianghu.Tests.Combat
             //   화상은 '유지될수록 커짐' — 셋이 같은 모양이면 글자를 나눈 의미가 없다.
             //   1단계보다 2단계가 아프다는 것만 본다(수치가 아니라 부등호).
             int first = 0, later = 0;
-            Combatant attacker = Fighter("참정염", 200);
-            Combatant defender = Fighter("참정", 200);
+            Combatant attacker = Fighter("참정염", MasterySessions);
+            Combatant defender = Fighter("참정", MasterySessions);
 
             for (uint seed = 1; seed <= Seeds; seed++)
             {
@@ -118,8 +128,8 @@ namespace Jianghu.Tests.Combat
         public void 동상은_스스로_피해를_주지_않고_받는_피해를_키운다()
         {
             // 동상은 유일하게 피해가 0인 상태이상이다. 틱으로 체력이 깎이면 설계가 어긋난 것이다.
-            Combatant attacker = Fighter("참정빙", 200);
-            Combatant defender = Fighter("참정", 200);
+            Combatant attacker = Fighter("참정빙", MasterySessions);
+            Combatant defender = Fighter("참정", MasterySessions);
 
             for (uint seed = 1; seed <= Seeds; seed++)
             {
@@ -189,8 +199,8 @@ namespace Jianghu.Tests.Combat
         /// <summary>같은 조건에서 앞 무공의 승률. 무승부는 0.5 로 센다.</summary>
         private static double WinRate(string nameA, string nameB)
         {
-            Combatant a = Fighter(nameA, 200);
-            Combatant b = Fighter(nameB, 200);
+            Combatant a = Fighter(nameA, MasterySessions);
+            Combatant b = Fighter(nameB, MasterySessions);
 
             double score = 0;
             for (uint seed = 1; seed <= Seeds; seed++)

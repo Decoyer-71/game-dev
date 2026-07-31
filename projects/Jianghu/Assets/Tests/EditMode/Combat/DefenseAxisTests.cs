@@ -21,12 +21,14 @@ namespace Jianghu.Tests.Combat
     {
         private const int Seeds = 200;
 
+        /// <summary>⚠ **만렙 기준으로 잰다** (2026-07-31 사용자 확정).</summary>
         private static CharacterStats SpecStats()
         {
-            return new CharacterStats(maxHealth: 100, maxQi: 50, attack: 1, defense: 1, agility: 1);
+            return CharacterStats.MaxLevel();
         }
 
-        private static Combatant Fighter(string name, int sessions = 200)
+        /// <summary>⚠ 250 = 모든 축이 상한에 닿는 수련 횟수. 검(만일검)이 0.40/회로 가장 느리다.</summary>
+        private static Combatant Fighter(string name, int sessions = 250)
         {
             MartialArt art = MartialArtFactory.Create(
                 "d_" + name, name, ArtKind.Attack, ArtTier.Major,

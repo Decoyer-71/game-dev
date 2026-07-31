@@ -267,7 +267,9 @@ namespace Jianghu.Tests.Combat
         {
             Combatant novice = Fighter("초심자", BaseStats(), Learned(Sword(), 0));
             Combatant master = Fighter("숙련자", BaseStats(), Learned(Sword(), 200));
-            Combatant dummy = Fighter("허수아비", BaseStats(health: 400, attack: 0, defense: 0));
+            // ⚠ 2026-07-31 눈금 배수(`DamageScale` 5) 도입에 맞춰 400 → 2000.
+            //   그대로 두면 **양쪽 다 2턴에 끝나** 숙련 차이가 턴 수로 나타날 자리가 없다.
+            Combatant dummy = Fighter("허수아비", BaseStats(health: 2000, attack: 0, defense: 0));
 
             CombatResult noviceFight = CombatResolver.Resolve(novice, dummy, new XorShiftRandom(33u));
             CombatResult masterFight = CombatResolver.Resolve(master, dummy, new XorShiftRandom(33u));
@@ -389,7 +391,10 @@ namespace Jianghu.Tests.Combat
                 // ⚠ 이 테스트가 지키는 것은 성향 설계의 핵심 주장이다 —
                 //   *"사파는 편차가 좁아 몇 턴에 끝날지 예측된다"*. 그래서 조건만 현실화하고 단언은 그대로 둔다.
                 Combatant f = Fighter("무인", BaseStats(), Learned(Sword(alignment), 0));
-                Combatant target = Fighter("표적", BaseStats(health: 240, attack: 0, defense: 0, agility: 0));
+                // ⚠ 2026-07-31 눈금 배수(`DamageScale` 5) 도입에 맞춰 240 → 1200.
+                //   **턴 수를 그대로 유지하려는 것**이다 — 위 주석이 설명하듯 이 테스트는
+                //   전투 길이가 9턴 안팎일 때만 성향 편차를 구분할 수 있다.
+                Combatant target = Fighter("표적", BaseStats(health: 1200, attack: 0, defense: 0, agility: 0));
 
                 var turns = new List<int>();
                 for (uint seed = 1; seed <= 60; seed++)

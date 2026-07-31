@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Jianghu.Core.Characters;
 using Jianghu.Core.Combat;
 using Jianghu.Core.Martial;
@@ -24,10 +24,16 @@ namespace Jianghu.Tests.Combat
         /// <summary>측정 표본 수. 치명은 확률축이라 한 판으로는 아무것도 말할 수 없다.</summary>
         private const int Seeds = 200;
 
-        /// <summary>정의서 §1-1 의 기본 능력치. `MorphemeCombatTests` 와 같은 값을 쓴다.</summary>
+        /// <summary>⚠ 250 = 모든 축이 상한에 닿는 수련 횟수. 검(만일검)이 0.40/회로 가장 느리다(2026-07-31).</summary>
+        private const int MasterySessions = 250;
+
+        /// <summary>
+        /// ⚠ **만렙 기준으로 잰다** (2026-07-31 사용자 확정). 캐릭터 능력치가 나중에 성장 요소가
+        ///   되므로 지금 맞추는 수치가 성장의 끝이어야 한다.
+        /// </summary>
         private static CharacterStats SpecStats()
         {
-            return new CharacterStats(maxHealth: 100, maxQi: 50, attack: 1, defense: 1, agility: 1);
+            return CharacterStats.MaxLevel();
         }
 
         /// <summary>
@@ -90,7 +96,7 @@ namespace Jianghu.Tests.Combat
         {
             // 치명 형태소가 **없는** 무공이다. 그래도 터져야 한다 —
             // 정의서 §1-1 은 치명률 10% 를 무공 속성이 아니라 **캐릭터 기본 능력치**로 적었다.
-            int crits = CountCrits(Fighter("참정", 200), Fighter("참정", 200));
+            int crits = CountCrits(Fighter("참정", MasterySessions), Fighter("참정", MasterySessions));
 
             Assert.Greater(crits, 0,
                 "치명이 한 번도 안 터졌다 — 엔진이 치명 축을 아예 굴리지 않는다는 뜻이다.");
@@ -102,8 +108,8 @@ namespace Jianghu.Tests.Combat
             // ⚠ 둘 다 3글자라 **기력 소모가 같다.** 글자 수가 다르면 평타 전락 빈도가 갈려
             //   행동 횟수 자체가 달라지고, 그러면 치명 횟수 비교가 오염된다.
             //   명(明) = 치명률 +10%p · 암(暗) = 치명배율 +0.3 — 확률축을 만지는 건 명뿐이다.
-            int bright = CountCrits(Fighter("참정명", 200), Fighter("참정", 200));
-            int dark = CountCrits(Fighter("참정암", 200), Fighter("참정", 200));
+            int bright = CountCrits(Fighter("참정명", MasterySessions), Fighter("참정", MasterySessions));
+            int dark = CountCrits(Fighter("참정암", MasterySessions), Fighter("참정", MasterySessions));
 
             Assert.Greater(bright, dark,
                 "밝다(치명률 +10%p)가 어둡다(치명배율 +0.3)보다 자주 터지지 않는다 — " +
@@ -115,9 +121,9 @@ namespace Jianghu.Tests.Combat
         {
             // 같은 치명 횟수로 더 큰 피해를 낸다는 것이 치명배율의 정의다.
             // ⚠ 총 피해가 아니라 **치명 한 번당 피해**를 봐야 한다 — 총량은 명중·행동 횟수에 오염된다.
-            Combatant plain = Fighter("참정", 200);
-            Combatant dark = Fighter("참정암", 200);
-            Combatant dummy = Fighter("참정", 200);
+            Combatant plain = Fighter("참정", MasterySessions);
+            Combatant dark = Fighter("참정암", MasterySessions);
+            Combatant dummy = Fighter("참정", MasterySessions);
 
             double plainPerCrit = CritDamageRatio(plain, dummy);
             double darkPerCrit = CritDamageRatio(dark, dummy);

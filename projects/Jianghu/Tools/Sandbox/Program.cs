@@ -34,6 +34,14 @@ namespace Jianghu.Sandbox
         ///   같은 배수를 곱하면 실행 시간이 통째로 늘어난다.
         /// </summary>
         private const int SensitivityFights = 400;
+
+        /// <summary>
+        /// **모든 축이 상한에 닿는 수련 횟수** (2026-07-31 신설).
+        ///
+        /// ⚠⚠ 이 값이 250 인 이유는 **검(만일검)이 가장 느리기 때문**이다(0.40/회 → 250회).
+        ///   그전까지 "만렙" 이라 부르며 200회에서 쟀는데, 그 시점의 검 숙달은 80/100 이었다.
+        /// </summary>
+        private const int MasterySessions = 250;
         private const double DominantThreshold = 0.65;
         private const double DeadThreshold = 0.35;
 
@@ -47,7 +55,11 @@ namespace Jianghu.Sandbox
             Console.WriteLine("무공 " + MartialArtCatalog.All.Count + "종(공격 초식 " + techniques.Count + ")"
                               + " · 문파 " + SchoolCatalog.All.Count + "곳 · 매치업당 " + FightsPerMatchup + "전");
 
-            foreach (int sessions in new[] { 100, 200 })
+            // ⚠⚠ 2026-07-31 — 두 번째 시점을 200 → **250** 으로 올렸다. 200 은 만렙이 아니었다.
+            //   숙련 상한(100)에 닿는 수련 횟수가 축마다 다르고, **검(만일검)은 0.40/회라 250회**가 필요하다.
+            //   민감도표는 정파·검으로 고정해 재므로, 200회 시점의 검 숙달은 **80/100** 이었다.
+            //   (참고: 창 50 · 권 84 · 비도 100 · 도/정파 143 · 사파 ~138 · 마도 222 · 검 250)
+            foreach (int sessions in new[] { 100, MasterySessions })
             {
                 Console.WriteLine();
                 Console.WriteLine("████ 수련 " + sessions + "회 시점 ████");
@@ -59,9 +71,10 @@ namespace Jianghu.Sandbox
             }
 
             PrintSensitivity(100);
-            PrintSensitivity(200);
+            PrintSensitivity(MasterySessions);
 
-            PrintSampleBattle(200);
+            PrintStartingViability();
+            PrintSampleBattle(MasterySessions);
         }
 
         // ─────────────────────────── 형태소 역산 리포트 (설계안 §5-2) ───────────────────────────
@@ -271,18 +284,23 @@ namespace Jianghu.Sandbox
         // ─────────────────────────── 캐릭터 구성 ───────────────────────────
 
         /// <summary>
-        /// ⚠⚠ 2026-07-30 스케일 전환. 정의서 §1-1 의 기본 능력치로 바꿨다.
+        /// ⚠⚠ 2026-07-31 — **만렙 캐릭터 기준으로 잰다**(사용자 확정). 캐릭터 능력치가 나중에
+        ///   성장 요소가 되므로, 지금 맞추는 수치가 **성장의 끝**이어야 다시 맞출 일이 없다.
         ///
-        /// 이전에는 공격 20 · 방어 25 였는데, 그건 손으로 박은 위력 22~28 에 맞춘 값이었다.
-        /// **형태소 공격 합은 최대 5** 이므로 캐릭터 기본값도 정의서대로 1 이어야 균형이 맞는다.
-        /// → **2026-07-30 이전의 승률표 측정값은 전부 무의미하다**(HANDOFF §5-2).
+        /// ⚠ 2026-07-30 에는 정의서 §1-1 의 값(체력 100 · 공격 1)을 그대로 썼다. 그건 문맥상
+        ///   **시작값**이며, 시작 기준 측정은 <see cref="PrintStartingViability"/> 가 따로 한다.
         /// </summary>
         private static CharacterStats Stats()
         {
-            return new CharacterStats(maxHealth: 100, maxQi: 50, attack: 1, defense: 1, agility: 1);
+            return CharacterStats.MaxLevel();
         }
 
         private static Combatant ToCombatant(MartialArt art, int sessions)
+        {
+            return ToCombatant(art, sessions, Stats());
+        }
+
+        private static Combatant ToCombatant(MartialArt art, int sessions, CharacterStats stats)
         {
             // ⚠ 강호무학은 성향이 없어 익힌 사람의 성향이 필요하다. 측정에서는 정파로 고정한다 —
             //   성향별 비교는 문파 무공으로 하고, 강호무학은 계층 비교용 표본일 뿐이다.
@@ -291,7 +309,7 @@ namespace Jianghu.Sandbox
             var arts = new List<LearnedArt> { new LearnedArt(art, sessions, owner) };
             // 한 무공을 수련하면 성향 숙련과 유형 숙달이 함께 오른다는 전제.
             var masteries = new List<DisciplineMastery> { new DisciplineMastery(art.Discipline, sessions) };
-            return new Combatant(art.Name, Stats(), arts, masteries);
+            return new Combatant(art.Name, stats, arts, masteries);
         }
 
         // ─────────────────────────── 측정 ───────────────────────────
@@ -395,6 +413,57 @@ namespace Jianghu.Sandbox
             string flag = rate >= 90 ? "  ⚠ 하위 계층이 무의미해짐" : rate <= 50 ? "  ⚠ 상위 계층 이점이 없음" : "";
             Console.WriteLine("  " + Pad(TierName(high) + " vs " + TierName(low), 28)
                               + rate.ToString("F1").PadLeft(6) + "%" + flag);
+        }
+
+        // ─────────────────── 시작 캐릭터 전투 성립 검사 (2026-07-31 신설) ───────────────────
+
+        /// <summary>
+        /// **시작 캐릭터로도 전투가 성립하는가.**
+        ///
+        /// ⚠⚠ 밸런싱은 만렙 기준으로 한다(사용자 확정). 그러면 **시작 시점은 아무도 안 보게 되는데**,
+        ///   거기서 전투가 성립하지 않으면 게임이 시작되지도 않는다. 그래서 시작 스탯에서는
+        ///   승률이 아니라 **성립 조건**만 본다 — 목표 8~15턴(HANDOFF §5) · 무승부 없음.
+        ///
+        /// ⚠ 8~15턴은 편의가 아니라 **성향 설계의 성립 조건**이다. 전투가 길어지면 큰 수의 법칙으로
+        ///   사파(±5%)와 마도(±35%)의 편차 차이가 평균에 묻혀 정체성이 사라진다.
+        /// </summary>
+        private static void PrintStartingViability()
+        {
+            Console.WriteLine();
+            Console.WriteLine("██ 시작 캐릭터 전투 성립 검사 — 목표 8~15턴 · 무승부 0 ██");
+
+            foreach (var row in new[]
+            {
+                new KeyValuePair<string, CharacterStats>("시작(수련 0)", CharacterStats.Starting()),
+                new KeyValuePair<string, CharacterStats>("만렙(수련 " + MasterySessions + ")", CharacterStats.MaxLevel()),
+            })
+            {
+                int sessions = row.Key.StartsWith("시작") ? 0 : MasterySessions;
+                MartialArt a = TryBuild("참정");
+                MartialArt b = TryBuild("참정");
+                if (a == null || b == null) return;
+
+                int draws = 0;
+                long turnSum = 0;
+                int min = int.MaxValue, max = 0;
+                for (uint seed = 1; seed <= FightsPerMatchup; seed++)
+                {
+                    CombatResult r = CombatResolver.Resolve(
+                        ToCombatant(a, sessions, row.Value), ToCombatant(b, sessions, row.Value),
+                        new XorShiftRandom(seed));
+                    if (r.Outcome == CombatOutcome.Draw) draws++;
+                    turnSum += r.Turns;
+                    if (r.Turns < min) min = r.Turns;
+                    if (r.Turns > max) max = r.Turns;
+                }
+
+                double avg = (double)turnSum / FightsPerMatchup;
+                string flag = draws > 0 ? "  ⚠ 무승부 발생"
+                    : (avg < 8 || avg > 15) ? "  ⚠ 목표 8~15턴 밖" : "  ✅";
+                Console.WriteLine("  " + Pad(row.Key, 18)
+                                  + "평균 " + avg.ToString("F1") + "턴 (" + min + "~" + max + ")"
+                                  + " · 무승부 " + draws + flag);
+            }
         }
 
         // ─────────────────────────── 표본 로그 ───────────────────────────

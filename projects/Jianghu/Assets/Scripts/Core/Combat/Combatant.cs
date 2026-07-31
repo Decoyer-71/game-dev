@@ -210,7 +210,7 @@ namespace Jianghu.Core.Combat
         /// ⚠ 사전 값을 고치지 않고 **엔진에서 환산**하는 쪽을 택했다. 명중이 이미 그렇게 돼 있고
         ///   (`AccuracyPointToPercent`), 사전은 정의서를 옮기는 자리라 손대면 두 문서가 갈라진다.
         /// </summary>
-        public const double EvasionPointToPercent = 0.4;
+        public const double EvasionPointToPercent = 0.3;
 
         /// <summary>
         /// 회피 수치. 신법 절반이 기반이고 경공 무공이 얹힌다.

@@ -77,6 +77,30 @@ namespace Jianghu.Core.Combat
         private const double MinCritMultiplier = 1.0;
 
         /// <summary>
+        /// **피해 눈금 배수** (2026-07-31 사용자 확정). 세지려는 값이 아니라 **잘게 쪼개려는 값**이다.
+        ///
+        /// ⚠⚠ 이걸 넣기 전에는 타격 한 번이 7~8 이라 `Math.Round` 가 **12% 미만의 차이를 통째로 지웠다.**
+        ///   방어 계수를 3 → 2 · 2.5 로 내려도 승률이 49.8%(무의미)에서 66%(지배적)로 **건너뛰기만 했고**
+        ///   그 사이 값을 만들 방법이 없었다. 밸런싱의 최소 눈금을 반올림이 정해 버린 것이다.
+        ///
+        /// 5 를 고른 근거 — 타격이 35~80 이 되어 눈금이 **약 1.5%** 가 된다. 민감도 측정 오차
+        /// (400전 기준 ±2.4%p)보다 작으므로 충분하고, 더 키우면 로그 가독성만 잃는다.
+        ///
+        /// ⚠ **체력·최소피해·지속피해를 같은 배수로 함께 옮겼다.** 그래서 이 변경은 재밸런싱이 아니라
+        ///   눈금 세분화이며, **이전 측정값이 보존된다.** 비율축(치명배율·막기 감소율·방어 계수·
+        ///   회피 환산·명중 환산·상태이상 확률·성향 편차)은 단위가 없으므로 건드리지 않는다.
+        /// ⚠ **기력계는 배수에서 제외한다** — 기력은 체력과 단위가 다르고(정의서 §1-1-a 의
+        ///   `글자 수 × 4`), 평타 전락률이라는 별도 지표로 이미 맞춰져 있다.
+        /// </summary>
+        public const int DamageScale = 5;
+
+        /// <summary>
+        /// 한 타격의 최소 피해. 교착 방지선이며 **눈금 배수와 함께 움직인다**(= 옛 스케일의 1).
+        /// ⚠ 이 값이 곧 *"공격합이 음수인 무공"* 의 실제 위력이다(설계안 §1-E).
+        /// </summary>
+        public const int MinDamagePerHit = DamageScale;
+
+        /// <summary>
         /// **방어 1점이 피해를 얼마나 깎는가** — 비율 경감 공식의 계수 (2026-07-31 신설).
         ///
         /// `피해 = 공격 × 100 / (100 + 방어 × DefenseScale)`
@@ -88,14 +112,14 @@ namespace Jianghu.Core.Combat
         ///   뺄셈(기존 공식) **100%** · 뺄셈에 배율 미적용 90% · 비율 K=10 **95%** · **K=3 → 65.5/66.8%**.
         /// ⚠ 목표 구간 53~65% 는 다른 선택 카테고리(상태이상·수식)와 같은 잣대다.
         ///
-        /// ⚠⚠ **3 은 이 축에서 고를 수 있는 가장 작은 값이다.** K=2 와 2.5 도 재봤으나 수련 200회
-        ///   시점에 **49.8% = 완전 무의미**로 떨어졌다 — 값이 작아서가 아니라 **정수 반올림에 삼켜져서**다.
-        ///   타격 한 번이 7~8 이라 `Math.Round` 가 1 미만의 차이를 지운다. 이 축은 지금
-        ///   **"무의미(49.8%)" 아니면 "살짝 지배적(66%)"** 두 값 사이를 건너뛰고, 그 사이가 없다.
-        ///   → 더 곱게 맞추려면 **피해 스케일 자체를 키워야 한다**(체력·공격 전부). 그건 지금까지의
-        ///     모든 측정값을 무효로 만드는 변경이라 미뤄 뒀다.
+        /// ⚠⚠ **한때 3 이 이 축에서 고를 수 있는 가장 작은 값이었다.** 2 와 2.5 는 수련 200회 시점에
+        ///   **49.8% = 완전 무의미**로 떨어졌는데, 값이 작아서가 아니라 **정수 반올림에 삼켜져서**였다 —
+        ///   타격이 7~8 이던 시절 `Math.Round` 가 1 미만의 차이를 지웠다. 그래서 이 축은
+        ///   *"무의미(49.8%)" 아니면 "지배적(66%)"* 두 값만 가질 수 있었다.
+        ///   → <see cref="DamageScale"/> 로 눈금을 5배 잘게 만든 뒤에야 **2 를 고를 수 있게 됐다.**
+        ///     밸런싱이 막혔을 때 원인이 값이 아니라 **표현력**일 수 있다는 사례로 남긴다.
         /// </summary>
-        public const int DefenseScale = 3;
+        public const int DefenseScale = 2;
 
         /// <summary>
         /// 기본 막기확률(%) — **0 이다. 막기는 무공이 주는 것이지 누구나 하는 것이 아니다.**
@@ -165,7 +189,8 @@ namespace Jianghu.Core.Combat
         /// ⚠⚠ 2026-07-31 측정으로 2 → 1 로 내렸다. 2 이면 민감도 **70~76% = 지배적**이었다 —
         ///   부여확률 40% 로 매 턴 갱신되니 사실상 상시 유지되어 턴당 피해가 25%씩 늘어난 셈이다.
         /// </summary>
-        public const int BleedPotency = 1;
+        /// ⚠ 2026-07-31 눈금 배수 도입으로 1 → 5 (`DamageScale` 과 함께 옮긴 값. 실질 변화 없음).
+        public const int BleedPotency = 1 * DamageScale;
         public const int BleedTurns = 3;
 
         /// <summary>
@@ -173,7 +198,8 @@ namespace Jianghu.Core.Combat
         /// ⚠⚠ 2026-07-31 측정으로 1 → 2 로 올렸다. 1 이면 **52~53% = 무의미**였다.
         ///   매 턴 한 겹씩 빠지는 구조라 실제 중첩이 1~2 에 머물러 턴당 1 밖에 안 됐다.
         /// </summary>
-        public const int PoisonPotencyPerStack = 2;
+        /// ⚠ 2026-07-31 눈금 배수와 함께 2 → 10 (실질 변화 없음).
+        public const int PoisonPotencyPerStack = 2 * DamageScale;
 
         /// <summary>
         /// 기력소실 — 매 턴 깎이는 기력.
@@ -208,7 +234,8 @@ namespace Jianghu.Core.Combat
         /// ⚠⚠ 지속은 2026-07-31 측정으로 3 → 2턴. 3턴이면 갱신을 끊고 체증을 2단계로 묶어도
         ///   **66~67% 로 여전히 지배적**이었다. 한 번 붙었을 때의 총량(1+2=3)이 출혈 한 주기와
         ///   같아지는 지점이 여기다.
-        public const int BurnPotency = 1;
+        /// ⚠ 2026-07-31 눈금 배수와 함께 1 → 5 (실질 변화 없음).
+        public const int BurnPotency = 1 * DamageScale;
         public const int BurnTurns = 2;
 
         /// <summary>화상 체증 상한(단계). ⚠ 2026-07-31 측정으로 3 → 2 — 3단계면 68~74% 로 지배적이었다.</summary>
@@ -462,7 +489,7 @@ namespace Jianghu.Core.Combat
                     blocks++;
                     perHit = (int)Math.Round(perHit * (100 - BlockDamageReductionPercent) / 100.0,
                         MidpointRounding.AwayFromZero);
-                    if (perHit < 1) perHit = 1;   // 막아도 최소 1 은 들어간다(교착 방지)
+                    if (perHit < MinDamagePerHit) perHit = MinDamagePerHit;   // 막아도 최소치는 들어간다
                 }
 
                 damage += perHit;
@@ -534,7 +561,7 @@ namespace Jianghu.Core.Combat
             int perHit = DamagePerHit(counterer.Def, victim.Def, art, 1, mastery);
 
             int damage = (int)Math.Round(perHit * CounterDamagePercent / 100.0, MidpointRounding.AwayFromZero);
-            if (damage < 1) damage = 1;
+            if (damage < MinDamagePerHit) damage = MinDamagePerHit;
 
             victim.Health -= damage;
             if (victim.Health < 0) victim.Health = 0;
@@ -969,8 +996,10 @@ namespace Jianghu.Core.Combat
             //     내 수명은 늘리고 상대 수명은 그대로다. 두 축을 같은 크기로 넣으면 안 된다.
             double afterDefense = totalPower * 100.0 / (100.0 + effectiveDefense * DefenseScale);
 
-            int perHit = (int)Math.Round(afterDefense / attempts, MidpointRounding.AwayFromZero);
-            return perHit < 1 ? 1 : perHit;   // 아무리 단단해도 최소 1 은 들어간다(교착 방지)
+            // ⚠ 눈금 배수는 **마지막에** 곱한다. 방어(비율)·성향 배율은 단위가 없으므로
+            //   어디서 곱하든 결과가 같고, 여기서 곱해야 위 수치들이 정의서와 같은 단위로 읽힌다.
+            int perHit = (int)Math.Round(afterDefense * DamageScale / attempts, MidpointRounding.AwayFromZero);
+            return perHit < MinDamagePerHit ? MinDamagePerHit : perHit;   // 교착 방지
         }
 
         /// <summary>
