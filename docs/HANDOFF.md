@@ -780,6 +780,24 @@ QiCostFor(n) = 8 + 3n  →  2자 14 · 3자 17 · 4자 20 →  4자/2자 = 1.43
 - **`대문파 vs 소문파` 계층 역전**(48.16) — 원인은 §4-2-f 의 엔진 미구현 무공 6종. **Phase 3 대기**
 - **계층 내 격차**(§4-2-f) — 원래 이 세션이 착수하려던 작업. 아직 손도 안 댔다
 
+#### 🔖 하네스 위치 (2026-08-01 세션이 이어질 때만 유효)
+
+```
+C:\Users\cvcv6\AppData\Local\Temp\claude\D--GameDev\ba46aab2-55e6-4459-a589-afbae36fbfaa\scratchpad\
+```
+
+| 살아 있으면 바로 쓸 것 | |
+|---|---|
+| `rk6.py` (454줄) | 채점기 — 28+4자 개별 짝지음 · `CAP` 상한 검정(65 · 2SE 접촉) · 기력가치 대조군 |
+| `Sweep/Program.cs` (925줄) | 측정 도구 11모드(`screen`/`full`/`fall`/`inv`/`axes`/`cross`/`grade`/`hmlog`/`tiers`/`atk`/`delta`/`qimax`/`rulechk`) · env `JIANGHU_SEED_OFF` |
+| `wrun.sh`·`wreg.sh`·`wtab.py` | 7블록 실행·집계 |
+| `README-harness.md` | 재현 절차·env 목록 |
+| `simple/`·`per1/`·`v3/`·`w/` | 이번 세션 산출물 |
+| ~~`src/Core`·`src/Tests`~~ | **패치본. 저장소가 바뀌면 낡는다 — 버리고 아래 방법으로 다시 만들 것** |
+
+⚠ **경로가 세션 ID 로 갈린다.** 새 세션이면 위 경로가 없다 — 그때는 아래 재구축 방법을 쓴다.
+⚠ `%TEMP%` 아래라 **디스크 정리·재부팅으로 사라질 수 있다.** 없으면 당황하지 말고 재구축하면 된다.
+
 #### ⚠⚠ 스크래치패드 하네스는 세션과 함께 사라진다 — 재구축 방법
 
 `Assets/Scripts/Core/**` 를 링크 컴파일한 사본에 아래를 패치한다:
