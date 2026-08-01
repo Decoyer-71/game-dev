@@ -156,7 +156,9 @@ namespace Jianghu.Core.Martial.Morphemes
             Row("군", "群", "무리", MorphemeCategory.Scope, ArtStatDelta.Of(attack: -2), scope: AttackScope.Three);
             Row("전", "全", "전부", MorphemeCategory.Scope, ArtStatDelta.Of(attack: -3), scope: AttackScope.All);
             // 만(萬) — 위력을 유지하는 대신 기력 소모가 3배가 된다(만인적萬人敵).
-            //   4자 무공 기준 16 → 48 이라 기력 50 으로 사실상 한 번 쓰고 고갈된다. 필살기 성격이다.
+            //   ⚠⚠ 2026-08-01 정정 — 상수 4 시절 "16 → 48" 로 적혀 있었으나 상수가 3 이 되어
+            //   4자 무공 기준 **12 → 36** 이다(실측: 환창혈만 36 · 만우쾌사 27).
+            //   기력 50 이라 여전히 한 번 쓰고 고갈되는 필살기 성격은 유지된다.
             Row("만", "萬", "만인", MorphemeCategory.Scope, ArtStatDelta.Of(qiCostPercent: 200), scope: AttackScope.All);
 
             // ── §3-10 무학분류 (3자) · 태그일 뿐 자체 수치 없음 ──

@@ -231,6 +231,71 @@ namespace Jianghu.Sandbox
 
             PrintDisciplineSensitivity(stage);
             PrintMorphemeCountSensitivity(stage);
+            PrintQiPressure(stage);
+        }
+
+        /// <summary>
+        /// **평타 전락률 — 기력 설계의 판정 기준** (2026-08-01 신설).
+        ///
+        /// ⚠⚠ 설계안 §5-3 이 *"기력 부족으로 초식을 못 쓴 비율, 목표 10~30%"* 를 못박고
+        ///   <see cref="MorphemeParser.QiCostPerMorpheme"/> 주석도 *"이 상수는 전락률로 판정한다"* 고
+        ///   적어 뒀는데 **재는 코드가 없었다.** 그래서 2026-08-01 에 상수를 4 ↔ 3 으로 놓고
+        ///   두 번 논쟁하는 동안 근거가 전부 **산술 추정**이었다.
+        ///   → HANDOFF §5 의 *"밸런싱이 막혔을 때 원인이 값이 아니라 표현력일 수 있다"* 와 같은 자리다.
+        ///   여기서는 표현력이 아니라 **관측 자체가 없었다.**
+        ///
+        /// ⚠ 0% 면 기력 축이 죽은 것이다 — 내공 형태소(양·음·합·식)와 기력소실 탈(奪)이
+        ///   **동시에 존재 이유를 잃는다.** 30% 를 넘으면 반대로 평타 싸움이 된다.
+        /// ⚠ 유형별로도 잰다. 권(拳)의 특성이 기력 소모 감소이므로, 권만 낮게 나오는 것이 정상이다.
+        /// </summary>
+        private static void PrintQiPressure(int stage)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  ── 평타 전락률 (목표 10~30% · 설계안 §5-3) — 같은 무공끼리 "
+                              + FightsPerMatchup + "전 ──");
+
+            foreach (string name in new[] { "참정", "참정독", "참정독명" })
+            {
+                MartialArt art = TryBuild(name);
+                if (art == null) continue;
+
+                double rate = MirrorBasicStrikeRate(art, stage);
+                string flag = rate <= 0.05 ? "  ⚠⚠ 기력 축이 죽어 있다"
+                    : rate < 10 ? "  ⚠ 목표 미만"
+                    : rate > 30 ? "  ⚠ 목표 초과" : "  ✅";
+                Console.WriteLine("     " + Pad(name + "(" + name.Length + "자 · 기력 " + art.QiCost + ")", 22)
+                                  + rate.ToString("F1").PadLeft(5) + "%" + flag);
+            }
+
+            Console.WriteLine("     ── 4자 무공을 유형별로 ──");
+            foreach (var kind in new[]
+            {
+                new KeyValuePair<string, Discipline>("검", Discipline.Sword),
+                new KeyValuePair<string, Discipline>("도", Discipline.Blade),
+                new KeyValuePair<string, Discipline>("창", Discipline.Spear),
+                new KeyValuePair<string, Discipline>("권", Discipline.Fist),
+                new KeyValuePair<string, Discipline>("비도", Discipline.Dagger),
+            })
+            {
+                MartialArt art = TryBuild("참정독명", kind.Value);
+                if (art == null) continue;
+                Console.WriteLine("     " + Pad(kind.Key, 22)
+                                  + MirrorBasicStrikeRate(art, stage).ToString("F1").PadLeft(5) + "%");
+            }
+        }
+
+        /// <summary>같은 무공끼리 붙여 양쪽 합산 평타 전락률의 평균을 낸다.</summary>
+        private static double MirrorBasicStrikeRate(MartialArt art, int stage)
+        {
+            Combatant a = ToCombatant(art, stage);
+            Combatant b = ToCombatant(art, stage);
+
+            double sum = 0;
+            for (uint seed = 1; seed <= FightsPerMatchup; seed++)
+            {
+                sum += CombatResolver.Resolve(a, b, new XorShiftRandom(seed)).BasicStrikeRate;
+            }
+            return sum / FightsPerMatchup;
         }
 
         /// <summary>
@@ -240,9 +305,14 @@ namespace Jianghu.Sandbox
         ///   무공마다 글자 구성이 달라 **개수만의 효과를 분리하지 못한다.**
         ///   여기서는 **앞 글자를 그대로 두고 뒤에만 덧붙여** 개수 하나만 바꾼다.
         ///
-        /// 기력 소모 = 글자 수 × 4 이고 회복이 턴당 10 이므로:
-        ///   2자 = 8(턴당 +2) · 3자 = 12(−2) · 4자 = 16(−6)
+        /// 기력 소모 = 글자 수 × <see cref="MorphemeParser.QiCostPerMorpheme"/>(현재 **3**) 이고
+        /// 회복이 턴당 <c>CombatResolver.BaseQiRegen</c>(10) 이므로:
+        ///   2자 = 6(턴당 +4) · 3자 = 9(+1) · 4자 = 12(−2)
         /// → **글자가 늘수록 능력은 하나 늘고 기력은 그보다 빨리 마른다.** 그 순손익을 잰다.
+        ///
+        /// ⚠⚠ 위 숫자는 상수 **3** 기준이다(2026-08-01 정정). 그전에는 ×4 기준(8/12/16)이 적혀
+        ///   있었는데 커밋 9605db8 이 상수를 내리면서 이 주석을 안 고쳤다. 실제 압력이 얼마인지는
+        ///   <see cref="PrintQiPressure"/> 가 재는 **평타 전락률**로 본다 — 산술로 추정하지 않는다.
         /// </summary>
         private static void PrintMorphemeCountSensitivity(int stage)
         {

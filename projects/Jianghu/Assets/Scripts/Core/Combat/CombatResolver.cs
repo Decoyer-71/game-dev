@@ -104,7 +104,10 @@ namespace Jianghu.Core.Combat
         ///   눈금 세분화이며, **이전 측정값이 보존된다.** 비율축(치명배율·막기 감소율·방어 계수·
         ///   회피 환산·명중 환산·상태이상 확률·성향 편차)은 단위가 없으므로 건드리지 않는다.
         /// ⚠ **기력계는 배수에서 제외한다** — 기력은 체력과 단위가 다르고(정의서 §1-1-a 의
-        ///   `글자 수 × 4`), 평타 전락률이라는 별도 지표로 이미 맞춰져 있다.
+        ///   `글자 수 × <see cref="Martial.Morphemes.MorphemeParser.QiCostPerMorpheme"/>`),
+        ///   평타 전락률이라는 별도 지표로 판정한다.
+        ///   ⚠⚠ 2026-08-01 정정 — 원문은 상수를 `4` 로 못박아 뒀는데 커밋 9605db8 이 3 으로 내렸다.
+        ///   그리고 *"이미 맞춰져 있다"* 도 사실이 아니었다: 전락률을 처음 실측한 결과 **0.0%** 다.
         /// </summary>
         public const int DamageScale = 5;
 
@@ -325,6 +328,12 @@ namespace Jianghu.Core.Combat
             public int StaggerLockTurns;
             public bool IsDown => Health <= 0;
 
+            /// <summary>낸 행동 수 — 평타 전락률의 분모.</summary>
+            public int Actions;
+
+            /// <summary>그중 기력이 모자라 평타로 내려앉은 횟수.</summary>
+            public int BasicStrikes;
+
             public ActiveStatus Find(StatusEffectKind kind)
             {
                 for (int i = 0; i < Statuses.Count; i++)
@@ -394,7 +403,9 @@ namespace Jianghu.Core.Combat
                 winner = null;
             }
 
-            return new CombatResult(outcome, winner, turn, a.Health, d.Health, log);
+            return new CombatResult(
+                outcome, winner, turn, a.Health, d.Health, log,
+                a.Actions, a.BasicStrikes, d.Actions, d.BasicStrikes);
         }
 
         private static Fighter NewFighter(Combatant c)
@@ -453,6 +464,21 @@ namespace Jianghu.Core.Combat
             bool extra = false)
         {
             LearnedArt chosen = SelectArt(actor);
+
+            // ⚠⚠ **평타 전락률 계측** (2026-08-01 신설). 설계안 §5-3 이 목표 10~30% 로 못박고
+            //   `MorphemeParser.QiCostPerMorpheme` 주석이 *"이 상수는 전락률로 판정한다"* 고 적었는데
+            //   **정작 그 값을 재는 코드가 없었다.** 기력 상수를 4↔3 으로 놓고 두 번 논쟁하는 동안
+            //   판정 기준이 산술 추정뿐이었다 — 측정 도구의 분해능을 먼저 본다는 규율(§5)의 반복 사례다.
+            //
+            // ⚠ **분모는 '턴' 이 아니라 '행동' 이다.** 설계안 §5-3 의 문구는 "초식을 못 쓴 **턴** 비율" 인데,
+            //   그 뒤 속도 우위의 **추가 행동**이 생겨(2026-07-31) 한 턴에 두 번 칠 수 있게 됐다.
+            //   그러면 "초식 한 번 + 평타 한 번" 인 턴을 어느 쪽으로 셀지가 모호해진다.
+            //   행동 기준은 그 모호함이 없고 *"기력이 모자라 초식을 못 낸 비율"* 이라는 원래 물음에 직답한다.
+            // ⚠ **반격은 세지 않는다.** 반격도 기력이 마르면 평타로 내려앉지만(`ResolveCounter`),
+            //   그건 피격이 방아쇠인 반응이지 행동 선택이 아니다. 섞으면 분모의 뜻이 흐려진다.
+            actor.Actions++;
+            if (ReferenceEquals(chosen, BasicStrike)) actor.BasicStrikes++;
+
             int mastery = actor.Def.MasteryOf(chosen.Art.Discipline);
 
             int qiCost = EffectiveQiCost(chosen.Art, mastery);   // 권 숙달 → 기력 소모 감소
@@ -978,8 +1004,9 @@ namespace Jianghu.Core.Combat
         /// 턴 시작 회복 — 기력을 되돌린다.
         ///
         /// ⚠⚠ **이것이 없으면 전투가 성립하지 않는다** (2026-07-30 실측). 기력이 영영 안 돌아오면
-        ///   4자 무공(기력 16) 기준 3턴 만에 고갈되고, 그 뒤로는 평타(피해 1)만 나가
+        ///   4자 무공(당시 기력 16 · 상수 4) 기준 3턴 만에 고갈되고, 그 뒤로는 평타(피해 1)만 나가
         ///   체력 100 을 50턴 안에 못 깎는다. 실제로 **전원 무승부 · 승률 0** 이 나왔다.
+        ///   ⚠ 현재 상수는 3 이라 4자 무공은 **12** 다. 위 수치를 현재 값으로 읽지 말 것.
         ///
         /// **기력 고갈 → 평타 전락은 살려 두되 영구적이지 않게 하는 것**이 이 단계의 목적이다.
         /// 그 드라마가 현재 전투의 핵심이고(HANDOFF §3-2), 회복 속도가 그 빈도를 정한다.
