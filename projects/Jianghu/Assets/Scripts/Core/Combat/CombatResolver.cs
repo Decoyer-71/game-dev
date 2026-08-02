@@ -191,6 +191,12 @@ namespace Jianghu.Core.Combat
         /// </summary>
         public const int CounterDamageReductionPercent = 5;
 
+        /// <summary>
+        /// **절대경지 통(統) 이 모든 분류에 갖는 상성 수** — 정의서 §5-3 의 *"모든 분류에 상성 +2"*.
+        /// ⚠ 일반 상성이 조합당 +1 인 것의 두 배다. 전승무학 상성 무공(+1)을 확실히 넘도록 정해진 값이다.
+        /// </summary>
+        public const int CounterSupremacyAdvantage = 2;
+
         // ── 상태이상 규칙 상수. 근거: docs/martial-system-proposal.md §5 ──
         /// <summary>중독 최대 중첩.</summary>
         public const int MaxPoisonStacks = 5;
@@ -485,6 +491,18 @@ namespace Jianghu.Core.Combat
             //
             // ⚠ **상대와의 차이**로 굴린다. 절대 속도로 굴리면 양쪽이 같이 빨라져 전투만 짧아진다.
             // ⚠ 상태이상 진행(1)과 마비(2)를 다시 거치지 않는다 — 추가 행동은 '행동'만이다.
+            // ⚠⚠ **절대경지 쌍(雙) — 한 턴에 2회 행동** (2026-08-02 신설). 확정 1회다.
+            //   **속공과 겹치지 않는다** — 확정 추가 행동을 쓴 턴에는 속공 판정을 건너뛴다.
+            //   겹치면 한 턴에 3회가 되어 *"2회 행동"* 이라는 이름이 거짓말이 된다(§5-C 대원칙).
+            // ⚠⚠ **기력 소모도 2배가 된다** — `PerformAction` 이 호출마다 `EffectiveQiCost` 를 다시
+            //   차감하기 때문이다. 기력 축이 죽은 지금(전락률 0.0%)은 무해하지만, 축이 살아나면
+            //   **보유자가 스스로 말라붙는다.** 그때 재조정 대상이다(HANDOFF §4-2-O).
+            if (actor.Def.ActsTwice)
+            {
+                PerformAction(turn, actor, target, rng, log, extra: true);
+                return;
+            }
+
             int advantage = actor.Def.Speed - target.Def.Speed;
             if (advantage <= 0) return;
 
@@ -770,6 +788,14 @@ namespace Jianghu.Core.Combat
             int turn, Fighter actor, Fighter target, MartialArt art, int mastery,
             IRandomSource rng, List<CombatLogEntry> log)
         {
+            // ⚠⚠ **절대경지 면(免) — 모든 상태이상 면역** (2026-08-02 신설).
+            //   여기가 **두 경로가 갈라지기 전**이라는 것이 요점이다. 아래에서 형태소 유도 경로
+            //   (`ApplyMorphemeStatus`)와 레거시 경로(`art.Effects`)로 나뉘는데, 한쪽만 막으면
+            //   **레거시 36종이 거는 상태이상에는 면역이 뚫린다.** `verify` 가 잡은 구멍이다.
+            // ⚠ **부여 단계에서 막는다.** 이미 걸린 것을 지우는 것이 아니라 안 걸리게 하는 것이
+            //   "면역" 이다 — 지속피해 틱(`TickStatuses`)을 건드리지 않는 이유가 이것이다.
+            if (target.Def.IsStatusImmune) return null;
+
             // 비도 숙달 → 상태이상이 더 잘 걸린다.
             int chanceBonus = DisciplineCurve.StatusChanceBonus(art.Discipline, mastery);
 
@@ -1151,8 +1177,24 @@ namespace Jianghu.Core.Combat
             //   개념적으로 존재할 수 없다. 지금 사전으로는 방어 상성이 20 을 넘을 수 없어
             //   실제로는 도달하지 않지만, 절대경지 4번(*"모든 분류에 상성 +2"*)이 붙으면
             //   경로가 생기므로 미리 막는다.
-            int counterFor = CountCounters(art.Art.CounterTargets, target.Lineage);
-            int counterAgainst = target.CounterCountAgainst(actor.Lineage);
+            // ⚠⚠ **절대경지 통(統) — 모든 분류에 상성 +2, 상대 상성 무효** (2026-08-02 신설).
+            //   **양방향이다.** 공격할 때 분류 무관 +2 를 얻고, **피격당할 때 상대의 상성을 0** 으로
+            //   만든다. 한쪽만 걸면 *"상대 상성 무효"* 라는 이름의 절반이 실현되지 않는다 —
+            //   `verify` 가 잡은 지점이다(§5-C 대원칙: 이름과 성능이 일치해야 한다).
+            // ⚠ 양쪽이 다 보유하면 서로 무효화되어 **대칭**이 된다(둘 다 +2 · 상대 상성 0).
+            // ⚠ 공격 측 +2 는 **상대가 무소속이어도** 붙는다 — *"모든 분류에"* 이므로 과녁을 가리지 않는다.
+            //   이것이 일반 상성(과녁이 없으면 0)과 다른 점이고, 그래서 "절대" 우위다.
+            //   순서가 중요하다 — **"상대 상성 무효" 를 먼저 본다.** 그래야 양쪽이 다 보유했을 때
+            //   둘 다 0 이 되어 대칭이 된다. 반대로 짜면 서로 +2 를 얻어 **둘 다 강해지는** 꼴이 된다.
+            int counterFor;
+            if (target.HasCounterSupremacy) counterFor = 0;                       // 방어자가 절대 → 내 상성 무효
+            else if (actor.HasCounterSupremacy) counterFor = CounterSupremacyAdvantage;
+            else counterFor = CountCounters(art.Art.CounterTargets, target.Lineage);
+
+            int counterAgainst;
+            if (actor.HasCounterSupremacy) counterAgainst = 0;                    // 공격자가 절대 → 상대 상성 무효
+            else if (target.HasCounterSupremacy) counterAgainst = CounterSupremacyAdvantage;
+            else counterAgainst = target.CounterCountAgainst(actor.Lineage);
             if (counterFor > 0 || counterAgainst > 0)
             {
                 double counterPercent = 100
@@ -1211,6 +1253,15 @@ namespace Jianghu.Core.Combat
         /// </summary>
         private static int EffectiveQiCost(MartialArt art, int mastery, Combatant owner)
         {
+            // ⚠⚠ **절대경지 무(無) — 기력 무소모** (2026-08-02 신설).
+            //   기존 감면(보조 무공 소모율 → 유형 숙달) **뒤가 아니라 앞**에서 즉시 끝낸다.
+            //   0 에 무엇을 곱하고 무엇을 빼도 0 이므로 순서 논쟁 자체가 성립하지 않는다.
+            // ⚠⚠ **이 규칙은 지금 효과가 0 이다.** 평타 전락률이 전 무공·전 경지 0.0% 라
+            //   아무도 기력이 마르지 않는다(HANDOFF §4-2-d). 극한경지 선(仙)과 권(拳)의
+            //   기력소모 −100% 가 같은 이유로 죽어 있다. **기력 축 제로섬(§4-2-O)이 풀려야 산다.**
+            //   측정 블록은 그때까지 판정불가로 낸다 — 공허한 통과를 만들지 않는다.
+            if (owner != null && owner.HasNoQiCost) return 0;
+
             double cost = art.QiCost;
 
             if (owner != null)

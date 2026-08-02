@@ -41,7 +41,7 @@ namespace Jianghu.Core.Martial.Morphemes
             void Row(
                 string korean, string hanja, string meaning, MorphemeCategory category, ArtStatDelta delta,
                 ArtLineage lineage = ArtLineage.None, bool isNegation = false, bool doublesFormEffect = false,
-                AttackScope scope = AttackScope.Single)
+                AttackScope scope = AttackScope.Single, AbsoluteRule rule = AbsoluteRule.None)
             {
                 if (korean.Length != hanja.Length)
                 {
@@ -52,7 +52,7 @@ namespace Jianghu.Core.Martial.Morphemes
                 for (int i = 0; i < korean.Length; i++)
                 {
                     list.Add(new Morpheme(
-                        korean[i], hanja[i], meaning, category, delta, lineage, isNegation, doublesFormEffect, scope));
+                        korean[i], hanja[i], meaning, category, delta, lineage, isNegation, doublesFormEffect, scope, rule));
                 }
             }
 
@@ -189,6 +189,26 @@ namespace Jianghu.Core.Martial.Morphemes
             Row("일", "日", "양기무학", MorphemeCategory.Tag, ArtStatDelta.Zero, ArtLineage.Yang);
             Row("월", "月", "음기무학", MorphemeCategory.Tag, ArtStatDelta.Zero, ArtLineage.Yin);
             Row("혼", "混", "혼합무학", MorphemeCategory.Tag, ArtStatDelta.Zero, ArtLineage.Mixed);
+
+            // ── §5-3 절대경지 규칙 (4자) · **절대경지 전용 · 필수 1자** (2026-08-02 신설) ──
+            //
+            // ⚠ 수치가 없다(`Zero`). 정의서 §5-3 이 *"수치로 강하게 만들지 않는다 — 대신 규칙을
+            //   바꾼다"* 고 못박았기 때문이다. 전승무학을 수치로 압도하면 문파 성장 경로가 통째로
+            //   무의미해진다는 것이 그 근거다.
+            //
+            // ⚠⚠ **한글 키 충돌을 사전 84자 + 배경어 6자 전수로 확인했다** (2026-08-02).
+            //   면·쌍·무·통은 어디에도 없다. 중/重·광/光·성/聖·공/功·산/散 이 한글을 선점해
+            //   한자를 못 썼던 전례가 있으므로 새 글자는 반드시 이 확인을 거친다(HANDOFF §0).
+            //
+            // 대형세력 배정은 정의서 §5-5-c 표에 있다.
+            Row("면", "免", "면역", MorphemeCategory.AbsoluteRule, ArtStatDelta.Zero,
+                rule: AbsoluteRule.StatusImmunity);
+            Row("무", "無", "무소모", MorphemeCategory.AbsoluteRule, ArtStatDelta.Zero,
+                rule: AbsoluteRule.NoQiCost);
+            Row("쌍", "雙", "이회행동", MorphemeCategory.AbsoluteRule, ArtStatDelta.Zero,
+                rule: AbsoluteRule.DoubleAction);
+            Row("통", "統", "상성통괄", MorphemeCategory.AbsoluteRule, ArtStatDelta.Zero,
+                rule: AbsoluteRule.CounterSupremacy);
 
             return list.ToArray();
         }

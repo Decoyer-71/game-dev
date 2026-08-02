@@ -80,7 +80,7 @@ namespace Jianghu.Core.Martial.Morphemes
             //   `AttackScope`(범위)는 아직 같은 상태로 남아 있다 — 1대1 전투에서는 표현이 불가능하다.
             art = MartialArt.FromMorphemes(
                 id, name, school, discipline, alignment, parsed.Delta, parsed.QiCost, tier, hitCount,
-                parsed.CounterTargets, effects);
+                parsed.CounterTargets, parsed.Rule, effects);
             return true;
         }
     }

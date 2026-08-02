@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Jianghu.Core.Martial.Morphemes;
 
@@ -126,6 +126,13 @@ namespace Jianghu.Core.Martial
         public IReadOnlyList<ArtLineage> CounterTargets { get; }
 
         /// <summary>
+        /// **절대경지 규칙**(§5-3). 규칙 형태소(면·무·쌍·통)에서 유도되며, 없으면 <see cref="Morphemes.AbsoluteRule.None"/>.
+        /// ⚠ 효과는 <see cref="Combat.Combatant"/> 가 익힌 무공 전체에서  로 접어 **사람에게 상시** 적용한다 —
+        ///   보조 무공(내공·경공)의 기존 처리와 같다. 합산이 아닌 이유는 <see cref="Morphemes.AbsoluteRule"/> 참조.
+        /// </summary>
+        public AbsoluteRule Rule { get; }
+
+        /// <summary>
         /// **형태소에서 유도해 만든다.** 무공명을 분해한 결과를 그대로 받는다.
         ///
         /// ⚠ 수치를 인자로 받지 않는 것이 요점이다 — 수치의 출처는 오직 이름이다(정의서 §0).
@@ -134,7 +141,8 @@ namespace Jianghu.Core.Martial
         public static MartialArt FromMorphemes(
             string id, string name, string school, Discipline discipline, Alignment? alignment,
             ArtStatDelta delta, int qiCost, ArtTier tier, int hitCount = 1,
-            IReadOnlyList<ArtLineage> counterTargets = null, params StatusApplication[] effects)
+            IReadOnlyList<ArtLineage> counterTargets = null, AbsoluteRule rule = AbsoluteRule.None,
+            params StatusApplication[] effects)
         {
             if (hitCount < 1) throw new ArgumentOutOfRangeException(nameof(hitCount), "타격 횟수는 1 이상이어야 한다.");
 
@@ -143,7 +151,7 @@ namespace Jianghu.Core.Martial
                 basePower: 0, qiCost: qiCost, hitCount: hitCount, accuracyBonus: 0,
                 maxQiBonus: 0, powerBonusPercent: 0, evasionBonus: 0, initiativeBonus: 0,
                 effects: effects, delta: delta, morphemeDerived: true, tier: tier,
-                counterTargets: counterTargets);
+                counterTargets: counterTargets, rule: rule);
         }
 
         private MartialArt(
@@ -152,12 +160,13 @@ namespace Jianghu.Core.Martial
             int maxQiBonus, int powerBonusPercent, int evasionBonus, int initiativeBonus,
             StatusApplication[] effects,
             ArtStatDelta delta = default, bool morphemeDerived = false, ArtTier tier = ArtTier.Wanderer,
-            IReadOnlyList<ArtLineage> counterTargets = null)
+            IReadOnlyList<ArtLineage> counterTargets = null, AbsoluteRule rule = AbsoluteRule.None)
         {
             Delta = delta;
             IsMorphemeDerived = morphemeDerived;
             Tier = tier;
             CounterTargets = counterTargets ?? NoCounters;
+            Rule = rule;
             if (string.IsNullOrEmpty(id)) throw new ArgumentException("무공 Id 는 비어 있을 수 없다.", nameof(id));
             if (string.IsNullOrEmpty(name)) throw new ArgumentException("무공 이름은 비어 있을 수 없다.", nameof(name));
 

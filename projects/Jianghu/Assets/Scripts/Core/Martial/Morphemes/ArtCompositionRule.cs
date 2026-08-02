@@ -23,6 +23,32 @@ namespace Jianghu.Core.Martial.Morphemes
 
         /// <summary>정의서 §3-12 — 범위(광역)는 공격 무공이면서 대문파 이상에만 허용된다.</summary>
         ScopeRestricted = 5,
+
+        /// <summary>
+        /// 정의서 §3-10-a — **무학분류 글자는 부정 한자 바로 뒤가 아니면 쓸 수 없다** (2026-08-02 사용자 확정).
+        ///
+        /// 무학분류는 **문파의 속성**을 정의하는 축이다(§6-4). 이름에 들어가는 경우는 상성(§4)의
+        /// 목적어일 때 하나뿐이며, 그때 그 글자는 *"내 분류가 무엇인가"* 가 아니라 **"내가 무엇에 강한가"** 다.
+        ///
+        /// ⚠⚠ 이 규칙 없이 출하된 위반이 **8종** 있었다. 자체 수치가 0 이고 앞에 부정이 없으면 상성도 0 이라
+        ///   **성능 슬롯 하나를 통째로 버리면서 기력은 글자 수로 냈다.** 전부 자기 문파의 분류였다 —
+        ///   무작위 오용이 아니라 자기 선언이었다.
+        /// </summary>
+        TagRequiresNegation = 6,
+
+        /// <summary>
+        /// 정의서 §5-3 — **절대경지 규칙 형태소(면·무·쌍·통)는 절대경지에만** 쓸 수 있다 (2026-08-02 신설).
+        /// 극한경지의 <see cref="PinnacleRestricted"/> 와 같은 종류의 계층 제한이다.
+        /// </summary>
+        RuleMorphemeRestricted = 7,
+
+        /// <summary>
+        /// 정의서 §5-3 — **절대경지는 규칙 형태소를 정확히 1자 가져야 한다** (2026-08-02 신설).
+        ///
+        /// ⚠ 극한경지의 *"1자만"*(선택)과 달리 **필수**다. §5-3 이 절대경지를
+        /// *"수치가 아니라 규칙을 바꾸는 것"* 으로 정의하므로 **규칙 없는 절대경지는 존재 의미가 없다.**
+        /// </summary>
+        AbsoluteRequiresRule = 8,
     }
 
     /// <summary>조합 규칙 위반 하나.</summary>
@@ -111,6 +137,50 @@ namespace Jianghu.Core.Martial.Morphemes
                 violations.Add(new ArtRuleViolation(ArtRule.PinnacleRestricted,
                     "극한경지 형태소는 전승무학에만 쓸 수 있다 (정의서 §5-2). "
                     + "극한경지 9자는 유일하게 페널티가 없으므로 계층 제한이 페널티를 대신한다"));
+            }
+
+            // ── 정의서 §3-10-a. 무학분류는 부정 바로 뒤에만 (2026-08-02 사용자 확정) ──
+            //
+            // ⚠⚠ 이 검사가 없던 동안 위반 8종이 출하됐고, 그 여덟이 **전부 자기 문파의 분류**를
+            //   달고 있었다(소림사=혼합에 혼 · 화산파=양기에 일 …). 자기 선언은 기계적으로 아무 일도
+            //   안 하면서 성능 슬롯만 먹는다 — 4자 값을 내고 3자로 싸우는 꼴이다.
+            //
+            // ⚠ 상성으로 살릴 수도 없었다. §6-4 가 *"상성 무공은 자기 분류를 치지 않는다"* 고
+            //   못박으므로, 태그가 곧 자기 분류인 이상 앞에 부정을 붙이면 그 순간 다른 규칙을 어긴다.
+            //   → 개명이 유일한 처리였고, 그래서 이 검사를 켜기 전에 8종을 먼저 고쳤다.
+            {
+                IReadOnlyList<Morpheme> body = parsed.Body;
+                for (int i = 0; i < body.Count; i++)
+                {
+                    if (body[i].Category != MorphemeCategory.Tag) continue;
+                    if (i > 0 && body[i - 1].IsNegation) continue;   // 상성 성립 — 정상
+
+                    violations.Add(new ArtRuleViolation(ArtRule.TagRequiresNegation,
+                        "무학분류 '" + body[i].Korean + "' 앞에 부정 한자(낙·망·멸·산·소)가 없다 (정의서 §3-10-a). "
+                        + "무학분류는 문파의 속성을 정의하는 축이고, 이름에 들어가는 경우는 상성의 목적어일 때뿐이다 — "
+                        + "부정 없는 분류 글자는 수치도 상성도 0 이라 성능 슬롯만 먹는다"));
+                }
+            }
+
+            // ── 정의서 §5-3. 절대경지 규칙 형태소는 절대경지 전용 · 정확히 1자 필수 (2026-08-02) ──
+            {
+                int ruleCount = parsed.CountOf(MorphemeCategory.AbsoluteRule);
+
+                if (tier != ArtTier.Absolute && ruleCount > 0)
+                {
+                    violations.Add(new ArtRuleViolation(ArtRule.RuleMorphemeRestricted,
+                        "절대경지 규칙 형태소(면·무·쌍·통)는 절대경지 무학에만 쓸 수 있다 (정의서 §5-3). "
+                        + "전투 규칙 자체를 바꾸는 효과라 계층 제한이 페널티를 대신한다"));
+                }
+
+                // ⚠ 극한경지는 "1자만"(선택)인데 이쪽은 **필수**다. §5-3 이 절대경지를
+                //   "수치가 아니라 규칙을 바꾸는 것" 으로 정의하므로 규칙 없는 절대경지는 존재 의미가 없다.
+                if (tier == ArtTier.Absolute && ruleCount != 1)
+                {
+                    violations.Add(new ArtRuleViolation(ArtRule.AbsoluteRequiresRule,
+                        "절대경지는 규칙 형태소를 정확히 1자 가져야 하는데 " + ruleCount + "자다 (정의서 §5-3). "
+                        + "절대경지의 정의가 '수치가 아니라 규칙을 바꾼다' 이므로 규칙 없는 절대경지는 성립하지 않는다"));
+                }
             }
 
             // ── 정의서 §3-12. 범위(광역)는 공격 무공이면서 대문파 이상 ──

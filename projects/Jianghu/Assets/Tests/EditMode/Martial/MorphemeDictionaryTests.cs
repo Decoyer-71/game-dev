@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Jianghu.Core.Martial.Morphemes;
 using NUnit.Framework;
 
@@ -20,15 +20,18 @@ namespace Jianghu.Tests.Martial
         // ─────────────────────────── 옮겨 적기 무결성 ───────────────────────────
 
         [Test]
-        public void 형태소_사전은_여든한자다()
+        public void 형태소_사전은_여든여덟자다()
         {
             // ⚠ 정의서 §3 원안은 75자다. 두 번 늘었고 둘 다 정의서에 역반영했다:
             //   · 2026-07-29 상태이상 **탈(奪 기력소실)·경(硬 경직)** 2자 → 77자
             //     (엔진에 있는 상태이상을 형태소가 가리키지 못하던 구멍. `martial-art-naming.md` §4)
             //   · 2026-07-30 범위 **다(多)·군(群)·전(全)·만(萬)** 4자 → 81자
             //     (광역 공격. §3-12 신설. `martial-art-naming.md` §4-C)
-            Assert.AreEqual(84, MorphemeDictionary.Count,
-                "형태소는 84자여야 한다(정의서 75 + 상태이상 2 + 범위 4 + 종교 3). 실제 {0}자 — 옮기다 빠뜨렸거나 더 넣었다.",
+            //   · 2026-08-02 절대경지 규칙 **면(免)·무(無)·쌍(雙)·통(統)** 4자 → 88자
+            //     (§5-3 의 규칙 4종을 이름이 가리키게 만든 것. 극한경지 9자와 같은 위상이며,
+            //      수치가 아니라 **규칙**을 준다 —  는 Zero 다)
+            Assert.AreEqual(88, MorphemeDictionary.Count,
+                "형태소는 88자여야 한다(정의서 75 + 상태이상 2 + 범위 4 + 종교 3 + 절대경지 규칙 4). 실제 {0}자 — 옮기다 빠뜨렸거나 더 넣었다.",
                 MorphemeDictionary.Count);
         }
 

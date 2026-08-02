@@ -265,10 +265,10 @@ namespace Jianghu.Core.Martial
             // ═══ 절대경지 4 — 기연으로만. 전부 내공이고 성향이 없다(§5-3) ═══
             // ⚠ 규칙 변경 4종(상태이상 면역 / 기력 무소모 / 2회 행동 / 상성 절대우위)은
             //   형태소가 아니라 **별도 플래그**로 붙는다(설계안 §3-4). 아직 미구현이다.
-            Add("정합광일", ArtKind.Internal, ArtTier.Absolute, Discipline.InnerArt);
-            Add("식유수혼", ArtKind.Internal, ArtTier.Absolute, Discipline.InnerArt);
-            Add("음쾌신월", ArtKind.Internal, ArtTier.Absolute, Discipline.InnerArt);
-            Add("합현혼유", ArtKind.Internal, ArtTier.Absolute, Discipline.InnerArt);
+            Add("정면합광", ArtKind.Internal, ArtTier.Absolute, Discipline.InnerArt);
+            Add("식무유수", ArtKind.Internal, ArtTier.Absolute, Discipline.InnerArt);
+            Add("음쌍쾌신", ArtKind.Internal, ArtTier.Absolute, Discipline.InnerArt);
+            Add("합통현유", ArtKind.Internal, ArtTier.Absolute, Discipline.InnerArt);
 
             return list;
         }

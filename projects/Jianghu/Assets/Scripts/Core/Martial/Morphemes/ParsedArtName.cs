@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text;
 
 namespace Jianghu.Core.Martial.Morphemes
@@ -104,6 +104,12 @@ namespace Jianghu.Core.Martial.Morphemes
         /// </summary>
         public IReadOnlyList<ArtLineage> CounterTargets { get; }
 
+        /// <summary>
+        /// 이 무공이 갖는 **절대경지 규칙**(§5-3). 규칙 형태소가 없으면 <see cref="Morphemes.AbsoluteRule.None"/>.
+        /// ⚠ 조합 규칙이 절대경지에 **정확히 1자**를 강제하므로 둘 이상이 섞이지 않는다.
+        /// </summary>
+        public AbsoluteRule Rule { get; }
+
         public ParsedArtName(
             string name, ArtSuffix suffix, ArtKind kind, IReadOnlyList<Morpheme> body, ArtStatDelta delta,
             int backgroundCount, ArtLineage lineage, IReadOnlyList<ArtLineage> counterTargets)
@@ -118,6 +124,14 @@ namespace Jianghu.Core.Martial.Morphemes
                 if (body[i].Scope != AttackScope.Single) scope = body[i].Scope;
             }
             Scope = scope;
+
+            AbsoluteRule rule = AbsoluteRule.None;
+            for (int i = 0; i < body.Count; i++)
+            {
+                if (body[i].Rule != AbsoluteRule.None) rule = body[i].Rule;
+            }
+            Rule = rule;
+
             Body = body;
             Delta = delta;
             BackgroundCount = backgroundCount;

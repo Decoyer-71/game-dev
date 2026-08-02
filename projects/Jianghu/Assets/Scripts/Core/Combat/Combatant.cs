@@ -85,6 +85,41 @@ namespace Jianghu.Core.Combat
             return count;
         }
 
+        /// <summary>
+        /// 이 사람이 <paramref name="rule"/> 절대경지 규칙을 갖고 있는가 (정의서 §5-3).
+        ///
+        /// ⚠⚠ **합산이 아니라 `any` 다.** 절대경지 규칙은 불리언이라 <see cref="Martial.Morphemes.ArtStatDelta"/>
+        ///   에 넣을 수 없다 — 델타는 22축이 전부 `double` 이고 무공을 여럿 배우면 더해지므로,
+        ///   불리언을 숫자로 담으면 *"면역이 두 겹"* 이라는 의미 없는 값이 생긴다.
+        ///
+        /// ⚠ **배운 순간부터 상시 적용**된다. 그 무공을 전투에서 "쓸 때만" 이 아니다 —
+        ///   절대경지 4종은 전부 **내공 무공**이고, 내공·경공이 사람에게 상시 붙는 것은
+        ///   <see cref="EffectiveMaxQi"/>·<see cref="QiRegenPerTurn"/>·<see cref="SupportQiCostPercent"/> 가
+        ///   이미 쓰는 규칙이다. 그 관례를 그대로 따른다.
+        ///
+        /// ⚠ 숙련 배율을 곱하지 않는다 — 규칙은 정도(程度)가 없다. 면역이 1.7겹일 수 없다.
+        /// </summary>
+        public bool HasRule(AbsoluteRule rule)
+        {
+            for (int i = 0; i < Arts.Count; i++)
+            {
+                if (Arts[i].Art.Rule == rule) return true;
+            }
+            return false;
+        }
+
+        /// <summary>면(免) — 모든 상태이상 면역. 무림맹 절대경지.</summary>
+        public bool IsStatusImmune => HasRule(AbsoluteRule.StatusImmunity);
+
+        /// <summary>무(無) — 기력 무소모. 천마신교 절대경지. ⚠ 기력 축이 죽어 있어 현재 효과 0(§4-2-d).</summary>
+        public bool HasNoQiCost => HasRule(AbsoluteRule.NoQiCost);
+
+        /// <summary>쌍(雙) — 한 턴에 2회 행동. 사도련 절대경지.</summary>
+        public bool ActsTwice => HasRule(AbsoluteRule.DoubleAction);
+
+        /// <summary>통(統) — 모든 분류에 상성 +2, 상대 상성 무효. 제천성 절대경지.</summary>
+        public bool HasCounterSupremacy => HasRule(AbsoluteRule.CounterSupremacy);
+
         /// <summary>해당 무기 유형의 숙련도. 익힌 적이 없으면 0.</summary>
         public int MasteryOf(Discipline discipline)
         {

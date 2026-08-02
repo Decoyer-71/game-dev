@@ -230,6 +230,7 @@ namespace Jianghu.Sandbox
             CompareOptional("상태이상", stage, "독", "혈", "비", "염", "빙", "탈", "경");
 
             PrintInnerArtSensitivity(stage);
+            PrintAbsoluteRuleSensitivity(stage);
             PrintDisciplineSensitivity(stage);
             PrintMorphemeCountSensitivity(stage);
             PrintQiPressure(stage);
@@ -274,6 +275,73 @@ namespace Jianghu.Sandbox
             }
             Console.WriteLine("     대조군 절대값: 평범 " + (plainBase * 100).ToString("F2")
                               + "% · 탈 대전 " + (drainBase * 100).ToString("F2") + "%");
+        }
+
+        /// <summary>
+        /// **절대경지 규칙 4종 — 2026-08-02 신설.**
+        ///
+        /// ⚠⚠ 넷 다 **내공 무공**이라 계층 승률표에 아예 등장하지 않는다. 내공 형태소가
+        ///   그랬던 것과 같은 **측정 공백**이며, 저장소 교훈 *"측정하지 않는 축은 고장 나도 보이지
+        ///   않는다"* 의 세 번째 사례가 되지 않도록 규칙을 붙이면서 함께 만든다.
+        ///
+        /// ⚠⚠ **무(無 기력 무소모)는 판정불가로 낸다.** 평타 전락률이 전 무공·전 경지 0.0% 라
+        ///   아무도 기력이 마르지 않으므로 소모를 0 으로 만들어도 승률이 안 움직인다(HANDOFF §4-2-d).
+        ///   0.00%p 를 "무효" 로 찍으면 **규칙이 고장 난 것처럼 읽힌다** — 고장이 아니라 **잴 수 없는 것**이다.
+        ///   기력 축 제로섬(§4-2-O)이 풀리면 자동으로 진짜 수치가 나온다.
+        ///
+        /// ⚠ 통(統 상성 절대우위)은 상대가 **문파 소속(무학분류 보유)** 이어야 방어 측 효과가 드러난다.
+        ///   공격 측 +2 는 무소속 상대에게도 붙으므로(*"모든 분류에"*) 대조군은 무소속으로 둔다.
+        /// </summary>
+        private static void PrintAbsoluteRuleSensitivity(int stage)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  ── 절대경지 규칙 (규칙 글자만 뺀 같은 무공 대비) ──");
+
+            // ⚠⚠ **대조군은 "안 배운 쪽" 이 아니라 "규칙 글자만 뺀 같은 무공" 이다.**
+            //   처음에 안 배운 쪽과 비교했다가 틀렸다 — 절대경지 무공은 규칙 글자 외에 **성능 형태소
+            //   3자**를 더 갖는다. `음쌍쾌신` 은 쾌(속도+2)+신(속도+1)로 속도가 +3 이고,
+            //   `식무유수`·`합통현유` 는 유(柔變 속도−2)를 물고 있다. 보조 무공의 속도는 사람에게
+            //   합산되므로(§3-2) 속공 추가 행동이 통째로 흔들린다 — 실측 무(無)가 **−16.00%p** 로
+            //   나온 것이 그 때문이었지 규칙이 손해라서가 아니다.
+            //   → 3자 대조군(`음쾌신` 등)을 대문파 내공으로 세워 **규칙만 남긴다.**
+            string[][] rules =
+            {
+                new[] { "정면합광", "정합광", "면 면역" },
+                new[] { "음쌍쾌신", "음쾌신", "쌍 2회행동" },
+                new[] { "합통현유", "합현유", "통 상성우위" },
+                new[] { "식무유수", "식유수", "무 무소모" },
+            };
+
+            for (int i = 0; i < rules.Length; i++)
+            {
+                double delta = AbsoluteDuel(rules[i][0], rules[i][1], stage);
+                string cell = rules[i][0] == "식무유수"
+                    ? Signed(delta).TrimEnd() + "  ⚠ 판정불가 (기력 축 사망 · §4-2-O)"
+                    : Signed(delta).TrimEnd();
+                Console.WriteLine("     {0,-12}{1}", rules[i][2], cell);
+            }
+        }
+
+        /// <summary>
+        /// 공격 무공과 **성능 형태소 3자를 같게 두고 규칙 글자만** 다르게 해 승률 차를 낸다.
+        /// 대조군은 같은 3자를 대문파 내공 무공으로 세운 것이다 — 규칙 형태소는 절대경지 전용이라
+        /// 대조군에는 넣을 수 없고, 그래서 **규칙 하나만 남는다.**
+        /// </summary>
+        private static double AbsoluteDuel(string absoluteName, string controlName, int stage)
+        {
+            MartialArt attack = TryBuild("참정독");
+            if (attack == null) return 0;
+
+            IReadOnlyList<string> problems;
+            MartialArt absolute, control;
+            MartialArtFactory.TryCreate("s_" + absoluteName, absoluteName, ArtKind.Internal,
+                ArtTier.Absolute, Discipline.InnerArt, null, null, 1, null, out absolute, out problems);
+            MartialArtFactory.TryCreate("c_" + controlName, controlName, ArtKind.Internal,
+                ArtTier.Major, Discipline.InnerArt, Alignment.Orthodox, "화산파", 1, null, out control, out problems);
+            if (absolute == null || control == null) return 0;
+
+            return WinRate(WithInner(attack, absolute, stage), WithInner(attack, control, stage), SensitivityFights)
+                   - 0.5;
         }
 
         private static string Signed(double delta)
