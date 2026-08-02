@@ -114,24 +114,30 @@ namespace Jianghu.Tests.Martial
         [Test]
         public void 신환보가_정의서_수치를_낸다()
         {
-            // 정의서 §0 의 대표 예시. 신(속도+2) + 환(명중+2/공격−2).
+            // 정의서 §0 의 대표 예시. 신(속도+1) + 환(명중+2/공격−0.75).
+            // ⚠⚠ 2026-07-31 밸런싱으로 값이 바뀌었다(속도 2→1 · 공격 −2→−0.75). 축별 환율을
+            //   측정으로 맞춘 결과이며, 근거는 정의서 §3-5-a 에 있다. **예시가 바뀐 것이지
+            //   시스템이 바뀐 것이 아니다** — 이름에서 수치가 나온다는 성질은 그대로다.
             ParsedArtName parsed = MorphemeParser.Parse("신환보");
 
-            Assert.AreEqual(2, parsed.Delta.Speed, 1e-9);
+            Assert.AreEqual(1, parsed.Delta.Speed, 1e-9);
             Assert.AreEqual(2, parsed.Delta.Accuracy, 1e-9);
-            Assert.AreEqual(-2, parsed.Delta.Attack, 1e-9);
+            Assert.AreEqual(-0.75, parsed.Delta.Attack, 1e-9);
         }
 
         [Test]
         public void 종주는_무공형태만_두배로_만든다()
         {
             // 정의서 §3-8 — 종(宗)은 무공형태 효과를 **페널티까지 함께** 2배로 키운다.
-            // 참(공격+2) + 정(공격+2/명중−2 → 2배) + 종(공격+1) = 공격 7 · 명중 −4.
             // ⚠ 상위호환이 아니라 "극단으로 미는" 선택이라는 것이 이 테스트의 요지다 — 명중도 함께 두 배로 나빠진다.
+            // ⚠ 절대 수치를 박지 않는다 — 무공형태 값은 밸런싱으로 바뀐다(2026-07-31 실제로 바뀌었다).
+            //   검증하는 것은 **정(正)의 공격이 한 번 더 얹혔는가** 라는 관계다.
             ParsedArtName plain = MorphemeParser.Parse("참정검법");
             ParsedArtName doubled = MorphemeParser.Parse("참정종검법");
+            double formAttack = MorphemeDictionary.Get('정').Delta.Attack;
+            double pinnacleAttack = MorphemeDictionary.Get('종').Delta.Attack;
 
-            Assert.AreEqual(plain.Delta.Attack + 2 + 1, doubled.Delta.Attack, 1e-9,
+            Assert.AreEqual(plain.Delta.Attack + formAttack + pinnacleAttack, doubled.Delta.Attack, 1e-9,
                 "무공형태의 공격이 2배로 들어가지 않았다.");
             Assert.AreEqual(plain.Delta.Accuracy * 2, doubled.Delta.Accuracy, 1e-9,
                 "무공형태의 페널티(명중)가 함께 2배가 되지 않았다.");

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Jianghu.Core.Martial.Morphemes
@@ -58,19 +58,25 @@ namespace Jianghu.Core.Martial.Morphemes
 
             // ── §3-1 공격 방식 (14자) · 택 1 · **공격 무공 필수** ──
             Row("벌참절단", "伐斬截斷", "베기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 2));
-            Row("자창", "刺槍", "찌르기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 1.5, speed: 0.5));
-            Row("구타격박", "毆打擊拍", "때리기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 1, speed: 1));
-            Row("투척포사", "投擲拋射", "던지기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 0.5, speed: 1.5));
+            // ⚠⚠ 2026-08-02 — 속도를 0.5/1.0/1.5 → **1.0/2.0/3.0** 으로 올렸다(사용자 확정 · HANDOFF §4-2-W).
+            //   사다리가 *공격 −0.5 ↔ 속도 +0.5* 로 **1:1 교환**하고 있었는데, 두 축의 실제 가치가
+            //   그렇지 않아 한 칸 내려갈 때마다 순손실이 났다. 규칙을 **"공격 0.5 를 팔면 속도 1.0 을 산다"**
+            //   로 바꿨다 — 실측에서 이 값이 공격방식 축을 가장 평평하게 만든다(스프레드 19.2 → 8.3%p).
+            //   ⚠ 더 올리면(2.0/4.0/6.0) 축이 반대로 21.7%p 벌어지고 던지기가 베기를 넘어 이름이 거짓말한다.
+            //   ⚠ 이 교정이 계층 내 격차까지 줄이는 것은 **공격방식과 유형이 69/71 로 1:1 결합**돼 있어서다.
+            Row("자창", "刺槍", "찌르기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 1.5, speed: 1));
+            Row("구타격박", "毆打擊拍", "때리기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 1, speed: 2));
+            Row("투척포사", "投擲拋射", "던지기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 0.5, speed: 3));
 
             // ── §3-2 방어 (11자) · 택 1 · **경공 무공 필수** ──
-            Row("방거항어호", "防拒抗禦護", "막기", MorphemeCategory.Defense, ArtStatDelta.Of(defense: 2, blockChance: 10));
+            Row("방거항어호", "防拒抗禦護", "막기", MorphemeCategory.Defense, ArtStatDelta.Of(defense: 1.2, blockChance: 8));
             Row("피둔섬", "避遁閃", "회피", MorphemeCategory.Defense, ArtStatDelta.Of(evasion: 15));
             Row("반역응", "反逆應", "반격", MorphemeCategory.Defense, ArtStatDelta.Of(defense: 1, counterRate: 10));
             // ⚠ 종교 형태소 (2026-07-30). 소림사(불교)를 다른 문파와 구별하는 글자다.
             //   **기존 축의 복제가 아니라 새 자리여야 한다** — 방어군 5자는 전부 페널티가 없는데
             //   계(戒)만 페널티를 갖는다. 막기에 극단적으로 몰되 속도를 판다.
             //   근거: 지계(持戒)는 육바라밀의 하나로 "지켜서 막는" 개념이다. ⚠ 무협 사용례는 미검증.
-            Row("계", "戒", "지계", MorphemeCategory.Defense, ArtStatDelta.Of(blockChance: 25, speed: -2));
+            Row("계", "戒", "지계", MorphemeCategory.Defense, ArtStatDelta.Of(blockChance: 25, speed: -1));
 
             // ── §3-3 내공 (3자) · 택 1 · **내공 무공 필수** ──
             Row("양", "陽", "양기", MorphemeCategory.Internal, ArtStatDelta.Of(maxQi: 10));
@@ -99,17 +105,17 @@ namespace Jianghu.Core.Martial.Morphemes
             // ── §3-5 무공형태 (9자) · 택 1 · **공격 무공 필수** ──
             // ⚠ 5종 전부 페널티가 있고, 그게 의도다(정의서 §2-2). 페널티 없는 상위호환이 다른
             //   카테고리에 있으므로 선택제로 두면 아무도 고르지 않는다.
-            Row("정직", "正直", "정직", MorphemeCategory.Form, ArtStatDelta.Of(attack: 2, accuracy: -2));
-            Row("중후", "重厚", "무거움", MorphemeCategory.Form, ArtStatDelta.Of(attack: 2, speed: -2));
+            Row("정직", "正直", "정직", MorphemeCategory.Form, ArtStatDelta.Of(attack: 0.75, accuracy: -2));
+            Row("중후", "重厚", "무거움", MorphemeCategory.Form, ArtStatDelta.Of(attack: 1, speed: -2));
             Row("쾌", "快", "빠름", MorphemeCategory.Form, ArtStatDelta.Of(speed: 2, accuracy: -2));
-            Row("환궤", "幻詭", "기만", MorphemeCategory.Form, ArtStatDelta.Of(accuracy: 2, attack: -2));
+            Row("환궤", "幻詭", "기만", MorphemeCategory.Form, ArtStatDelta.Of(accuracy: 2, attack: -0.75));
             Row("유변", "柔變", "변화", MorphemeCategory.Form, ArtStatDelta.Of(accuracy: 2, speed: -2));
 
             // ── §3-6 수식 (11자) · 택 1 ──
             // 밝다/어둡다의 대비가 정의서 §1-2 용어 정리의 산물이다 — 밝다 = 자주 터진다(치명률),
             // 어둡다 = 크게 터진다(치명배율).
-            Row("속신급", "速迅急", "빠르다", MorphemeCategory.Modifier, ArtStatDelta.Of(speed: 2));
-            Row("적확", "的確", "맞히다", MorphemeCategory.Modifier, ArtStatDelta.Of(accuracy: 2));
+            Row("속신급", "速迅急", "빠르다", MorphemeCategory.Modifier, ArtStatDelta.Of(speed: 1));
+            Row("적확", "的確", "맞히다", MorphemeCategory.Modifier, ArtStatDelta.Of(accuracy: 1.4));
             Row("명광휘", "明光輝", "밝다", MorphemeCategory.Modifier, ArtStatDelta.Of(critChance: 10));
             Row("야암한", "夜暗寒", "어둡다", MorphemeCategory.Modifier, ArtStatDelta.Of(critMultiplier: 0.3));
             // ⚠ 종교 형태소 (2026-07-30). 무당파(도교)를 구별하는 글자다. 노자 「玄之又玄」.
@@ -125,22 +131,40 @@ namespace Jianghu.Core.Martial.Morphemes
             Row("풍", "風", "바람", MorphemeCategory.Element, ArtStatDelta.Of(speed: 1));
             Row("뇌", "雷", "벼락", MorphemeCategory.Element, ArtStatDelta.Of(critChance: 5));
             Row("수", "水", "물", MorphemeCategory.Element, ArtStatDelta.Of(qiRegen: 1));
-            Row("화", "火", "불", MorphemeCategory.Element, ArtStatDelta.Of(attack: 1));
+            Row("화", "火", "불", MorphemeCategory.Element, ArtStatDelta.Of(attack: 0.6));
             Row("냉", "冷", "차가움", MorphemeCategory.Element, ArtStatDelta.Of(accuracy: 1));
 
             // ── §3-8 극한경지 (9자) · **전승무학 전용 · 무공당 1자** (정의서 §5-2) ──
             // ⚠⚠ 이 9자만 페널티가 없다. 제약이 없으면 무조건 이득이 되므로 계층·개수 제한이
             //   페널티를 대신한다. 제약은 파서 층에서 강제한다(설계안 §4 3단계).
-            Row("존", "尊", "지존", MorphemeCategory.Pinnacle, ArtStatDelta.Of(speed: 3, attack: 3, accuracy: 2));
-            Row("제", "帝", "황제", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 2, defense: 2, accuracy: 2, speed: 2));
-            Row("마", "魔", "천마", MorphemeCategory.Pinnacle, ArtStatDelta.Of(defenseIgnore: 20, attack: 2));
-            Row("패", "霸", "패도", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 3, critMultiplier: 0.3, critChance: 5));
-            Row("성", "聖", "검성", MorphemeCategory.Pinnacle, ArtStatDelta.Of(defense: 3, blockChance: 15, statusResist: 20));
+            // ⚠⚠ 2026-08-02 재환산 (사용자 확정 · HANDOFF §4-2-X). **성격은 그대로 두고 총가치만 맞췄다.**
+            //   그전에는 고정 대조군(`X풍쾌참` vs `풍쾌참`) 실측이 **존 98.0 ~ 선 46.5, 스프레드 51.5%p**
+            //   였다 — 게임에서 가장 큰 단일 축 격차였고, §4-2-a(무공형태 80%p)·공격방식(19.2%p)에 이은
+            //   **같은 병의 세 번째 재발**이다: 축의 단위가 다른데 숫자만 비슷하게 맞춰 둔 것.
+            //   재환산 후 **8자가 81.0~88.0 (7.0%p)** 안에 든다.
+            //   ⚠ 황(皇)은 건드리지 않았다 — 낮췄더니 전승 유일 비도인 `황야환투` 가 더 나빠졌다.
+            //     그 무공은 공격 합이 −0.25(하한 적용 시 0)라 **황의 명중·치명이 위력의 전부**다.
+            Row("존", "尊", "지존", MorphemeCategory.Pinnacle, ArtStatDelta.Of(speed: 1, attack: 1.5, accuracy: 1));
+            Row("제", "帝", "황제", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 1, defense: 1, accuracy: 1, speed: 1));
+            Row("마", "魔", "천마", MorphemeCategory.Pinnacle, ArtStatDelta.Of(defenseIgnore: 25, attack: 2.5));
+            Row("패", "霸", "패도", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 2.3, critMultiplier: 0.3, critChance: 5));
+            Row("성", "聖", "검성", MorphemeCategory.Pinnacle, ArtStatDelta.Of(defense: 5, blockChance: 25, statusResist: 30));
+
+            // ⚠⚠ 선(仙)은 **손대지 않는다.** 값이 전부 기력 축인데 평타 전락률이 0.0% 라
+            //   평상시에는 무엇을 넣어도 효과가 0 이다 — 실측으로 최대기력 30·회복 5·소모 −45 까지
+            //   키워도 **+1.0%p 뿐**이었다. 죽은 것이 아니라 **조건부**다: 탈(奪) 보유 상대에게는
+            //   46.5 → 64.0(+17.5)으로 오르고, 재환산 뒤 그 대전의 스프레드는 35.0 → **15.5%p** 로 좁아진다.
+            //   → **기력 축이 살아나기 전에는 이 글자를 고칠 수 없다**(§4-2-O 제로섬).
             Row("선", "仙", "검선", MorphemeCategory.Pinnacle, ArtStatDelta.Of(maxQi: 20, qiRegen: 3, qiCostPercent: -30));
-            Row("왕", "王", "검왕", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 2, defense: 2, statusApplyBonus: 15));
+
+            Row("왕", "王", "검왕", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 1.75, defense: 2, statusApplyBonus: 15));
             Row("황", "皇", "검황", MorphemeCategory.Pinnacle, ArtStatDelta.Of(accuracy: 3, critChance: 15));
             // 종(宗)만 수치가 아니라 규칙을 만진다 — 무공형태 효과를 페널티까지 함께 2배로 키운다.
-            Row("종", "宗", "종주", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 1), doublesFormEffect: true);
+            // ⚠ 종(宗)의 공격을 1 → 3 으로 올렸다(2026-08-02). `verify` 가 *"극단이라는 성격이 흐려지지
+            //   않는가"* 를 물었고 실측으로 닫았다 — 무공형태를 바꿔 가며 재면 종의 승률 격차가
+            //   **공격 1 에서 28.0%p · 공격 3 에서 25.5%p** 로 거의 그대로다. 종의 값은 여전히
+            //   *어떤 무공형태와 묶느냐*가 정한다.
+            Row("종", "宗", "종주", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 3), doublesFormEffect: true);
 
             // ── §3-9 부정 (5자) · 자체 수치 없음 ──
             Row("낙망멸산소", "落亡滅散消", "부정", MorphemeCategory.Negation, ArtStatDelta.Zero, isNegation: true);
@@ -156,7 +180,9 @@ namespace Jianghu.Core.Martial.Morphemes
             Row("군", "群", "무리", MorphemeCategory.Scope, ArtStatDelta.Of(attack: -2), scope: AttackScope.Three);
             Row("전", "全", "전부", MorphemeCategory.Scope, ArtStatDelta.Of(attack: -3), scope: AttackScope.All);
             // 만(萬) — 위력을 유지하는 대신 기력 소모가 3배가 된다(만인적萬人敵).
-            //   4자 무공 기준 16 → 48 이라 기력 50 으로 사실상 한 번 쓰고 고갈된다. 필살기 성격이다.
+            //   ⚠⚠ 2026-08-01 정정 — 상수 4 시절 "16 → 48" 로 적혀 있었으나 상수가 3 이 되어
+            //   4자 무공 기준 **12 → 36** 이다(실측: 환창혈만 36 · 만우쾌사 27).
+            //   기력 50 이라 여전히 한 번 쓰고 고갈되는 필살기 성격은 유지된다.
             Row("만", "萬", "만인", MorphemeCategory.Scope, ArtStatDelta.Of(qiCostPercent: 200), scope: AttackScope.All);
 
             // ── §3-10 무학분류 (3자) · 태그일 뿐 자체 수치 없음 ──

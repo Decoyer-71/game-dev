@@ -242,14 +242,16 @@ namespace Jianghu.Tests.Martial
         [Test]
         public void 신환보의_본체가_정의서_수치를_낸다()
         {
-            // 정의서 §0 의 대표 예시 — 신환보 = 신(빠르다 속도+2) + 환(기만 명중+2/공격−2) + 보(경공 접미사).
+            // 정의서 §0 의 대표 예시 — 신환보 = 신(빠르다 속도+1) + 환(기만 명중+2/공격−0.75) + 보(경공 접미사).
             // ⚠ 이 테스트만 수치를 직접 박는다. 정의서가 이 예시로 시스템 전체를 설명하고 있어
             //   여기서 어긋나면 정의서 §0 이 거짓이 되기 때문이다.
+            // ⚠⚠ 2026-07-31 밸런싱으로 값이 바뀌었다(속도 2→1 · 공격 −2→−0.75, 정의서 §3-5-a).
+            //   **예시가 바뀐 것이지 시스템이 바뀐 것이 아니다** — 이름에서 수치가 나온다는 성질은 그대로다.
             ArtStatDelta sum = MorphemeDictionary.Get('신').Delta + MorphemeDictionary.Get('환').Delta;
 
-            Assert.AreEqual(2, sum.Speed, 1e-9, "신환보의 속도가 +2 가 아니다.");
+            Assert.AreEqual(1, sum.Speed, 1e-9, "신환보의 속도가 +1 이 아니다.");
             Assert.AreEqual(2, sum.Accuracy, 1e-9, "신환보의 명중이 +2 가 아니다.");
-            Assert.AreEqual(-2, sum.Attack, 1e-9, "신환보의 공격이 −2 가 아니다.");
+            Assert.AreEqual(-0.75, sum.Attack, 1e-9, "신환보의 공격이 −0.75 가 아니다.");
         }
 
         [Test]

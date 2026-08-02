@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Jianghu.Core.Martial
 {
@@ -34,11 +34,37 @@ namespace Jianghu.Core.Martial
         private const double SwordLearningRate = 0.40;   // 만일검 — 가장 오래 걸린다
 
         // 만숙(숙련 100) 시 발현되는 특성. 유형마다 **딱 하나씩**이다 — 겹치면 정체성이 흐려진다.
-        private const int SpearMaxInitiative = 25;        // 창 — 먼저 찌른다
-        private const int FistMaxQiReductionPercent = 50; // 권 — 지치지 않는다
-        private const int DaggerMaxStatusChance = 30;     // 비도 — 암기에 독을 바른다
-        private const int BladeMaxPenetrationPercent = 70; // 도 — 단단한 상대를 가른다
-        private const int SwordMaxAccuracy = 25;          // 검 — 빈틈이 없다
+        //
+        // ⚠⚠ **2026-07-31 전면 재조정.** 유형 민감도(같은 무공을 다섯 무기로 들고 400전)를 처음
+        //   재 봤더니 **검 89.1% 대 나머지 37~42%** 였다. 같은 무공인데 무기만 바꿔 이만큼 갈리면
+        //   *"무공 조합이 전투를 바꾸는가"* 라는 이 프로토타입의 가설 자체를 무기가 덮어버린다.
+        //
+        //   원인은 **다섯 특성의 실효값이 전혀 달랐던 것**이다:
+        //     · 검(명중)   — **항상 · 모든 타격에** 걸린다. 명중 형태소 5점어치였다
+        //     · 창(선공)   — 전투당 1회 우위뿐. 추가 행동은 속도 기준이라 창 숙달이 안 들어갔다
+        //     · 도(관통)   — 상대 방어가 3~7 뿐이라 깎을 것이 없다(비율 경감 전환 후 더 작아졌다)
+        //     · 권(기력)   — 회복 10 이 3자 무공(12)을 거의 감당해 **잉여**였다
+        //     · 비도(상태) — 상태이상 형태소를 넣은 무공에서만. 실측 기여 +4.9%p
+        //
+        //   → 사용자 확정 방향은 **"종류는 그대로, 크기만 맞춘다"** 이므로 정체성 문구는 건드리지 않는다.
+        private const int SpearMaxInitiative = 25;         // 창 — 먼저 찌른다
+        private const int SpearMaxSpeed = 2;               // 창 — ⚠ 신설. 선공만으로는 전투당 1회라 크기가 안 나온다
+        private const int FistMaxQiReductionPercent = 100; // 권 — 지치지 않는다 (50 → 100: 50%로는 회복에 묻혔다)
+        private const int DaggerMaxStatusChance = 50;      // 비도 — 암기에 독을 바른다 (30 → 50)
+        /// <summary>
+        /// 도 — 상대 방어를 무시하는 비율. **100 이 물리적 상한이다.**
+        ///
+        /// ⚠⚠ 2026-07-31 — 승률을 맞추려고 잠시 **160** 을 넣었다가 되돌렸다(사용자 지적).
+        ///   방어를 100% 무시하면 더 무시할 것이 없다. 그 이상은 방어를 **음수**로 만들어
+        ///   피해를 증폭하는 것이므로 *"관통"* 이 아니라 다른 효과이고, 이름이 성능을 거짓말한다 —
+        ///   이 프로젝트의 대원칙(정의서 §0)에 정면으로 어긋난다.
+        ///
+        /// ⚠ 70 → 100 으로 올린 것은 유효하다. 다만 **100 에서도 도는 46~48% 다** —
+        ///   상대 방어가 3~7 뿐이라 다 무시해도 피해가 6~10% 늘 뿐이기 때문이다.
+        ///   즉 **도는 크기로 맞출 수 있는 유형이 아니다.** 처리 방향은 HANDOFF §4-2-d 참조.
+        /// </summary>
+        private const int BladeMaxPenetrationPercent = 100;
+        private const int SwordMaxAccuracy = 7;           // 검 — 빈틈이 없다 (⚠⚠ 25 → 10. 이 하나가 89% 를 만들었다)
 
         /// <summary>수련 1회당 오르는 유형 숙련도.</summary>
         public static double LearningRate(Discipline discipline)
@@ -84,16 +110,36 @@ namespace Jianghu.Core.Martial
             return discipline == Discipline.Spear ? Scale(SpearMaxInitiative, proficiency) : 0;
         }
 
+        /// <summary>
+        /// 창 — **속도 보너스** (2026-07-31 신설).
+        ///
+        /// ⚠⚠ 선공(<see cref="InitiativeBonus"/>)만으로는 크기가 나오지 않는다 — 선공은 전투당
+        ///   한 번뿐인 우위이고, 추가 행동(정의서 §1-3-d)은 **속도** 기준이라 창 숙달이 아예
+        ///   들어가지 않았다. *"먼저 찌른다"* 는 정체성을 유지한 채 **자주 찌른다**를 더한 것이다.
+        /// ⚠ 선공에도 속도가 얹히므로 창은 두 축을 겸한다 — 그래서 값이 3 으로 작다.
+        /// </summary>
+        public static int SpeedBonus(Discipline discipline, int proficiency)
+        {
+            return discipline == Discipline.Spear ? Scale(SpearMaxSpeed, proficiency) : 0;
+        }
+
         /// <summary>검 — 명중 보너스(%p).</summary>
         public static int AccuracyBonus(Discipline discipline, int proficiency)
         {
             return discipline == Discipline.Sword ? Scale(SwordMaxAccuracy, proficiency) : 0;
         }
 
-        /// <summary>도 — 상대 방어력을 무시하는 비율(%).</summary>
+        /// <summary>
+        /// 도 — 상대 방어력을 무시하는 비율(%). **0~100 을 넘지 않는다.**
+        /// ⚠ 상한을 여기서 못박는다 — 100 을 넘는 값은 방어를 음수로 만들어 *"관통"* 이라는
+        ///   이름과 다른 일을 하게 된다(2026-07-31 실제로 그런 값을 넣었다가 되돌렸다).
+        /// </summary>
         public static int DefensePenetrationPercent(Discipline discipline, int proficiency)
         {
-            return discipline == Discipline.Blade ? Scale(BladeMaxPenetrationPercent, proficiency) : 0;
+            if (discipline != Discipline.Blade) return 0;
+
+            int penetration = Scale(BladeMaxPenetrationPercent, proficiency);
+            return penetration > 100 ? 100 : penetration;
         }
 
         /// <summary>권 — 기력 소모 감소율(%).</summary>

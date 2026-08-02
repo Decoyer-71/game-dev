@@ -26,9 +26,18 @@ namespace Jianghu.Tests.Martial
             Assert.IsTrue(art.IsMorphemeDerived, "형태소 유도 무공으로 표시되지 않았다.");
             Assert.AreEqual("창천낙월", art.Name);
 
-            // 창(槍 찌르기) = 공격 +1.5 / 속도 +0.5. 천·낙·월은 수치가 0 이다.
-            Assert.AreEqual(1.5, art.Delta.Attack, 1e-9, "공격이 형태소에서 유도되지 않았다.");
-            Assert.AreEqual(0.5, art.Delta.Speed, 1e-9);
+            // 창(槍 찌르기)의 값이 그대로 실려야 한다. 천·낙·월은 수치가 0 이다.
+            //
+            // ⚠⚠ **사전 값을 여기 박지 않는다**(2026-08-02 교정). 원래 `1.5`·`0.5` 를 상수로 적어 뒀는데,
+            //   공격방식 속도를 재조정하자 이 테스트가 깨졌다 — 지뢰 목록의 *"테스트에 절대 수치를 박지
+            //   말 것 · 값이 아니라 모양을 검증한다"* 가 실제로 터진 것이다. 이 테스트가 확인하려는 것은
+            //   *"수치를 안 넘겨도 형태소에서 유도되는가"*(구조)이지 *"찌르기 속도가 정확히 0.5 인가"*(값)가
+            //   아니므로, 사전을 조회해 **같은지**를 본다.
+            Morpheme thrust;
+            Assert.IsTrue(MorphemeDictionary.TryGet('창', out thrust), "사전에 창(槍)이 없다.");
+            Assert.AreEqual(thrust.Delta.Attack, art.Delta.Attack, 1e-9, "공격이 형태소에서 유도되지 않았다.");
+            Assert.AreEqual(thrust.Delta.Speed, art.Delta.Speed, 1e-9, "속도가 형태소에서 유도되지 않았다.");
+            Assert.Greater(art.Delta.Attack, 0, "찌르기가 공격을 주지 않는다.");
         }
 
         [Test]
