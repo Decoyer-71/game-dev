@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Jianghu.Core.Martial.Morphemes;
 
 namespace Jianghu.Core.Martial
@@ -144,7 +144,7 @@ namespace Jianghu.Core.Martial
             const ArtTier MAJ = ArtTier.Major;
             Atk("중뇌창", MAJ, Discipline.Spear, "소림사");
             Atk("정천창군", MAJ, Discipline.Spear, "소림사");
-            Atk("후격비혼", MAJ, Discipline.Fist, "소림사");
+            Atk("후뇌격비", MAJ, Discipline.Fist, "소림사");
             Atk("직뇌타비", MAJ, Discipline.Fist, "소림사");
             Inr("중뇌양공", MAJ, "소림사");
             Inr("명식후결", MAJ, "소림사");
@@ -161,7 +161,7 @@ namespace Jianghu.Core.Martial
             Stp("역변명보", MAJ, "무당파");
 
             Atk("쾌풍절탈", MAJ, Discipline.Sword, "화산파");
-            Atk("유명참일", MAJ, Discipline.Sword, "화산파");
+            Atk("유풍명참", MAJ, Discipline.Sword, "화산파");
             Atk("급쾌벌탈", MAJ, Discipline.Blade, "화산파");
             Atk("풍정단", MAJ, Discipline.Blade, "화산파");
             Inr("쾌풍양공", MAJ, "화산파");
@@ -170,7 +170,7 @@ namespace Jianghu.Core.Martial
             Stp("반신풍보", MAJ, "화산파");
 
             Atk("정화참탈", MAJ, Discipline.Sword, "남궁세가");
-            Atk("직천참일", MAJ, Discipline.Sword, "남궁세가");
+            Atk("직천참화", MAJ, Discipline.Sword, "남궁세가");
             Atk("직명벌탈", MAJ, Discipline.Blade, "남궁세가");
             Atk("정화단광", MAJ, Discipline.Blade, "남궁세가");
             Inr("정화양공", MAJ, "남궁세가");
@@ -206,7 +206,7 @@ namespace Jianghu.Core.Martial
             Stp("섬암궤술", MAJ, "살문");
 
             Atk("중한참경", MAJ, Discipline.Sword, "천마신교");
-            Atk("후냉절월", MAJ, Discipline.Sword, "천마신교");
+            Atk("후냉절경", MAJ, Discipline.Sword, "천마신교");
             Atk("중야격경", MAJ, Discipline.Fist, "천마신교");
             Atk("후암타비", MAJ, Discipline.Fist, "천마신교");
             Inr("중한양공", MAJ, "천마신교");

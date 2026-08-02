@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Jianghu.Core.Martial;
 using Jianghu.Core.Martial.Morphemes;
 using NUnit.Framework;
@@ -304,7 +304,7 @@ namespace Jianghu.Tests.Martial
             // ⚠⚠ **정파인데 마비를 건다** — 점혈(點穴) 수법. 사천당가에 이어 두 번째 예외다.
             new Draft("소림사", "중뇌창", ArtKind.Attack),      // 重雷槍 — 무겁게 벼락처럼 찌른다
             new Draft("소림사", "정천창군", ArtKind.Attack),    // 正天槍群 — 하늘을 정직하게 찔러 무리를 친다 [광역 3인]
-            new Draft("소림사", "후격비혼", ArtKind.Attack),    // 厚擊痺混 — 두텁게 쳐서 혈을 짚는다 [혼합무학]
+            new Draft("소림사", "후뇌격비", ArtKind.Attack),    // 厚雷擊痺 — 벼락처럼 두텁게 쳐서 혈을 짚는다
             new Draft("소림사", "직뇌타비", ArtKind.Attack),    // 直雷打痺 — 벼락같이 곧게 쳐서 마비시킨다
             new Draft("소림사", "중뇌양공", ArtKind.Internal),  // 重雷陽功
             new Draft("소림사", "명식후결", ArtKind.Internal),  // 明息厚訣 — 조식(調息) 【종교】
@@ -325,7 +325,7 @@ namespace Jianghu.Tests.Martial
             // ── 화산파 (정파 · 양기무학 · 검·도) ── 【가중치】
             // 특징: '매우' '빠른' '베기' 검술과 도법. 매화 — 한 번에 여러 번 벤다(타격 횟수 +1). 색은 바람(風).
             new Draft("화산파", "쾌풍절탈", ArtKind.Attack),    // 快風截奪 — 바람처럼 빠르게 베어 기력을 뺏는다
-            new Draft("화산파", "유명참일", ArtKind.Attack),    // 柔明斬日 — 밝고 부드럽게 벤다 [양기무학]
+            new Draft("화산파", "유풍명참", ArtKind.Attack),    // 柔風明斬 — 바람처럼 부드럽고 밝게 벤다
             new Draft("화산파", "급쾌벌탈", ArtKind.Attack),    // 急快伐奪 — 급하고 빠르게 베어 기력을 뺏는다
             new Draft("화산파", "풍정단", ArtKind.Attack),      // 風正斷 — 바람처럼 곧게 끊는다
             new Draft("화산파", "쾌풍양공", ArtKind.Internal),  // 快風陽功
@@ -338,7 +338,7 @@ namespace Jianghu.Tests.Martial
             // ⚠⚠ 광역도 상성도 가중치도 없다. **그것이 이 문파의 정체성이다** — 네 슬롯을 전부
             //   위력축에 쓰므로 순수 공격력이 가장 높다. 광역·상성 무공은 수치 0인 형태소에 슬롯을 쓴다.
             new Draft("남궁세가", "정화참탈", ArtKind.Attack),  // 正火斬奪 — 불처럼 정직하게 베어 기력을 뺏는다
-            new Draft("남궁세가", "직천참일", ArtKind.Attack),  // 直天斬日 — 하늘을 곧게 벤다 [양기무학]
+            new Draft("남궁세가", "직천참화", ArtKind.Attack),  // 直天斬火 — 하늘을 곧게 베어 불사른다
             new Draft("남궁세가", "직명벌탈", ArtKind.Attack),  // 直明伐奪 — 밝고 곧게 베어 기력을 뺏는다
             new Draft("남궁세가", "정화단광", ArtKind.Attack),  // 正火斷光 — 불처럼 정직하게 끊는다 [공격 최대치]
             new Draft("남궁세가", "정화양공", ArtKind.Internal),// 正火陽功
@@ -384,7 +384,7 @@ namespace Jianghu.Tests.Martial
             // 특징: '무거운' '베기' 검술과 '때리기' 권법 + 경직. 정면으로 압도한다. 색은 차갑다(寒).
             // ⚠ 남궁세가와 같은 자리다 — 특수 능력 없이 위력으로 이긴다. 정파와 마도 양쪽에 하나씩 뒀다.
             new Draft("천마신교", "중한참경", ArtKind.Attack),  // 重寒斬硬 — 무겁고 차갑게 베어 굳게 만든다
-            new Draft("천마신교", "후냉절월", ArtKind.Attack),  // 厚冷截月 — 두텁고 차갑게 벤다 [음기무학]
+            new Draft("천마신교", "후냉절경", ArtKind.Attack),  // 厚冷截硬 — 두텁고 차갑게 베어 굳힌다
             new Draft("천마신교", "중야격경", ArtKind.Attack),  // 重夜擊硬 — 어둠 속에서 무겁게 쳐서 굳게 만든다
             new Draft("천마신교", "후암타비", ArtKind.Attack),  // 厚暗打痺 — 어둠 속에서 두텁게 쳐서 마비시킨다
             new Draft("천마신교", "중한양공", ArtKind.Internal),// 重寒陽功
