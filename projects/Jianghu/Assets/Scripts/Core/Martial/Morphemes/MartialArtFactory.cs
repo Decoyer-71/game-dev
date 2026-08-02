@@ -75,8 +75,12 @@ namespace Jianghu.Core.Martial.Morphemes
 
             // ⚠ 계층을 무공에 실어 보낸다(2026-07-31). 그전에는 여기서 버려지고 문파명에서
             //   다시 유도해, `SchoolCatalog` 에 없는 대형세력이 전부 강호무학이 됐다.
+            // ⚠⚠ **상성도 실어 보낸다** (2026-08-02). 그전에는 `parsed.CounterTargets` 가 여기서
+            //   버려져 정의서 §4 의 상성 규칙이 전투 엔진에 **한 번도 닿은 적이 없었다.**
+            //   `AttackScope`(범위)는 아직 같은 상태로 남아 있다 — 1대1 전투에서는 표현이 불가능하다.
             art = MartialArt.FromMorphemes(
-                id, name, school, discipline, alignment, parsed.Delta, parsed.QiCost, tier, hitCount, effects);
+                id, name, school, discipline, alignment, parsed.Delta, parsed.QiCost, tier, hitCount,
+                parsed.CounterTargets, effects);
             return true;
         }
     }

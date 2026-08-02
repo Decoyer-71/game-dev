@@ -106,6 +106,24 @@ namespace Jianghu.Core.Martial
         public ArtTier Tier { get; }
 
         private static readonly StatusApplication[] NoEffects = new StatusApplication[0];
+        private static readonly ArtLineage[] NoCounters = new ArtLineage[0];
+
+        /// <summary>
+        /// 이 무공이 **상성 우위를 갖는 무학분류**(정의서 §4). 같은 분류가 두 번 들어 있으면 상성 +2 다.
+        ///
+        /// 이름에서 유도된다 — 부정 한자(낙·망·멸·산·소) **바로 뒤에** 무학분류(일·월·혼)가 올 때만
+        /// 생긴다. `낙월`(달을 떨어뜨린다) = 음기무학에 상성 +1. 138종 중 **4종**만 갖는다
+        /// (창천낙월 · 참천멸월 · 절해망혼 · 절지낙월 — 전부 검법).
+        ///
+        /// ⚠⚠ **2026-08-02 신설.** 그전까지 `MorphemeParser` 가 만든 `ParsedArtName.CounterTargets` 를
+        ///   <see cref="Morphemes.MartialArtFactory"/> 가 **그냥 버려서** 전투 엔진에 닿지 않았다.
+        ///   `AttackScope`(범위)와 같은 형태의 누락이다 — 인계문서 §3-2 가 미연결 축을 *"정확히 셋"* 이라
+        ///   적었는데 상성을 빠뜨려 실제로는 넷이었다.
+        ///   ⚠ 이 누락에는 대가가 있었다: 정의서 §2-2 예외가 *"상성 무공은 부정·무학분류 2자가 수치 0이라
+        ///   위력을 크게 포기한 구조"* 라며 무공형태 필수를 면제해 줬는데, **포기한 대가로 받기로 한
+        ///   상성이 구현되지 않아 순손실이었다.** 실제로 `창천낙월` 은 소문파 최하위권(43.8%)이었다.
+        /// </summary>
+        public IReadOnlyList<ArtLineage> CounterTargets { get; }
 
         /// <summary>
         /// **형태소에서 유도해 만든다.** 무공명을 분해한 결과를 그대로 받는다.
@@ -115,7 +133,8 @@ namespace Jianghu.Core.Martial
         /// </summary>
         public static MartialArt FromMorphemes(
             string id, string name, string school, Discipline discipline, Alignment? alignment,
-            ArtStatDelta delta, int qiCost, ArtTier tier, int hitCount = 1, params StatusApplication[] effects)
+            ArtStatDelta delta, int qiCost, ArtTier tier, int hitCount = 1,
+            IReadOnlyList<ArtLineage> counterTargets = null, params StatusApplication[] effects)
         {
             if (hitCount < 1) throw new ArgumentOutOfRangeException(nameof(hitCount), "타격 횟수는 1 이상이어야 한다.");
 
@@ -123,7 +142,8 @@ namespace Jianghu.Core.Martial
                 id, name, school, discipline, alignment,
                 basePower: 0, qiCost: qiCost, hitCount: hitCount, accuracyBonus: 0,
                 maxQiBonus: 0, powerBonusPercent: 0, evasionBonus: 0, initiativeBonus: 0,
-                effects: effects, delta: delta, morphemeDerived: true, tier: tier);
+                effects: effects, delta: delta, morphemeDerived: true, tier: tier,
+                counterTargets: counterTargets);
         }
 
         private MartialArt(
@@ -131,11 +151,13 @@ namespace Jianghu.Core.Martial
             int basePower, int qiCost, int hitCount, int accuracyBonus,
             int maxQiBonus, int powerBonusPercent, int evasionBonus, int initiativeBonus,
             StatusApplication[] effects,
-            ArtStatDelta delta = default, bool morphemeDerived = false, ArtTier tier = ArtTier.Wanderer)
+            ArtStatDelta delta = default, bool morphemeDerived = false, ArtTier tier = ArtTier.Wanderer,
+            IReadOnlyList<ArtLineage> counterTargets = null)
         {
             Delta = delta;
             IsMorphemeDerived = morphemeDerived;
             Tier = tier;
+            CounterTargets = counterTargets ?? NoCounters;
             if (string.IsNullOrEmpty(id)) throw new ArgumentException("무공 Id 는 비어 있을 수 없다.", nameof(id));
             if (string.IsNullOrEmpty(name)) throw new ArgumentException("무공 이름은 비어 있을 수 없다.", nameof(name));
 

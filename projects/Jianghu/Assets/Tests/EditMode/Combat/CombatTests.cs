@@ -200,8 +200,11 @@ namespace Jianghu.Tests.Combat
             Combatant plain = Fighter("맨몸", BaseStats(), Learned(Sword()));
             Combatant withSteps = Fighter("보법", BaseStats(), Learned(Sword()), Learned(Steps()));
 
-            Assert.AreEqual(6, plain.Evasion);            // 신법 12 의 절반
-            Assert.AreEqual(14, withSteps.Evasion);       // + 경공 8
+            // ⚠ 2026-08-02 — **기본 회피 5**(정의서 §1-1, `Combatant.BaseEvasion`)를 엔진에 이으면서
+            //   두 기댓값이 함께 5 씩 올랐다. 이 테스트가 보는 것은 *"경공이 회피를 올리는가"* 이지
+            //   절대 수치가 아니므로(HANDOFF §7), 바닥값을 상수로 참조해 **차이**만 고정한다.
+            Assert.AreEqual(Combatant.BaseEvasion + 6, plain.Evasion);         // 기본 + 신법 12 의 절반
+            Assert.AreEqual(Combatant.BaseEvasion + 14, withSteps.Evasion);    // + 경공 8
 
             Assert.AreEqual(12, plain.Initiative);
             Assert.AreEqual(18, withSteps.Initiative);    // + 경공 6

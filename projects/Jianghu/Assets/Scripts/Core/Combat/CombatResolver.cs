@@ -174,6 +174,23 @@ namespace Jianghu.Core.Combat
         /// </summary>
         public const int CounterDamagePercent = 50;
 
+        /// <summary>
+        /// **상성 1당 주는 피해 증가(%)** — 정의서 §4. ⚠ 미검증 초기값이다.
+        ///
+        /// ⚠ 이름이 <see cref="CounterDamagePercent"/>(반격 위력)와 비슷하지만 **전혀 다른 축**이다.
+        ///   저쪽은 반격(反擊), 이쪽은 상성(相性)이다.
+        /// </summary>
+        public const int CounterDamageBonusPercent = 10;
+
+        /// <summary>
+        /// **상성 1당 받는 피해 감소(%)** — 정의서 §4. ⚠ 미검증 초기값이다.
+        ///
+        /// ⚠ 주는 쪽(10)의 절반인 것은 정의서가 그렇게 정한 값이다. 1:1 전투에서
+        ///   *"받는 피해 −X%"* 가 *"주는 피해 +X%"* 보다 값이 크기 때문이다(내 수명은 늘고
+        ///   상대 수명은 그대로다 — `DamagePerHit` 의 비율 경감 주석과 같은 근거).
+        /// </summary>
+        public const int CounterDamageReductionPercent = 5;
+
         // ── 상태이상 규칙 상수. 근거: docs/martial-system-proposal.md §5 ──
         /// <summary>중독 최대 중첩.</summary>
         public const int MaxPoisonStacks = 5;
@@ -855,8 +872,14 @@ namespace Jianghu.Core.Combat
                 return null;   // 상태이상 형태소가 없는 무공. 대다수가 여기로 빠진다
             }
 
+            // ⚠⚠ **상태이상 저항**(극한경지 성 聖, −30%p)을 여기서 뺀다 — 2026-08-02 연결.
+            //   그전까지 `Delta.StatusResist` 를 아무도 읽지 않아 성(聖)의 세 축 중 저항만 죽어 있었다.
+            // ⚠ 곱셈(*"저항 30% 만큼 확률을 줄인다"*)이 아니라 **뺄셈**이다. 정의서 §1-1 이 이 축의
+            //   단위를 `%p` 로 적었고, 부여확률 자체가 `기본 30 + 형태소 10 + …` 인 덧셈 축이라
+            //   같은 단위로 맞춰야 이름이 뜻하는 대로 읽힌다(곱셈 누적 금지 — HANDOFF §5).
             int chance = Clamp(
-                BaseStatusChance + (int)Math.Round(points, MidpointRounding.AwayFromZero) + chanceBonus, 0, 100);
+                BaseStatusChance + (int)Math.Round(points, MidpointRounding.AwayFromZero) + chanceBonus
+                - target.Def.StatusResistPercent, 0, 100);
             if (!rng.Chance(chance)) return null;
 
             string applied = Apply(turn, target, kind, potency, duration, stackGain, log);
@@ -1090,7 +1113,18 @@ namespace Jianghu.Core.Combat
             // 그래서 단단한 상대에게만 강하고, 물렁한 상대에겐 이점이 거의 없다.
             // ⚠ 2026-07-31 — `Stats.Defense` 가 아니라 **무공이 더한 방어**를 읽는다.
             //   방어 형태소가 엔진에 닿는 유일한 경로다(`Combatant.EffectiveDefense`).
-            int penetration = DisciplineCurve.DefensePenetrationPercent(art.Art.Discipline, mastery);
+            // ⚠⚠ **방어무시 형태소**(극한경지 마 魔, 25%)를 여기 합류시킨다 — 2026-08-02 연결.
+            //   그전까지 `Delta.DefenseIgnore` 를 아무도 읽지 않아 마(魔)의 두 축 중 방어무시만
+            //   죽어 있었다(공격 +2.5 는 살아 있어 부분 손실). 인계문서 §3-2 의 미연결 축이다.
+            //
+            // ⚠ 도(刀) 숙달의 관통과 **같은 자리에서 더한다.** 둘 다 *"상대 방어를 무시한다"* 는
+            //   같은 뜻이고, 따로 곱하면 곱셈 누적이 새로 생긴다(HANDOFF §5 금지).
+            // ⚠⚠ 상한 100 — 방어를 100% 무시하면 **더 무시할 것이 없다.** 도 숙달 100 에 마 25 를
+            //   더해 125 가 되면 방어가 음수로 뒤집혀 *"피해 증폭"* 이라는 다른 효과가 된다.
+            //   이것이 2026-07-31 에 실제로 밟은 실패다(방어관통 160% — CLAUDE.md §5-C).
+            int penetration = Clamp(
+                DisciplineCurve.DefensePenetrationPercent(art.Art.Discipline, mastery)
+                + (int)Math.Round(art.Art.Delta.DefenseIgnore, MidpointRounding.AwayFromZero), 0, 100);
             double effectiveDefense = target.EffectiveDefense * (100 - penetration) / 100.0;
 
             // ⚠⚠ 2026-07-31 — **뺄셈에서 비율 경감으로 바꿨다** (사용자 확정).
@@ -1101,10 +1135,53 @@ namespace Jianghu.Core.Combat
             //     내 수명은 늘리고 상대 수명은 그대로다. 두 축을 같은 크기로 넣으면 안 된다.
             double afterDefense = totalPower * 100.0 / (100.0 + effectiveDefense * DefenseScale);
 
+            // ⚠⚠ **상성**(정의서 §4) — 2026-08-02 신설. 그전까지 파서가 만든 상성이 팩토리에서
+            //   버려져 **엔진에 한 번도 닿은 적이 없었다**(`MartialArt.CounterTargets` 주석 참조).
+            //
+            //   공격 쪽은 **지금 쓰는 초식**의 상성만 센다 — 상성은 그 초식의 성질이고,
+            //   `Delta.Attack` 이 활성 무공에서만 오는 것과 같은 취급이다.
+            //   방어 쪽은 **익힌 무공 전부**를 합산한다(`Combatant.CounterCountAgainst`) —
+            //   *"받는 피해 −5%"* 는 어느 초식을 쓰는 중인지와 무관한 상시 성질이기 때문이다.
+            //
+            // ⚠⚠ **덧셈으로 합친다.** `(1 + 0.10a) × (1 − 0.05d)` 로 곱하지 않는다 —
+            //   HANDOFF §5 와 정의서가 *"곱셈 누적을 새로 만들지 말 것"* 을 반복해서 못박았고
+            //   (유형 숙달 × 성향이 후반을 독식한 실패), 상성은 그 규칙의 예외가 될 이유가 없다.
+            //
+            // ⚠ 하한 0 — 상성 배수가 음수가 되면 *"때릴수록 상대가 회복한다"* 는 뜻이 되어
+            //   개념적으로 존재할 수 없다. 지금 사전으로는 방어 상성이 20 을 넘을 수 없어
+            //   실제로는 도달하지 않지만, 절대경지 4번(*"모든 분류에 상성 +2"*)이 붙으면
+            //   경로가 생기므로 미리 막는다.
+            int counterFor = CountCounters(art.Art.CounterTargets, target.Lineage);
+            int counterAgainst = target.CounterCountAgainst(actor.Lineage);
+            if (counterFor > 0 || counterAgainst > 0)
+            {
+                double counterPercent = 100
+                                        + counterFor * CounterDamageBonusPercent
+                                        - counterAgainst * CounterDamageReductionPercent;
+                if (counterPercent < 0) counterPercent = 0;
+                afterDefense = afterDefense * counterPercent / 100.0;
+            }
+
             // ⚠ 눈금 배수는 **마지막에** 곱한다. 방어(비율)·성향 배율은 단위가 없으므로
             //   어디서 곱하든 결과가 같고, 여기서 곱해야 위 수치들이 정의서와 같은 단위로 읽힌다.
             int perHit = (int)Math.Round(afterDefense * DamageScale / attempts, MidpointRounding.AwayFromZero);
             return perHit < MinDamagePerHit ? MinDamagePerHit : perHit;   // 교착 방지
+        }
+
+        /// <summary>
+        /// <paramref name="targets"/> 안에 <paramref name="lineage"/> 가 몇 번 들어 있는가.
+        /// 같은 분류가 두 번 있으면 상성 +2 다(정의서 §5-3 절대경지 4번이 그 경로다).
+        /// </summary>
+        private static int CountCounters(IReadOnlyList<ArtLineage> targets, ArtLineage? lineage)
+        {
+            if (lineage == null || targets == null) return 0;
+
+            int count = 0;
+            for (int i = 0; i < targets.Count; i++)
+            {
+                if (targets[i] == lineage.Value) count++;
+            }
+            return count;
         }
 
         /// <summary>

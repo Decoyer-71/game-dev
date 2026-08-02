@@ -580,7 +580,26 @@ namespace Jianghu.Sandbox
             {
                 new DisciplineMastery(art.Discipline, MasteredSessions(art.Discipline)),
             };
-            return new Combatant(art.Name, stats, arts, masteries);
+            return new Combatant(art.Name, stats, arts, masteries, LineageOf(art));
+        }
+
+        /// <summary>
+        /// 무공의 **소속 문파에서 무학분류를 읽는다**(정의서 §6-4). 상성(§4)이 겨누는 과녁이다.
+        ///
+        /// ⚠⚠ 2026-08-02 신설. 그전에는 `Combatant` 에 분류를 담을 자리 자체가 없어서
+        ///   상성 무공 4종(창천낙월·참천멸월·절해망혼·절지낙월)이 **대가만 치르고 보상을 못 받았다.**
+        ///
+        /// ⚠ **대형세력(무림맹·사도련·제천성·천마신교 연맹)은 `SchoolCatalog` 에 없어 `null` 이 된다.**
+        ///   정의서 §6-4 의 분류표도 문파 16곳만 배정하고 대형세력은 비워 뒀다. 데이터가 없는 것을
+        ///   여기서 지어내지 않는다 — 그래서 **`절지낙월`(무림맹)은 방어 상성만 얻고 공격 상성은
+        ///   상대가 문파 소속일 때만 발동한다.** 이건 구현 누락이 아니라 **정의서의 빈칸**이다.
+        /// </summary>
+        private static ArtLineage? LineageOf(MartialArt art)
+        {
+            if (string.IsNullOrEmpty(art.School)) return null;
+
+            School school = SchoolCatalog.ByName(art.School);
+            return school == null ? (ArtLineage?)null : school.Lineage;
         }
 
         // ─────────────────────────── 측정 ───────────────────────────
