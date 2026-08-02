@@ -29,7 +29,12 @@ namespace Jianghu.Core.Combat
         ///
         /// 출처는 **소속 문파**다(정의서 §6-4, `SchoolCatalog` 의 `School.Lineage`).
         /// `null` 이면 무소속으로 취급하고 **상성이 성립하지 않는다** — 어느 분류도 아닌 사람은
-        /// 찌를 곳이 없기 때문이다. 강호무학만 익힌 낭인과 절대경지 획득자가 여기 해당한다.
+        /// 찌를 곳이 없기 때문이다.
+        ///
+        /// ⚠⚠ **무소속이 생각보다 적다.** 공격 초식 71종 중 분류가 없는 것은 **11종(15.5%)** 뿐이다 —
+        ///   강호무학 5 + **무림맹·사도련·제천성 6**. 대형세력 3곳이 `SchoolCatalog` 에 없어
+        ///   분류가 `null` 로 떨어지기 때문이며(정의서 §6-4 의 빈칸), 천마신교만 문파를 겸해 분류를 갖는다.
+        ///   → 상성·통(統)은 **매치업의 약 85% 에서 발동한다.** 조건부이되 조건이 자주 성립한다.
         ///
         /// ⚠⚠ **2026-08-02 신설.** 정의서 §6-4 가 *"상성이 작동하려면 누가 어느 분류인가가 정해져
         ///   있어야 한다"* 고 못박고 문파 16곳에 분류를 배정해 뒀는데, **`Combatant` 에 그 값을 담을
@@ -117,7 +122,7 @@ namespace Jianghu.Core.Combat
         /// <summary>쌍(雙) — 한 턴에 2회 행동. 사도련 절대경지.</summary>
         public bool ActsTwice => HasRule(AbsoluteRule.DoubleAction);
 
-        /// <summary>통(統) — 모든 분류에 상성 +2, 상대 상성 무효. 제천성 절대경지.</summary>
+        /// <summary>통(統) — 모든 분류에 상성 +1(과녁이 있을 때만), 상대 상성 무효. 제천성 절대경지.</summary>
         public bool HasCounterSupremacy => HasRule(AbsoluteRule.CounterSupremacy);
 
         /// <summary>해당 무기 유형의 숙련도. 익힌 적이 없으면 0.</summary>

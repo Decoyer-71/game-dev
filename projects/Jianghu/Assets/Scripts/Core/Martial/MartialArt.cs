@@ -109,7 +109,8 @@ namespace Jianghu.Core.Martial
         private static readonly ArtLineage[] NoCounters = new ArtLineage[0];
 
         /// <summary>
-        /// 이 무공이 **상성 우위를 갖는 무학분류**(정의서 §4). 같은 분류가 두 번 들어 있으면 상성 +2 다.
+        /// 이 무공이 **상성 우위를 갖는 무학분류**(정의서 §4). 같은 분류가 두 번 들어 있으면 상성 +2 다
+        /// (부정+분류 짝이 한 이름에 둘 들어간 경우 — 지금 카탈로그에는 없다).
         ///
         /// 이름에서 유도된다 — 부정 한자(낙·망·멸·산·소) **바로 뒤에** 무학분류(일·월·혼)가 올 때만
         /// 생긴다. `낙월`(달을 떨어뜨린다) = 음기무학에 상성 +1. 138종 중 **4종**만 갖는다
@@ -127,7 +128,7 @@ namespace Jianghu.Core.Martial
 
         /// <summary>
         /// **절대경지 규칙**(§5-3). 규칙 형태소(면·무·쌍·통)에서 유도되며, 없으면 <see cref="Morphemes.AbsoluteRule.None"/>.
-        /// ⚠ 효과는 <see cref="Combat.Combatant"/> 가 익힌 무공 전체에서  로 접어 **사람에게 상시** 적용한다 —
+        /// ⚠ 효과는 <see cref="Combat.Combatant"/> 가 익힌 무공 전체에서 <c>any</c> 로 접어 **사람에게 상시** 적용한다 —
         ///   보조 무공(내공·경공)의 기존 처리와 같다. 합산이 아닌 이유는 <see cref="Morphemes.AbsoluteRule"/> 참조.
         /// </summary>
         public AbsoluteRule Rule { get; }
