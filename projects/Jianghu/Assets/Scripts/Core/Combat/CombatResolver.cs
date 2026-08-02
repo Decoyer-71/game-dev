@@ -197,6 +197,9 @@ namespace Jianghu.Core.Combat
         /// </summary>
         public const int CounterSupremacyAdvantage = 2;
 
+        /// <summary>⚠ 실험 중 — 쌍(雙) 보유 시 타격 위력(%).</summary>
+        public const int DoubleActionPowerPercent = 55;
+
         // ── 상태이상 규칙 상수. 근거: docs/martial-system-proposal.md §5 ──
         /// <summary>중독 최대 중첩.</summary>
         public const int MaxPoisonStacks = 5;
@@ -1135,6 +1138,9 @@ namespace Jianghu.Core.Combat
             if (artPower < 0) artPower = 0;
             double totalPower = (actor.Stats.Attack + artPower) * (100 + actor.PowerBonusPercent) / 100.0;
 
+            // ⚠ 실험(2026-08-02): 쌍(雙) 2회 행동에 위력 −50% — 되돌리거나 확정할 것
+            if (actor.ActsTwice) totalPower = totalPower * DoubleActionPowerPercent / 100.0;
+
             // 도 숙달 → 방어 관통. 위력을 올리는 게 아니라 상대 방어를 무시한다 —
             // 그래서 단단한 상대에게만 강하고, 물렁한 상대에겐 이점이 거의 없다.
             // ⚠ 2026-07-31 — `Stats.Defense` 가 아니라 **무공이 더한 방어**를 읽는다.
@@ -1181,19 +1187,23 @@ namespace Jianghu.Core.Combat
             //   **양방향이다.** 공격할 때 분류 무관 +2 를 얻고, **피격당할 때 상대의 상성을 0** 으로
             //   만든다. 한쪽만 걸면 *"상대 상성 무효"* 라는 이름의 절반이 실현되지 않는다 —
             //   `verify` 가 잡은 지점이다(§5-C 대원칙: 이름과 성능이 일치해야 한다).
-            // ⚠ 양쪽이 다 보유하면 서로 무효화되어 **대칭**이 된다(둘 다 +2 · 상대 상성 0).
-            // ⚠ 공격 측 +2 는 **상대가 무소속이어도** 붙는다 — *"모든 분류에"* 이므로 과녁을 가리지 않는다.
-            //   이것이 일반 상성(과녁이 없으면 0)과 다른 점이고, 그래서 "절대" 우위다.
+            // ⚠ 양쪽이 다 보유하면 서로 무효화되어 **대칭**이 된다.
             //   순서가 중요하다 — **"상대 상성 무효" 를 먼저 본다.** 그래야 양쪽이 다 보유했을 때
             //   둘 다 0 이 되어 대칭이 된다. 반대로 짜면 서로 +2 를 얻어 **둘 다 강해지는** 꼴이 된다.
+            // ⚠⚠ **통(統)의 +2 는 상대가 무학분류를 가질 때만 붙는다** (2026-08-02 2차 · 사용자 확정).
+            //   처음엔 *"'모든 분류에' 이므로 과녁을 가리지 않는다"* 며 무소속 상대에게도 붙였는데,
+            //   실측 **+31.8%p 무조건**이 나왔다. 과녁이 없어도 붙으면 그건 상성이 아니라
+            //   **그냥 주는 피해 +20%** 다 — 상성은 정의상 *"무엇에 강한가"* 이기 때문이다(§3-10-a).
+            //   ⚠ 이것은 **정의서 §5-3-a 를 다시 연 변경**이다. 그 문서의 배선표가 *"공격 시 분류 무관 +2"*
+            //     라고 적고 사용자 승인을 받았었다 — 버그 수정이 아니라 승인된 규칙의 재결정이다.
             int counterFor;
             if (target.HasCounterSupremacy) counterFor = 0;                       // 방어자가 절대 → 내 상성 무효
-            else if (actor.HasCounterSupremacy) counterFor = CounterSupremacyAdvantage;
+            else if (actor.HasCounterSupremacy) counterFor = SupremacyAgainst(target.Lineage);
             else counterFor = CountCounters(art.Art.CounterTargets, target.Lineage);
 
             int counterAgainst;
             if (actor.HasCounterSupremacy) counterAgainst = 0;                    // 공격자가 절대 → 상대 상성 무효
-            else if (target.HasCounterSupremacy) counterAgainst = CounterSupremacyAdvantage;
+            else if (target.HasCounterSupremacy) counterAgainst = SupremacyAgainst(actor.Lineage);
             else counterAgainst = target.CounterCountAgainst(actor.Lineage);
             if (counterFor > 0 || counterAgainst > 0)
             {
@@ -1214,6 +1224,15 @@ namespace Jianghu.Core.Combat
         /// <paramref name="targets"/> 안에 <paramref name="lineage"/> 가 몇 번 들어 있는가.
         /// 같은 분류가 두 번 있으면 상성 +2 다(정의서 §5-3 절대경지 4번이 그 경로다).
         /// </summary>
+        /// <summary>
+        /// 절대경지 통(統)이 <paramref name="lineage"/> 를 가진 상대에게 갖는 상성 수.
+        /// **무소속(`null`)이면 0** — 과녁이 없으면 상성이 성립하지 않는다(§4 · §3-10-a).
+        /// </summary>
+        private static int SupremacyAgainst(ArtLineage? lineage)
+        {
+            return lineage == null ? 0 : CounterSupremacyAdvantage;
+        }
+
         private static int CountCounters(IReadOnlyList<ArtLineage> targets, ArtLineage? lineage)
         {
             if (lineage == null || targets == null) return 0;

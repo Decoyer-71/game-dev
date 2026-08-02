@@ -312,14 +312,22 @@ namespace Jianghu.Sandbox
                 new[] { "식무유수", "식유수", "무 무소모" },
             };
 
+            // ⚠⚠ **상대를 세 종류로 나눠 잰다** (2026-08-02 2차). 한 종류로만 재면 틀린다 —
+            //   면(免)·통(統)은 **조건부 규칙**이라 상대에 따라 가치가 0 에서 절대적까지 오간다.
+            //   극한경지 선(仙)이 탈(奪) 대전에서만 살아난 것과 같은 구조다(§4-2-X).
+            //   평균 하나로 재면 "쌍이 세다" 로 보이지만, 실은 **셋이 조건부이고 쌍만 무조건**일 수 있다.
+            Console.WriteLine("     {0,-12}{1,12}{2,12}{3,12}", "", "무해", "상태이상", "상성");
             for (int i = 0; i < rules.Length; i++)
             {
-                double delta = AbsoluteDuel(rules[i][0], rules[i][1], stage);
-                string cell = rules[i][0] == "식무유수"
-                    ? Signed(delta).TrimEnd() + "  ⚠ 판정불가 (기력 축 사망 · §4-2-O)"
-                    : Signed(delta).TrimEnd();
-                Console.WriteLine("     {0,-12}{1}", rules[i][2], cell);
+                double plain = AbsoluteDuel(rules[i][0], rules[i][1], stage, "참정", null);
+                double status = AbsoluteDuel(rules[i][0], rules[i][1], stage, "참정독", null);
+                double counter = AbsoluteDuel(rules[i][0], rules[i][1], stage, "창천낙월", ArtLineage.Yin);
+
+                string tail = rules[i][0] == "식무유수" ? "  ⚠ 판정불가 (기력 축 사망 · §4-2-O)" : "";
+                Console.WriteLine("     {0,-12}{1}{2}{3}{4}",
+                    rules[i][2], Signed(plain), Signed(status), Signed(counter), tail);
             }
+            Console.WriteLine("     ⚠ 무해=상태이상 없는 상대 · 상태이상=독 보유 · 상성=낙월(음기 상성) 보유");
         }
 
         /// <summary>
@@ -327,9 +335,10 @@ namespace Jianghu.Sandbox
         /// 대조군은 같은 3자를 대문파 내공 무공으로 세운 것이다 — 규칙 형태소는 절대경지 전용이라
         /// 대조군에는 넣을 수 없고, 그래서 **규칙 하나만 남는다.**
         /// </summary>
-        private static double AbsoluteDuel(string absoluteName, string controlName, int stage)
+        private static double AbsoluteDuel(
+            string absoluteName, string controlName, int stage, string attackName, ArtLineage? selfLineage)
         {
-            MartialArt attack = TryBuild("참정독");
+            MartialArt attack = TryBuild(attackName);
             if (attack == null) return 0;
 
             IReadOnlyList<string> problems;
@@ -340,7 +349,13 @@ namespace Jianghu.Sandbox
                 ArtTier.Major, Discipline.InnerArt, Alignment.Orthodox, "화산파", 1, null, out control, out problems);
             if (absolute == null || control == null) return 0;
 
-            return WinRate(WithInner(attack, absolute, stage), WithInner(attack, control, stage), SensitivityFights)
+            // ⚠ 양쪽이 같은 공격 무공·같은 분류다. 다른 것은 **규칙 글자 하나**뿐이다.
+            //   상성 대조에서는 양쪽 다 음기(Yin)로 두어 낙월(음기 상성)이 서로에게 걸리게 한다 —
+            //   그래야 통(統)의 *"상대 상성 무효"* 가 실제로 일할 자리가 생긴다.
+            return WinRate(
+                       WithInner(attack, absolute, stage, selfLineage),
+                       WithInner(attack, control, stage, selfLineage),
+                       SensitivityFights)
                    - 0.5;
         }
 
@@ -370,7 +385,8 @@ namespace Jianghu.Sandbox
             return WinRate(WithInner(attack, inner, stage), WithInner(attack, null, stage), SensitivityFights);
         }
 
-        private static Combatant WithInner(MartialArt attack, MartialArt inner, int stage)
+        private static Combatant WithInner(
+            MartialArt attack, MartialArt inner, int stage, ArtLineage? lineage = null)
         {
             int sessions = AlignmentCurve.SessionsToReach(
                 Alignment.Orthodox, MartialStage.ProficiencyForStage(stage));
@@ -382,7 +398,7 @@ namespace Jianghu.Sandbox
             {
                 new DisciplineMastery(attack.Discipline, DisciplineCurve.SessionsToMaster(attack.Discipline)),
             };
-            return new Combatant("내공표본", CharacterStats.MaxLevel(), arts, masteries);
+            return new Combatant("내공표본", CharacterStats.MaxLevel(), arts, masteries, lineage);
         }
 
         /// <summary>

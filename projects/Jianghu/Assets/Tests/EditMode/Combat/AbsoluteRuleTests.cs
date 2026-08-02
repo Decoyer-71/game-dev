@@ -231,18 +231,28 @@ namespace Jianghu.Tests.Combat
         }
 
         [Test]
-        public void 통은_공격할_때_상성_우위를_얻는다()
+        public void 통은_분류를_가진_상대에게만_상성_우위를_얻는다()
         {
-            // ⚠ 상대가 **무소속**이어도 붙는다 — "모든 분류에" 이므로 과녁을 가리지 않는다.
-            //   이것이 일반 상성(과녁 없으면 0)과 다른 점이고, 그래서 "절대" 우위다.
-            Combatant plain = Fighter("쾌자탈");
+            // ⚠⚠ **2×2 로 잰다.** 같은 공격자가 **분류만 다른 두 상대**를 때린다.
+            //   상대가 바뀌는 것은 `Lineage` 하나뿐이므로 통(統)의 과녁 조건만 남는다.
+            //
+            // ⚠ 처음엔 *"무소속 상대에게도 붙는다"* 로 만들고 무소속 상대 하나로만 쟀는데,
+            //   그 테스트는 **잘못된 이유로 통과**했다 — 절대경지 무공이 실어 오는 현(玄 회피+10)·
+            //   유(柔變 명중+2)가 명중률을 바꿔 *"적중한 타격의 평균"* 자체를 움직였기 때문이다.
+            //   보조 무공을 붙이고 빼는 대조는 규칙 외의 것도 같이 움직인다.
             Combatant supreme = Fighter("쾌자탈", Supremacy);
+            Combatant plain = Fighter("쾌자탈");
 
-            double plainDmg = AverageDamagePerHit(plain, Fighter("쾌자탈", null, null));
-            double supremeDmg = AverageDamagePerHit(supreme, Fighter("쾌자탈", null, null));
+            double supremeVsTagged = AverageDamagePerHit(supreme, Fighter("쾌자탈", null, ArtLineage.Yin));
+            double supremeVsNone = AverageDamagePerHit(supreme, Fighter("쾌자탈", null, null));
 
-            Assert.Greater(supremeDmg, plainDmg,
-                "통(統) 보유자가 더 아프게 때리지 않는다 — 공격 측 상성 +2 가 안 붙었다.");
+            double plainVsTagged = AverageDamagePerHit(plain, Fighter("쾌자탈", null, ArtLineage.Yin));
+            double plainVsNone = AverageDamagePerHit(plain, Fighter("쾌자탈", null, null));
+
+            Assert.Greater(supremeVsTagged, supremeVsNone,
+                "통(統) 보유자가 분류를 가진 상대를 더 아프게 때리지 않는다 — 상성 +2 가 안 붙었다.");
+            Assert.AreEqual(plainVsNone, plainVsTagged,
+                "통(統) 이 없는데도 상대 분류가 피해를 바꿨다 — 분류가 다른 축을 오염시키고 있다.");
         }
 
         [Test]
