@@ -47,7 +47,30 @@ namespace Jianghu.Core.Combat
             return 0;
         }
 
-        /// <summary>내공 무공이 더해진 실제 최대 기력. 보조 효과에는 숙련 배율이 곱해진다.</summary>
+        /// <summary>
+        /// 무공이 더해진 실제 최대 기력. 보조 효과에는 숙련 배율이 곱해진다.
+        ///
+        /// ⚠⚠ **2026-08-02 — 유형 필터를 없앴다**(사용자 확정 · HANDOFF §4-2-V).
+        ///   그전까지 여기만 `Discipline != InnerArt` 로 걸러서 **공격 무공에 넣은 최대기력 형태소가
+        ///   아무 일도 안 했다** — 양(陽 +10)은 완전 무효, 합(合 +5·회복+0.5)은 회복만, 식(息 +3)도 무효.
+        ///
+        ///   ⚠ 이것은 설계가 아니라 **비대칭**이었다. 형태소 상시 축 일곱(최대기력·방어·회복·막기·
+        ///   반격·회피·속도) 중 유형 필터를 가진 것은 여기 하나뿐이었고, 특히 **같은 카테고리(§3-3)의
+        ///   형제인 음(陰 회복)은 공격 무공에서 멀쩡히 작동**했다. 회복이 되는데 최대기력이 안 될
+        ///   이유가 없다.
+        ///
+        ///   ⚠ 출하된 카탈로그 138종에는 **내공 형태소를 담은 공격 무공이 0종**이라 이 변경으로
+        ///   승률·계층·유형 지표가 하나도 움직이지 않는다(`Tools/Sandbox` 전 지표 `diff` 0줄, 실측).
+        ///   고치는 이유는 밸런스가 아니라 **플레이어가 직접 무공을 지을 때**(독문무공 창시, 정의서 §0)
+        ///   이름이 성능을 거짓말하기 때문이다.
+        ///
+        ///   ⚠ 정의서 §1-1 은 *"최대기력은 내공 무공의 축"* 이라고 적어 뒀다. 그 원칙은 **캐릭터
+        ///   능력치 성장**에 대한 것이고, 형태소를 어디에 쓸지는 조합 규칙이 이미 허용해 왔다 —
+        ///   정의서에 예외를 명기했다.
+        ///
+        /// ⚠ 레거시 `MaxQiBonus` 는 영향받지 않는다. `MartialArt.Technique()` 이 그 값을 항상 0 으로
+        ///   고정하므로 0 이 아닌 레거시 무공은 애초에 내공·경공뿐이다.
+        /// </summary>
         public int EffectiveMaxQi
         {
             get
@@ -56,7 +79,6 @@ namespace Jianghu.Core.Combat
                 for (int i = 0; i < Arts.Count; i++)
                 {
                     LearnedArt learned = Arts[i];
-                    if (learned.Art.Discipline != Discipline.InnerArt) continue;
 
                     // ⚠ 형태소 무공은 `Delta.MaxQi`(양 +10 · 합 +5 · 식 +3 · 선 +20)에서,
                     //   레거시 무공은 손으로 박은 `MaxQiBonus` 에서 읽는다. 과도기 분기다.
@@ -64,6 +86,40 @@ namespace Jianghu.Core.Combat
                     bonus += raw * learned.PowerMultiplier;
                 }
                 return Stats.MaxQi + (int)Math.Round(bonus);
+            }
+        }
+
+        /// <summary>
+        /// **보조 무공(내공·경공)이 주는 기력소모 증감(%).** 모든 초식에 적용된다.
+        ///
+        /// ⚠⚠ **2026-08-02 신설**(사용자 확정 · HANDOFF §4-2-V). 그전까지 소모율은
+        ///   <see cref="Morphemes.ParsedArtName.QiCost"/> 안에서 **그 무공 자신의 소모에만** 곱해졌고,
+        ///   그래서 식(息 −10%)이 **자기 유일한 필수 자리인 내공 무공에서 아무 일도 안 했다** —
+        ///   조합 규칙이 내공 무공에 내공 형태소를 요구하는데(§2-2), 내공 무공은 시전되지 않으므로
+        ///   자기 소모량이라는 것이 존재하지 않기 때문이다. 실측 민감도 **+0.25%p = 완전 무효**였다.
+        ///
+        /// **판단 기준은 위치다** — *"보조 무공은 시전되지 않으므로 자기 소모량이 없다. 거기 적힌
+        ///   소모율은 '이 사람이 기를 아껴 쓴다' 는 뜻일 수밖에 없다."*
+        ///   ⚠ 반대로 **공격 무공의 소모율은 국소로 남는다.** 범위 만(萬 +200%)은 *"이 초식이
+        ///   전원을 때리니 이 초식이 비싸다"* 라서 사람에게 붙으면 뜻이 무너진다.
+        ///   (만은 조합 규칙상 공격 무공 전용이라 여기 섞일 수도 없다.)
+        ///
+        /// ⚠ 숙련 배율을 곱한다 — <see cref="EffectiveMaxQi"/>·<see cref="QiRegenPerTurn"/> 과 같은 처리다.
+        ///   만렙 정파 2.15배 기준 식 하나면 실효 약 −21.5% 다.
+        /// </summary>
+        public double SupportQiCostPercent
+        {
+            get
+            {
+                double sum = 0;
+                for (int i = 0; i < Arts.Count; i++)
+                {
+                    LearnedArt learned = Arts[i];
+                    if (!learned.Art.IsMorphemeDerived) continue;     // 레거시 무공엔 소모율 필드가 없다
+                    if (!learned.Art.Discipline.IsSupport()) continue;
+                    sum += learned.Art.Delta.QiCostPercent * learned.PowerMultiplier;
+                }
+                return sum;
             }
         }
 

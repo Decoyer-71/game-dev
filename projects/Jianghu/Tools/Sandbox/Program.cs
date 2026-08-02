@@ -229,9 +229,92 @@ namespace Jianghu.Sandbox
             CompareOptional("자연속성", stage, "풍", "뇌", "수", "화", "냉");
             CompareOptional("상태이상", stage, "독", "혈", "비", "염", "빙", "탈", "경");
 
+            PrintInnerArtSensitivity(stage);
             PrintDisciplineSensitivity(stage);
             PrintMorphemeCountSensitivity(stage);
             PrintQiPressure(stage);
+        }
+
+        /// <summary>
+        /// **내공 형태소 4자(양·음·합·식) — 2026-08-02 신설.**
+        ///
+        /// ⚠⚠ 이 넷은 **2026-08-01 까지 한 번도 측정된 적이 없었다.** 위 `CompareOptional` 들이
+        ///   방어·수식·자연속성·상태이상만 재고 내공 카테고리를 통째로 빠뜨렸기 때문이다.
+        ///   재 보니 넷 다 정확히 무효였고, 원인이 밸런스가 아니라 **엔진 결함 2건**이었다(§4-2-P·V).
+        ///   → 저장소 교훈 *"측정하지 않는 축은 고장 나도 보이지 않는다"* 의 두 번째 사례다.
+        ///
+        /// ⚠ **`CompareOptional` 로 잴 수 없다.** 그건 글자를 공격 무공(`참정X`)에 넣어 재는데,
+        ///   내공 형태소의 자리는 거기가 아니다. *"내공 무공을 하나 더 배운 쪽이 이기는가"* 로 잰다.
+        ///
+        /// ⚠⚠ **두 조건에서 재는 것이 핵심이다.**
+        ///   기력 압력이 없으면(평타 전락률 0.0%) 최대기력·회복은 **무엇을 사도 값이 0** 이라
+        ///   평범한 대전에서는 넷 다 항상 무효로 나온다 — 그건 형태소 탓이 아니라 압력 탓이다.
+        ///   기력을 실제로 0 으로 미는 것은 현재 **기력소실 탈(奪)** 뿐이므로, 탈 대전에서 함께 잰다.
+        ///
+        /// ⚠ 대조군(자기대전)이 정확히 50 이 아니다 — 고정 시드 1..N 구간의 편향이다.
+        ///   그래서 **대조군 대비 차이**로 읽어야 한다. 표에 대조군을 같이 찍는 이유다.
+        /// </summary>
+        private static void PrintInnerArtSensitivity(int stage)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  ── 내공 형태소 (그 내공 무공을 배운 쪽 vs 안 배운 쪽) ──");
+            Console.WriteLine("     ⚠ 압력이 없으면 전부 무효로 나온다. 그건 형태소가 아니라 기력 축의 문제다");
+
+            double plainBase = InnerDuel("참정", null, stage);
+            double drainBase = InnerDuel("참정탈", null, stage);
+
+            Console.WriteLine("     {0,-6}{1,10}{2,10}", "", "평범", "탈 대전");
+            string[] inners = { "양공", "음공", "합공", "식공" };
+            for (int i = 0; i < inners.Length; i++)
+            {
+                double plain = InnerDuel("참정", inners[i], stage) - plainBase;
+                double drain = InnerDuel("참정탈", inners[i], stage) - drainBase;
+                Console.WriteLine("     {0,-6}{1,9}{2,10}",
+                    inners[i], Signed(plain), Signed(drain));
+            }
+            Console.WriteLine("     대조군 절대값: 평범 " + (plainBase * 100).ToString("F2")
+                              + "% · 탈 대전 " + (drainBase * 100).ToString("F2") + "%");
+        }
+
+        private static string Signed(double delta)
+        {
+            double p = delta * 100;
+            string body = (p >= 0 ? "+" : "") + p.ToString("F2") + "%p";
+            if (p > -0.5 && p < 0.5) body += " ⚠무효";
+            return body.PadLeft(9);
+        }
+
+        /// <summary>공격 무공은 같게 두고 **내공 무공 유무만** 다르게 해 앞쪽의 승률을 낸다.</summary>
+        private static double InnerDuel(string attackName, string innerName, int stage)
+        {
+            MartialArt attack = TryBuild(attackName);
+            if (attack == null) return 0.5;
+
+            MartialArt inner = null;
+            if (innerName != null)
+            {
+                IReadOnlyList<string> problems;
+                MartialArtFactory.TryCreate("s_" + innerName, innerName, ArtKind.Internal, ArtTier.Major,
+                    Discipline.InnerArt, Alignment.Orthodox, "화산파", 1, null, out inner, out problems);
+                if (inner == null) return 0.5;
+            }
+
+            return WinRate(WithInner(attack, inner, stage), WithInner(attack, null, stage), SensitivityFights);
+        }
+
+        private static Combatant WithInner(MartialArt attack, MartialArt inner, int stage)
+        {
+            int sessions = AlignmentCurve.SessionsToReach(
+                Alignment.Orthodox, MartialStage.ProficiencyForStage(stage));
+
+            var arts = new List<LearnedArt> { new LearnedArt(attack, sessions, Alignment.Orthodox) };
+            if (inner != null) arts.Add(new LearnedArt(inner, sessions, Alignment.Orthodox));
+
+            var masteries = new List<DisciplineMastery>
+            {
+                new DisciplineMastery(attack.Discipline, DisciplineCurve.SessionsToMaster(attack.Discipline)),
+            };
+            return new Combatant("내공표본", CharacterStats.MaxLevel(), arts, masteries);
         }
 
         /// <summary>

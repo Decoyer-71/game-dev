@@ -500,7 +500,7 @@ namespace Jianghu.Core.Combat
 
             int mastery = actor.Def.MasteryOf(chosen.Art.Discipline);
 
-            int qiCost = EffectiveQiCost(chosen.Art, mastery);   // 권 숙달 → 기력 소모 감소
+            int qiCost = EffectiveQiCost(chosen.Art, mastery, actor.Def);   // 내공(식息) + 권 숙달 → 소모 감소
             actor.Qi -= qiCost;
 
             int attempts = chosen.Art.HitCount < 1 ? 1 : chosen.Art.HitCount;
@@ -1005,7 +1005,7 @@ namespace Jianghu.Core.Combat
 
                 // ⚠ 숙달로 깎인 실제 소모량으로 판단해야 한다. 권 숙달자는 남들이 못 쓰는 상황에서도 초식을 낸다.
                 int mastery = actor.Def.MasteryOf(learned.Art.Discipline);
-                if (EffectiveQiCost(learned.Art, mastery) > actor.Qi) continue;
+                if (EffectiveQiCost(learned.Art, mastery, actor.Def) > actor.Qi) continue;
 
                 double score = learned.Art.BasePower * learned.PowerMultiplier * learned.Art.HitCount;
                 if (score > bestScore)
@@ -1106,14 +1106,31 @@ namespace Jianghu.Core.Combat
             return result < 1 ? 1 : result;   // 최소 1 은 보장(교착 방지)
         }
 
-        /// <summary>권 숙달로 깎인 실제 기력 소모량.</summary>
-        private static int EffectiveQiCost(MartialArt art, int mastery)
+        /// <summary>
+        /// 이 사람이 실제로 내는 기력 소모량.
+        ///
+        /// 두 감면이 순서대로 걸린다:
+        ///   1. **보조 무공의 소모율**(<see cref="Combatant.SupportQiCostPercent"/>) — 식(息 −10%)
+        ///   2. **유형 숙달**(권 −100%)
+        ///
+        /// ⚠ 순서가 이렇게인 이유 — 숙달은 *"이 사람이 이 무기를 얼마나 잘 다루는가"* 라서 **마지막**에
+        ///   와야 한다. 반대로 넣으면 내공을 익힐수록 권 숙달의 절대 감면폭이 줄어드는 모양이 된다.
+        /// </summary>
+        private static int EffectiveQiCost(MartialArt art, int mastery, Combatant owner)
         {
-            int reduction = DisciplineCurve.QiCostReductionPercent(art.Discipline, mastery);
-            if (reduction <= 0) return art.QiCost;
+            double cost = art.QiCost;
 
-            int cost = (int)Math.Round(art.QiCost * (100 - reduction) / 100.0, MidpointRounding.AwayFromZero);
-            return cost < 0 ? 0 : cost;
+            if (owner != null)
+            {
+                double percent = owner.SupportQiCostPercent;
+                if (percent != 0) cost = cost * (100.0 + percent) / 100.0;
+            }
+
+            int reduction = DisciplineCurve.QiCostReductionPercent(art.Discipline, mastery);
+            if (reduction > 0) cost = cost * (100 - reduction) / 100.0;
+
+            int result = (int)Math.Round(cost, MidpointRounding.AwayFromZero);
+            return result < 0 ? 0 : result;
         }
 
         private static int Clamp(int value, int min, int max)
