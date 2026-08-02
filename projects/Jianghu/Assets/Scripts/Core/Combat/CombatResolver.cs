@@ -541,12 +541,23 @@ namespace Jianghu.Core.Combat
             // ⚠⚠ **절대경지 쌍(雙) — 한 턴에 2회 행동** (2026-08-02 신설). 확정 1회다.
             //   **속공과 겹치지 않는다** — 확정 추가 행동을 쓴 턴에는 속공 판정을 건너뛴다.
             //   겹치면 한 턴에 3회가 되어 *"2회 행동"* 이라는 이름이 거짓말이 된다(§5-C 대원칙).
-            // ⚠⚠ **기력 소모도 2배가 된다** — `PerformAction` 이 호출마다 `EffectiveQiCost` 를 다시
-            //   차감하기 때문이다. 기력 축이 죽은 지금(전락률 0.0%)은 무해하지만, 축이 살아나면
-            //   **보유자가 스스로 말라붙는다.** 그때 재조정 대상이다(HANDOFF §4-2-O).
+            // ⚠⚠ **두 번째 행동은 기력을 쓰지 않는다** (2026-08-02 사용자 확정 · 재조정).
+            //   ~~그전에는 `PerformAction` 이 호출마다 `EffectiveQiCost` 를 다시 차감해 **소모가 2배**였다.~~
+            //   그 2배는 **설계된 대가가 아니라 구현 부산물**이었고, 이 자리 옛 주석이 스스로
+            //   *"축이 살아나면 보유자가 스스로 말라붙는다"* 고 예고해 뒀다. 실제로 그렇게 됐다 —
+            //   시작 기력 25% 로 압력이 생기자 **공격 무공이 비쌀수록 쌍이 나빠지고 4자에서
+            //   부호가 뒤집혔다**(2자 +11.41 · 3자 +6.50 · 4자 **−7.66**%p, 10성. 3·6성도 단조).
+            //
+            //   ⚠⚠ **대가가 둘이면 조절할 수 없다.** 설계된 대가는 위력 <see cref="DoubleActionPowerPercent"/>
+            //     하나인데, 기력 2배는 **무공 가격에 따라 크기가 변하는** 대가라 위력%로 상쇄가 안 된다.
+            //     → 대가를 하나로 줄이고 위력%로만 조절한다. 상세는 HANDOFF §4-4.
+            //
+            //   ⚠⚠ **`free` 는 차감과 선택 게이트를 동시에 면제한다. 한쪽만 고치면 반쪽 규칙이 된다** —
+            //     차감만 0 으로 두면 `SelectArt` 가 여전히 비용으로 거르므로 *"공짜인데 잔고가 있어야
+            //     쓸 수 있는"* 상태가 된다. 실제로 그 반쪽을 만들어 재다가 잡았다(HANDOFF §4-3-6 일반화 7).
             if (actor.Def.ActsTwice)
             {
-                PerformAction(turn, actor, target, rng, log, extra: true);
+                PerformAction(turn, actor, target, rng, log, extra: true, free: true);
                 return;
             }
 
@@ -559,12 +570,20 @@ namespace Jianghu.Core.Combat
             PerformAction(turn, actor, target, rng, log, extra: true);
         }
 
-        /// <summary>초식 하나를 실제로 쓴다. 상태이상 진행·마비 판정은 포함하지 않는다.</summary>
+        /// <summary>
+        /// 초식 하나를 실제로 쓴다. 상태이상 진행·마비 판정은 포함하지 않는다.
+        /// </summary>
+        /// <param name="extra">그 턴의 **추가** 행동인가(속공 또는 쌍雙). 로그 표기용.</param>
+        /// <param name="free">
+        /// 기력을 **쓰지 않고** 내는 행동인가. 절대경지 쌍(雙)의 두 번째 행동만 해당한다.
+        /// ⚠⚠ 차감뿐 아니라 <see cref="SelectArt"/> 의 **선택 게이트까지** 면제한다 — 둘은 한 몸이다.
+        /// ⚠ 속공 추가 행동은 <c>free</c> 가 아니다. 그쪽은 기력을 정상으로 낸다.
+        /// </param>
         private static void PerformAction(
             int turn, Fighter actor, Fighter target, IRandomSource rng, List<CombatLogEntry> log,
-            bool extra = false)
+            bool extra = false, bool free = false)
         {
-            LearnedArt chosen = SelectArt(actor);
+            LearnedArt chosen = SelectArt(actor, free);
 
             // ⚠⚠ **평타 전락률 계측** (2026-08-01 신설). 설계안 §5-3 이 목표 10~30% 로 못박고
             //   `MorphemeParser.QiCostPerMorpheme` 주석이 *"이 상수는 전락률로 판정한다"* 고 적었는데
@@ -582,7 +601,8 @@ namespace Jianghu.Core.Combat
 
             int mastery = actor.Def.MasteryOf(chosen.Art.Discipline);
 
-            int qiCost = EffectiveQiCost(chosen.Art, mastery, actor.Def);   // 내공(식息) + 권 숙달 → 소모 감소
+            // ⚠ `free` 면 차감하지 않는다 — 쌍(雙)의 두 번째 행동. 위 `Act` 의 주석 참조.
+            int qiCost = free ? 0 : EffectiveQiCost(chosen.Art, mastery, actor.Def);  // 내공(식息) + 권 숙달 → 소모 감소
             actor.Qi -= qiCost;
 
             int attempts = chosen.Art.HitCount < 1 ? 1 : chosen.Art.HitCount;
@@ -1088,7 +1108,11 @@ namespace Jianghu.Core.Combat
         /// 난수를 쓰지 않는다 — 선택까지 흔들리면 무엇 때문에 이겼는지 분리할 수 없다.
         /// 동점이면 목록 순서상 앞선 것.
         /// </summary>
-        private static LearnedArt SelectArt(Fighter actor)
+        /// <param name="free">
+        /// 기력을 쓰지 않는 행동인가(쌍雙의 두 번째). ⚠⚠ 참이면 **기력 게이트를 건너뛴다** —
+        /// 비용을 안 내는 행동이 잔고를 이유로 평타로 내려앉으면 규칙이 반쪽이 된다.
+        /// </param>
+        private static LearnedArt SelectArt(Fighter actor, bool free = false)
         {
             LearnedArt best = null;
             double bestScore = -1;
@@ -1101,7 +1125,7 @@ namespace Jianghu.Core.Combat
 
                 // ⚠ 숙달로 깎인 실제 소모량으로 판단해야 한다. 권 숙달자는 남들이 못 쓰는 상황에서도 초식을 낸다.
                 int mastery = actor.Def.MasteryOf(learned.Art.Discipline);
-                if (EffectiveQiCost(learned.Art, mastery, actor.Def) > actor.Qi) continue;
+                if (!free && EffectiveQiCost(learned.Art, mastery, actor.Def) > actor.Qi) continue;
 
                 double score = learned.Art.BasePower * learned.PowerMultiplier * learned.Art.HitCount;
                 if (score > bestScore)

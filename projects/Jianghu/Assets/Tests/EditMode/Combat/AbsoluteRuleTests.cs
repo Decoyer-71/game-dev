@@ -231,6 +231,51 @@ namespace Jianghu.Tests.Combat
         }
 
         [Test]
+        public void 쌍의_두_번째_행동은_기력을_쓰지_않는다()
+        {
+            // ⚠⚠ 2026-08-02 신설 — **규칙 재조정의 회귀 테스트**(사용자 확정).
+            //   그전에는 `PerformAction` 이 호출마다 `EffectiveQiCost` 를 다시 차감해 **기력을
+            //   2배** 썼다. 그것은 설계된 대가가 아니라 **구현 부산물**이었고, 시작 기력 25% 로
+            //   압력이 생기자 보유자가 스스로 말라붙어 **4자 무공에서 승률 우위가 −7.66%p 로
+            //   부호까지 뒤집혔다**(2자 +11.41 · 3자 +6.50 · 4자 −7.66. HANDOFF §4-4).
+            //
+            // ⚠ **회복(10)보다 싼 3자 무공(기력 9)을 쓴다.** 전락이 끼면 평타의 기력 0 이 섞여
+            //   *"두 번째라 공짜인 0"* 과 *"말라서 낸 평타의 0"* 이 구분되지 않는다.
+            //
+            // ⚠ 비율로 재고 정확히 0.5 를 요구하지 않는다 — **마지막 일격에 상대가 쓰러지면
+            //   두 번째 행동이 없다**(`Act` 가 `target.IsDown` 에서 되돌아간다). 그만큼 위로 뜬다.
+            double twicePaid = PaidActionRatio(Fighter("참정독", DoubleAct), Fighter("중참방"));
+            double plainPaid = PaidActionRatio(Fighter("참정독"), Fighter("중참방"));
+
+            Assert.Greater(plainPaid, 0.95,
+                "대조군이 기력을 안 쓴 행동이 많다 — 전락이 끼어 이 테스트의 전제가 깨졌다.");
+            Assert.That(twicePaid, Is.GreaterThan(0.4).And.LessThan(0.65),
+                "쌍(雙) 보유자가 기력을 낸 행동 비율이 절반 근처가 아니다 — "
+                + "두 번째 행동이 공짜가 아니거나(옛 2배 소모로 회귀), 아예 안 나가고 있다.");
+        }
+
+        /// <summary>그 사람의 행동 중 **기력을 실제로 낸** 행동의 비율. 반격은 세지 않는다.</summary>
+        private static double PaidActionRatio(Combatant a, Combatant d)
+        {
+            int paid = 0, all = 0;
+            for (uint seed = 1; seed <= Seeds; seed++)
+            {
+                CombatResult r = CombatResolver.Resolve(a, d, new XorShiftRandom(seed));
+                IReadOnlyList<CombatLogEntry> log = r.Log;
+                for (int i = 0; i < log.Count; i++)
+                {
+                    CombatLogEntry e = log[i];
+                    if (e.Kind != CombatLogKind.Action || e.ActorName != a.Name) continue;
+                    if (!string.IsNullOrEmpty(e.Note) && e.Note.IndexOf("[반격]") >= 0) continue;
+                    all++;
+                    if (e.QiSpent > 0) paid++;
+                }
+            }
+            Assert.Greater(all, 0, "표본이 없다.");
+            return (double)paid / all;
+        }
+
+        [Test]
         public void 통은_분류를_가진_상대에게만_상성_우위를_얻는다()
         {
             // ⚠⚠ **2×2 로 잰다.** 같은 공격자가 **분류만 다른 두 상대**를 때린다.

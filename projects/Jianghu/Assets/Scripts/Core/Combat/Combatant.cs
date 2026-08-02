@@ -116,7 +116,13 @@ namespace Jianghu.Core.Combat
         /// <summary>면(免) — 모든 상태이상 면역. 무림맹 절대경지.</summary>
         public bool IsStatusImmune => HasRule(AbsoluteRule.StatusImmunity);
 
-        /// <summary>무(無) — 기력 무소모. 천마신교 절대경지. ⚠ 기력 축이 죽어 있어 현재 효과 0(§4-2-d).</summary>
+        /// <summary>
+        /// 무(無) — 기력 무소모. 천마신교 절대경지.
+        /// ⚠⚠ **엔진은 정상 작동한다**(2026-08-02 `diagnosis` 확인 — 전투 로그에서 보유자만 기력 차감이 사라진다).
+        ///   ~~기력 축이 죽어 있어 현재 효과 0~~ → 축은 §1-1-c 로 살아났다.
+        ///   지금 승률표에서 0.00 인 것은 **측정 블록의 대조군이 스스로 압력을 지우기 때문**이다
+        ///   (대조군 `식유수` 의 식息 = 기력소모 −10%). HANDOFF §4-3-8 미결.
+        /// </summary>
         public bool HasNoQiCost => HasRule(AbsoluteRule.NoQiCost);
 
         /// <summary>쌍(雙) — 한 턴에 2회 행동. 사도련 절대경지.</summary>
