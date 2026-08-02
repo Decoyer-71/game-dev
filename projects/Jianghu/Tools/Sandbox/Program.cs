@@ -252,29 +252,34 @@ namespace Jianghu.Sandbox
         ///   평범한 대전에서는 넷 다 항상 무효로 나온다 — 그건 형태소 탓이 아니라 압력 탓이다.
         ///   기력을 실제로 0 으로 미는 것은 현재 **기력소실 탈(奪)** 뿐이므로, 탈 대전에서 함께 잰다.
         ///
-        /// ⚠ 대조군(자기대전)이 정확히 50 이 아니다 — 고정 시드 1..N 구간의 편향이다.
-        ///   그래서 **대조군 대비 차이**로 읽어야 한다. 표에 대조군을 같이 찍는 이유다.
+        /// ⚠⚠ **2026-08-02 2차 — 기준선 빼기를 폐기하고 <see cref="SymmetricAdvantage"/> 로 바꿨다.**
+        ///   그전에는 `WinRate(배운 쪽, 안 배운 쪽)` 에서 **자기대전 값(대조군)을 빼서** 값을 만들었다.
+        ///   절대경지 블록에서 그 방식이 실제로 결론을 뒤집은 전례가 있다(HANDOFF §4-2-AA) —
+        ///   **편향은 쌍마다 다르므로 한 대조군 값을 전 행에 빼면 틀린다.**
+        ///   자리를 바꿔 두 번 재 평균내면 편향이 구조적으로 상쇄되어 **0 이 진짜 0** 이 된다.
+        ///   → 기력 작업의 주 계기판이 이 블록이므로(HANDOFF §4-3-7) 먼저 바꾼다.
+        ///
+        /// ⚠ 표 첫 행의 **자기대전 sanity 행**은 지우지 말 것. HANDOFF §4-3-6 일반화 1 —
+        ///   *"측정 방식이 0 을 0 으로 내는지부터 확인한다."* 이 행이 `+0.00%p` 가 아니면 표 전체를 못 쓴다.
         /// </summary>
         private static void PrintInnerArtSensitivity(int stage)
         {
             Console.WriteLine();
-            Console.WriteLine("  ── 내공 형태소 (그 내공 무공을 배운 쪽 vs 안 배운 쪽) ──");
+            Console.WriteLine("  ── 내공 형태소 (그 내공 무공을 배운 쪽 vs 안 배운 쪽 · 양방향 평균) ──");
             Console.WriteLine("     ⚠ 압력이 없으면 전부 무효로 나온다. 그건 형태소가 아니라 기력 축의 문제다");
 
-            double plainBase = InnerDuel("참정", null, stage);
-            double drainBase = InnerDuel("참정탈", null, stage);
-
             Console.WriteLine("     {0,-6}{1,10}{2,10}", "", "평범", "탈 대전");
+            Console.WriteLine("     {0,-6}{1,9}{2,10}  ← 0 이어야 한다 (sanity)",
+                "대조군", Signed(InnerDuel("참정", null, stage)), Signed(InnerDuel("참정탈", null, stage)));
+
             string[] inners = { "양공", "음공", "합공", "식공" };
             for (int i = 0; i < inners.Length; i++)
             {
-                double plain = InnerDuel("참정", inners[i], stage) - plainBase;
-                double drain = InnerDuel("참정탈", inners[i], stage) - drainBase;
                 Console.WriteLine("     {0,-6}{1,9}{2,10}",
-                    inners[i], Signed(plain), Signed(drain));
+                    inners[i],
+                    Signed(InnerDuel("참정", inners[i], stage)),
+                    Signed(InnerDuel("참정탈", inners[i], stage)));
             }
-            Console.WriteLine("     대조군 절대값: 평범 " + (plainBase * 100).ToString("F2")
-                              + "% · 탈 대전 " + (drainBase * 100).ToString("F2") + "%");
         }
 
         /// <summary>
@@ -367,11 +372,17 @@ namespace Jianghu.Sandbox
             return body.PadLeft(9);
         }
 
-        /// <summary>공격 무공은 같게 두고 **내공 무공 유무만** 다르게 해 앞쪽의 승률을 낸다.</summary>
+        /// <summary>
+        /// 공격 무공은 같게 두고 **내공 무공 유무만** 다르게 해 앞쪽의 **순수 우위**(%p, 0 이 대등)를 낸다.
+        ///
+        /// ⚠ 반환값이 승률이 아니라 우위다(2026-08-02 변경). <c>innerName == null</c> 이면 양쪽이
+        ///   완전히 같은 표본이므로 <see cref="SymmetricAdvantage"/> 의 정의상 **정확히 0** 이 나온다 —
+        ///   그것이 표의 sanity 행이다.
+        /// </summary>
         private static double InnerDuel(string attackName, string innerName, int stage)
         {
             MartialArt attack = TryBuild(attackName);
-            if (attack == null) return 0.5;
+            if (attack == null) return 0;
 
             MartialArt inner = null;
             if (innerName != null)
@@ -379,10 +390,11 @@ namespace Jianghu.Sandbox
                 IReadOnlyList<string> problems;
                 MartialArtFactory.TryCreate("s_" + innerName, innerName, ArtKind.Internal, ArtTier.Major,
                     Discipline.InnerArt, Alignment.Orthodox, "화산파", 1, null, out inner, out problems);
-                if (inner == null) return 0.5;
+                if (inner == null) return 0;
             }
 
-            return WinRate(WithInner(attack, inner, stage), WithInner(attack, null, stage), SensitivityFights);
+            return SymmetricAdvantage(
+                WithInner(attack, inner, stage), WithInner(attack, null, stage), SensitivityFights);
         }
 
         private static Combatant WithInner(
@@ -785,7 +797,8 @@ namespace Jianghu.Sandbox
             Console.WriteLine("── 계층 간 (상위가 이기는 것이 정상. 다만 90% 이상이면 하위 계층이 무의미해진다) ──");
 
             Report(byTier, ArtTier.Minor, ArtTier.Wanderer, stage);
-            Report(byTier, ArtTier.Major, ArtTier.Minor, stage);
+            // ⚠ 2026-08-02 — 이 줄이 **두 번 적혀 있었다.** 같은 값이 두 줄로 찍혀
+            //   표를 읽는 사람이 서로 다른 쌍이라고 오해할 수 있었고, 138 규모 측정을 한 번 더 돌리고 있었다.
             Report(byTier, ArtTier.Major, ArtTier.Minor, stage);
             Report(byTier, ArtTier.Legacy, ArtTier.Major, stage);
             Report(byTier, ArtTier.Major, ArtTier.Wanderer, stage);
