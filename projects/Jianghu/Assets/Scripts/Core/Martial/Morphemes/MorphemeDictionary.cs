@@ -137,16 +137,34 @@ namespace Jianghu.Core.Martial.Morphemes
             // ── §3-8 극한경지 (9자) · **전승무학 전용 · 무공당 1자** (정의서 §5-2) ──
             // ⚠⚠ 이 9자만 페널티가 없다. 제약이 없으면 무조건 이득이 되므로 계층·개수 제한이
             //   페널티를 대신한다. 제약은 파서 층에서 강제한다(설계안 §4 3단계).
-            Row("존", "尊", "지존", MorphemeCategory.Pinnacle, ArtStatDelta.Of(speed: 3, attack: 3, accuracy: 2));
-            Row("제", "帝", "황제", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 2, defense: 2, accuracy: 2, speed: 2));
-            Row("마", "魔", "천마", MorphemeCategory.Pinnacle, ArtStatDelta.Of(defenseIgnore: 20, attack: 2));
-            Row("패", "霸", "패도", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 3, critMultiplier: 0.3, critChance: 5));
-            Row("성", "聖", "검성", MorphemeCategory.Pinnacle, ArtStatDelta.Of(defense: 3, blockChance: 15, statusResist: 20));
+            // ⚠⚠ 2026-08-02 재환산 (사용자 확정 · HANDOFF §4-2-X). **성격은 그대로 두고 총가치만 맞췄다.**
+            //   그전에는 고정 대조군(`X풍쾌참` vs `풍쾌참`) 실측이 **존 98.0 ~ 선 46.5, 스프레드 51.5%p**
+            //   였다 — 게임에서 가장 큰 단일 축 격차였고, §4-2-a(무공형태 80%p)·공격방식(19.2%p)에 이은
+            //   **같은 병의 세 번째 재발**이다: 축의 단위가 다른데 숫자만 비슷하게 맞춰 둔 것.
+            //   재환산 후 **8자가 81.0~88.0 (7.0%p)** 안에 든다.
+            //   ⚠ 황(皇)은 건드리지 않았다 — 낮췄더니 전승 유일 비도인 `황야환투` 가 더 나빠졌다.
+            //     그 무공은 공격 합이 −0.25(하한 적용 시 0)라 **황의 명중·치명이 위력의 전부**다.
+            Row("존", "尊", "지존", MorphemeCategory.Pinnacle, ArtStatDelta.Of(speed: 1, attack: 1.5, accuracy: 1));
+            Row("제", "帝", "황제", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 1, defense: 1, accuracy: 1, speed: 1));
+            Row("마", "魔", "천마", MorphemeCategory.Pinnacle, ArtStatDelta.Of(defenseIgnore: 25, attack: 2.5));
+            Row("패", "霸", "패도", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 2.3, critMultiplier: 0.3, critChance: 5));
+            Row("성", "聖", "검성", MorphemeCategory.Pinnacle, ArtStatDelta.Of(defense: 5, blockChance: 25, statusResist: 30));
+
+            // ⚠⚠ 선(仙)은 **손대지 않는다.** 값이 전부 기력 축인데 평타 전락률이 0.0% 라
+            //   평상시에는 무엇을 넣어도 효과가 0 이다 — 실측으로 최대기력 30·회복 5·소모 −45 까지
+            //   키워도 **+1.0%p 뿐**이었다. 죽은 것이 아니라 **조건부**다: 탈(奪) 보유 상대에게는
+            //   46.5 → 64.0(+17.5)으로 오르고, 재환산 뒤 그 대전의 스프레드는 35.0 → **15.5%p** 로 좁아진다.
+            //   → **기력 축이 살아나기 전에는 이 글자를 고칠 수 없다**(§4-2-O 제로섬).
             Row("선", "仙", "검선", MorphemeCategory.Pinnacle, ArtStatDelta.Of(maxQi: 20, qiRegen: 3, qiCostPercent: -30));
-            Row("왕", "王", "검왕", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 2, defense: 2, statusApplyBonus: 15));
+
+            Row("왕", "王", "검왕", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 1.75, defense: 2, statusApplyBonus: 15));
             Row("황", "皇", "검황", MorphemeCategory.Pinnacle, ArtStatDelta.Of(accuracy: 3, critChance: 15));
             // 종(宗)만 수치가 아니라 규칙을 만진다 — 무공형태 효과를 페널티까지 함께 2배로 키운다.
-            Row("종", "宗", "종주", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 1), doublesFormEffect: true);
+            // ⚠ 종(宗)의 공격을 1 → 3 으로 올렸다(2026-08-02). `verify` 가 *"극단이라는 성격이 흐려지지
+            //   않는가"* 를 물었고 실측으로 닫았다 — 무공형태를 바꿔 가며 재면 종의 승률 격차가
+            //   **공격 1 에서 28.0%p · 공격 3 에서 25.5%p** 로 거의 그대로다. 종의 값은 여전히
+            //   *어떤 무공형태와 묶느냐*가 정한다.
+            Row("종", "宗", "종주", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 3), doublesFormEffect: true);
 
             // ── §3-9 부정 (5자) · 자체 수치 없음 ──
             Row("낙망멸산소", "落亡滅散消", "부정", MorphemeCategory.Negation, ArtStatDelta.Zero, isNegation: true);
