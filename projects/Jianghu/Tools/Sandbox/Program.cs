@@ -368,6 +368,45 @@ namespace Jianghu.Sandbox
                     rules[i][2], Signed(plain), Signed(status), Signed(counter), tail);
             }
             Console.WriteLine("     ⚠ 무해=상태이상 없는 상대 · 상태이상=독 보유 · 상성=낙월(음기 상성) 보유");
+
+            PrintDoubleActionByQiCost(stage);
+        }
+
+        /// <summary>
+        /// **쌍(雙) 의 값이 공격 무공의 기력비용에 얼마나 의존하는가 — 2026-08-02 신설.**
+        ///
+        /// ⚠⚠ **왜 이 블록이 필요한가.** 같은 날 §5-3-b ④ 에서 쌍은 세 상대에게
+        ///   `+11.62 / +11.00 / +11.38` 로 **무조건·균일**이었다. 그런데 시작 기력을 25% 로
+        ///   낮추자(<see cref="CombatResolver.StartingQiDivisor"/>) 설정이 그대로인 두 열이
+        ///   `+6.50 / +3.06` 으로 내려앉았고, 4자 압력에서는 **−7.66%p** 로 부호가 뒤집혔다.
+        ///
+        /// ⚠ **위 표로는 원인을 분리할 수 없다** — 세 열이 *상대 종류*와 *공격 무공*을 **동시에**
+        ///   바꾸기 때문이다(무해=참정독명 4자 · 상태이상=참정독 3자 · 상성=창천낙월).
+        ///   HANDOFF §4-3-6 실수 #4(*"하나만 다르다를 믿기 전에 정말 하나만 다른지 센다"*) 그대로다.
+        ///   → **상대를 무해로 고정하고 공격 무공의 글자 수만 늘린다.** 다른 것은 기력비용뿐이다.
+        ///
+        /// 가설 — 쌍은 **행동마다 기력을 다시 쓴다.** 소모가 회복을 넘는 순간(4자: 12×2=24 vs 회복 10)
+        ///   2회 행동이 곧 2배 고갈이 되어 **스스로 평타로 내려앉는다.** 그러면 쌍은 *"강한 규칙"* 이
+        ///   아니라 *"싼 무공에서만 강한 규칙"* 이고, 절대경지 사용자가 쓸 무공은 대개 4자다.
+        /// </summary>
+        private static void PrintDoubleActionByQiCost(int stage)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  ── 쌍(雙) × 공격 무공 기력비용 (상대는 무해로 고정) ──");
+            Console.WriteLine("     ⚠ 상대를 고정하고 **글자 수만** 늘린다. 바뀌는 것은 기력비용뿐이다");
+
+            string[][] attacks =
+            {
+                new[] { "참정", "2자 · 기력 6" },
+                new[] { "참정독", "3자 · 기력 9" },
+                new[] { "참정독명", "4자 · 기력 12" },
+            };
+
+            for (int i = 0; i < attacks.Length; i++)
+            {
+                double v = AbsoluteDuel("음쌍쾌신", "음쾌신", stage, attacks[i][0], null);
+                Console.WriteLine("     {0,-16}{1}", attacks[i][1], Signed(v));
+            }
         }
 
         /// <summary>
