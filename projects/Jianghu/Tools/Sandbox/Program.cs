@@ -312,6 +312,7 @@ namespace Jianghu.Sandbox
                 new[] { "식무유수", "식유수", "무 무소모" },
             };
 
+            // ⚠⚠ **값은 `SymmetricAdvantage` 로 낸다** — 0 이 진짜 0 이다. 기준선을 빼지 마라.
             // ⚠⚠ **상대를 세 종류로 나눠 잰다** (2026-08-02 2차). 한 종류로만 재면 틀린다 —
             //   면(免)·통(統)은 **조건부 규칙**이라 상대에 따라 가치가 0 에서 절대적까지 오간다.
             //   극한경지 선(仙)이 탈(奪) 대전에서만 살아난 것과 같은 구조다(§4-2-X).
@@ -352,11 +353,10 @@ namespace Jianghu.Sandbox
             // ⚠ 양쪽이 같은 공격 무공·같은 분류다. 다른 것은 **규칙 글자 하나**뿐이다.
             //   상성 대조에서는 양쪽 다 음기(Yin)로 두어 낙월(음기 상성)이 서로에게 걸리게 한다 —
             //   그래야 통(統)의 *"상대 상성 무효"* 가 실제로 일할 자리가 생긴다.
-            return WinRate(
-                       WithInner(attack, absolute, stage, selfLineage),
-                       WithInner(attack, control, stage, selfLineage),
-                       SensitivityFights)
-                   - 0.5;
+            return SymmetricAdvantage(
+                WithInner(attack, absolute, stage, selfLineage),
+                WithInner(attack, control, stage, selfLineage),
+                SensitivityFights);
         }
 
         private static string Signed(double delta)
@@ -698,6 +698,30 @@ namespace Jianghu.Sandbox
                 else if (r.Outcome == CombatOutcome.Draw) score += 0.5;
             }
             return score / fights;
+        }
+
+        /// <summary>
+        /// **A 가 B 에 대해 갖는 순수 우위(%p, 0 이 대등).** 자리를 바꿔 두 번 재고 평균낸다.
+        ///
+        /// ⚠⚠ **2026-08-02 신설 — 기준선을 빼는 방식을 폐기하고 이걸로 대체했다.**
+        ///   그전에는 `WinRate(A, B) − 0.5` 를 쓰고, 남는 편향을 *"효과가 0 인 규칙 행"* 으로
+        ///   추정해 빼려 했다. **그 가정이 틀렸다** — 편향은 **쌍마다 다르다.**
+        ///   실측: 규칙 효과가 0 인 상황인데 무(無) 쌍은 −3.75%p, 통(統) 쌍은 +0.25%p 였다.
+        ///   두 쌍의 무공이 통째로 다르기 때문이다(`식유수` vs `합현유`).
+        ///
+        /// **왜 이 식이 편향을 지우는가** — 선공은 `Initiative` 동률일 때 난수가 가르는데,
+        /// 자리를 바꾸면 **A 가 이득 본 만큼 B 가 이득을 본다.** 그래서 상쇄된다.
+        /// ✅ **A 와 B 가 완전히 같으면 결과가 정의상 정확히 0 이다**(`x + (1−x) = 1`).
+        ///   즉 **뺄셈이 사라진다** — 0 이 진짜 0 이라 보정할 것이 없다.
+        ///
+        /// ⚠ 대가는 측정 2배다. 대상이 적은 블록에만 쓴다(계층 승률표는 138×138 이라 못 쓴다).
+        /// ⚠ 이 블록 밖의 민감도표들은 아직 옛 방식이다 — 같은 편향을 갖는다. 별건.
+        /// </summary>
+        private static double SymmetricAdvantage(Combatant a, Combatant b, int fights)
+        {
+            double forward = WinRate(a, b, fights);
+            double backward = WinRate(b, a, fights);
+            return (forward + (1.0 - backward)) / 2.0 - 0.5;
         }
 
         /// <summary>한 계층 안에서 전수 대전을 돌려 순위를 낸다.</summary>
