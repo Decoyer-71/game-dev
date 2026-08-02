@@ -20,19 +20,36 @@ namespace Jianghu.Tests.Martial
     /// </summary>
     public class CatalogIntegrityTests
     {
-        /// <summary>완성형 한글 음절 영역. 자모(ㄱ·ㅏ)나 옛한글은 여기 들어오지 않는다.</summary>
-        private const char HangulFirst = '가';
-        private const char HangulLast = '힣';
+        /// <summary>
+        /// 완성형 한글 음절 영역 `가`(U+AC00) ~ `힣`(U+D7A3). 자모(ㄱ·ㅏ)나 옛한글은 여기 들어오지 않는다.
+        ///
+        /// ⚠⚠ **문자 리터럴이 아니라 코드포인트로 적는다** (2026-08-02). 원래 `'가'`·`'힣'` 로 적었는데
+        ///   `dotnet test` 는 통과하고 **Unity Test Runner 에서만 실패**했다. 이 파일이 읽히는 인코딩이나
+        ///   비교 구현이 두 환경에서 갈릴 수 있다는 뜻이고, **한글 리터럴 자체가 검사 대상인 테스트에서
+        ///   한글 리터럴을 기준으로 쓰면 기준과 대상이 같이 깨진다.**
+        /// </summary>
+        private const int HangulFirst = 0xAC00;
+        private const int HangulLast = 0xD7A3;
 
         [Test]
         public void 사전의_모든_키가_완성형_한글_한_글자다()
         {
+            // ⚠ 하나씩 Assert 하지 않고 **전부 모아서** 보고한다. 첫 실패에서 멈추면
+            //   *"몇 글자가 깨졌는지"* 를 알 수 없고, 오탈자는 보통 한 번에 여러 개 들어온다.
+            var failures = new List<string>();
             foreach (Morpheme m in MorphemeDictionary.All)
             {
-                Assert.That(m.Korean, Is.InRange(HangulFirst, HangulLast),
-                    "사전 키 '" + m.Korean + "'(U+" + ((int)m.Korean).ToString("X4") + ", " + m.Meaning
-                    + ")이 완성형 한글이 아니다. 자모가 섞였거나 오타일 수 있다.");
+                int code = m.Korean;
+                if (code >= HangulFirst && code <= HangulLast) continue;
+
+                failures.Add("U+" + code.ToString("X4") + " (" + m.Hanja + " " + m.Meaning
+                             + ", " + m.Category + ")");
             }
+
+            Assert.IsEmpty(failures,
+                "완성형 한글이 아닌 사전 키가 있다 — 자모가 섞였거나 오타다. "
+                + "무공명이 곧 데이터라 이런 글자 하나가 그 무공의 수치를 통째로 바꾼다:\n  "
+                + string.Join("\n  ", failures.ToArray()));
         }
 
         [Test]
