@@ -142,17 +142,27 @@ namespace Jianghu.Tests.Combat
         [Test]
         public void 기력이_마르면_평타로_전환된다()
         {
-            // 기력 6 = 검법 1회분. 두 번째 턴에는 기력이 없어 평타여야 한다.
+            // 회복(10)보다 비싼 초식(30)을 들려 놓고 "쓰고 → 마르고 → 다시 찬다" 를 확인한다.
             //
             // ⚠⚠ 2026-07-30 수정 — **턴 시작 기력 회복이 생기면서 단언이 바뀌었다.**
             //   예전에는 "두 번째 턴부터 **끝까지** 평타" 였지만, 이제 기력이 턴당 2씩 차므로
             //   3턴쯤 뒤에는 다시 검법을 쓴다. 그게 의도다 —
             //   **평타 전락은 살아 있되 영구적이지 않다.** 회복이 없으면 전투가 아예 끝나지 않았다
             //   (형태소 무공 첫 측정에서 전원 무승부 · 승률 0 이 나왔다).
-            //   그래서 이 테스트가 지키는 것은 "전락이 일어나는가" 와 "다시 회복되는가" 둘이다.
             // ⚠⚠ 2026-07-30 재수정 — 기본 기력회복이 2 → 10 으로 오르면서 **6짜리 초식은 마를 수가 없어졌다**
             //   (회복이 소모보다 크다). 전락 자체는 살아 있으므로, **회복보다 비싼 초식**으로 확인한다.
-            //   비싼 초식일수록 자주 마르는 관계가 그대로 드러난다.
+            //
+            // ⚠⚠ 2026-08-02 재작성 — **전제가 바뀌었다. 회귀가 아니다.**
+            //   그전까지 이 테스트는 `mine[0]` 이 초식이라고 단언했다. 그것은 **전투를 만땅으로
+            //   시작한다는 옛 전제**에 기대고 있었다. 시작 기력이 최대의 1/4 이 되면서
+            //   (`CombatResolver.StartingQiDivisor`, 2026-08-02 사용자 확정) **첫 턴에 이미
+            //   모자란 것이 정상**이 됐다 — qi 30 → 시작 7 < 소모 30.
+            //   지우지 않고 **새 전제로 다시 썼다.** 이 테스트가 지키는 것은 셋이다:
+            //     ⓐ 시작 기력이 최대치가 아니다 → 첫 턴이 평타다
+            //     ⓑ 충전되면 초식이 나간다
+            //     ⓒ 쓰고 나면 다시 전락한다 — **평타 전락이 살아 있다**
+            //   ⚠ 턴 번호를 상수로 박지 않는다. 회복·소모 상수가 바뀌면 자리는 옮겨가되
+            //     "충전 → 발동 → 전락" 이라는 **모양 자체는 유지돼야** 하기 때문이다.
             MartialArt costly = MartialArt.Technique(
                 "costly", "기본검법", Discipline.Sword, Alignment.Orthodox, basePower: 20, qiCost: 30);
 
@@ -162,10 +172,17 @@ namespace Jianghu.Tests.Combat
             CombatResult r = CombatResolver.Resolve(a, b, new XorShiftRandom(5u));
 
             List<CombatLogEntry> mine = r.Log.Where(e => e.ActorName == "검객").ToList();
-            Assert.AreEqual("기본검법", mine[0].ArtName, "첫 턴에 검법을 못 썼다");
-            Assert.AreEqual("평타", mine[1].ArtName, "기력이 말랐는데 초식을 쓰고 있다");
-            Assert.IsTrue(mine.Skip(2).Any(e => e.ArtName == "기본검법"),
-                "기력이 회복됐는데도 초식으로 돌아오지 못했다");
+
+            // ⓐ 시작 기력 7 < 소모 30
+            Assert.AreEqual("평타", mine[0].ArtName, "시작 기력이 최대치인 것처럼 첫 턴부터 초식을 썼다");
+
+            // ⓑ 충전되면 나간다
+            int fired = mine.FindIndex(e => e.ArtName == "기본검법");
+            Assert.Greater(fired, 0, "기력이 충전됐는데도 초식이 한 번도 안 나갔다");
+
+            // ⓒ 쓰고 나면 다시 마른다
+            Assert.Less(fired + 1, mine.Count, "초식을 쓴 뒤의 턴이 없어 전락을 확인할 수 없다");
+            Assert.AreEqual("평타", mine[fired + 1].ArtName, "기력이 말랐는데 초식을 쓰고 있다");
         }
 
         [Test]

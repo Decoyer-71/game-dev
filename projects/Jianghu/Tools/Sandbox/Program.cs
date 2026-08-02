@@ -276,16 +276,25 @@ namespace Jianghu.Sandbox
             Console.WriteLine("  ── 내공 형태소 (그 내공 무공을 배운 쪽 vs 안 배운 쪽 · 양방향 평균) ──");
             Console.WriteLine("     ⚠ 압력이 없으면 전부 무효로 나온다. 그건 형태소가 아니라 기력 축의 문제다");
 
-            Console.WriteLine("     {0,-6}{1,10}{2,10}", "", "평범", "탈 대전");
+            // ⚠⚠ **2026-08-02 — 왼쪽 열의 공격 무공을 `참정`(2자) → `참정독명`(4자) 로 바꿨다.**
+            //   시작 기력 25% 를 채택해 압력이 생긴 직후 이 표를 다시 뽑았는데 왼쪽 열이 **여전히
+            //   전부 +0.00 무효**였다. 원인은 형태소도 엔진도 아니라 **이 줄이었다** — 참정은
+            //   2자라 기력 6 이고 회복이 10 이라, **어떤 시작 기력에서도 마를 수가 없다**
+            //   (같은 실행의 전락률 표가 참정 0.0% · 참정독 0.0% · 참정독명 11.8% 로 그대로 말해 준다).
+            //   → 즉 이 열은 *"압력 없음"* 을 잰 것이 아니라 **압력이 없는 무공을 골라 놓고 있었다.**
+            //   ⚠ 하마터면 *"채택했는데 내공 4자가 안 살아났다"* 로 잘못 읽을 뻔했다.
+            //     HANDOFF §4-3-6 일반화 1(*"측정 방식이 0 을 0 으로 내는지부터 확인한다"*)의 **뒷면**이다 —
+            //     sanity 행이 0 을 내는지만 봤지, **효과가 나와야 할 행이 나올 수 있는 조건인지**는 안 봤다.
+            Console.WriteLine("     {0,-6}{1,10}{2,10}", "", "4자 압력", "탈 대전");
             Console.WriteLine("     {0,-6}{1,9}{2,10}  ← 0 이어야 한다 (sanity)",
-                "대조군", Signed(InnerDuel("참정", null, stage)), Signed(InnerDuel("참정탈", null, stage)));
+                "대조군", Signed(InnerDuel("참정독명", null, stage)), Signed(InnerDuel("참정탈", null, stage)));
 
             string[] inners = { "양공", "음공", "합공", "식공" };
             for (int i = 0; i < inners.Length; i++)
             {
                 Console.WriteLine("     {0,-6}{1,9}{2,10}",
                     inners[i],
-                    Signed(InnerDuel("참정", inners[i], stage)),
+                    Signed(InnerDuel("참정독명", inners[i], stage)),
                     Signed(InnerDuel("참정탈", inners[i], stage)));
             }
         }
@@ -333,11 +342,28 @@ namespace Jianghu.Sandbox
             Console.WriteLine("     {0,-12}{1,12}{2,12}{3,12}", "", "무해", "상태이상", "상성");
             for (int i = 0; i < rules.Length; i++)
             {
-                double plain = AbsoluteDuel(rules[i][0], rules[i][1], stage, "참정", null);
+                // ⚠⚠ **2026-08-02 — 무해 열의 공격 무공을 `참정`(2자) → `참정독명`(4자) 로 바꿨다.**
+                //   무(無 기력 무소모)를 재려면 **재는 쪽이 기력을 쓰긴 써야** 한다. 참정은 2자라
+                //   기력 6 < 회복 10 이라 시작 기력을 어떻게 잡아도 안 마르고, 그러면 소모를 0 으로
+                //   만들어도 승률이 안 움직인다 — 규칙이 고장 난 게 아니라 **잴 수 없는 자리에
+                //   세워 뒀던 것**이다. 자세한 경위는 `PrintInnerArtSensitivity` 의 같은 날 주석.
+                double plain = AbsoluteDuel(rules[i][0], rules[i][1], stage, "참정독명", null);
                 double status = AbsoluteDuel(rules[i][0], rules[i][1], stage, "참정독", null);
                 double counter = AbsoluteDuel(rules[i][0], rules[i][1], stage, "창천낙월", ArtLineage.Yin);
 
-                string tail = rules[i][0] == "식무유수" ? "  ⚠ 판정불가 (기력 축 사망 · §4-2-O)" : "";
+                // ⚠⚠ **무(無)가 0.00 인 것은 "효과 없음" 도 "고장" 도 아니라 이 표의 대조군 결함이다**
+                //   (2026-08-02 `diagnosis` 규명). 엔진은 정상이다 — 전투 로그에서 무(無) 보유 쪽은
+                //   `(기력 -N)` 표기가 실제로 사라지고 대조군은 매 턴 찍힌다.
+                //   원인은 **대조군 `식유수` 의 식(息)** 이다: `qiCostPercent −10` · `maxQi +3` 이라
+                //   **대조군 자신이 이미 기력 할인을 받아** 압력이 0 이 된다(실측: 참정독명 단독 11.8% →
+                //   식유수를 붙이면 A·B 둘 다 0.0%). **양쪽 다 안 마르면 무소모는 잴 것이 없다.**
+                //   ⛔ 고치려면 식(息) 아닌 내공 형태소로 패딩을 갈아야 하는데, 조합 규칙상 내공 무공은
+                //     Internal 1자가 필수이고 **양(maxQi+10)·음(qiRegen+2)·합(둘 다) 도 전부 압력을 줄인다.**
+                //     즉 **완전히 중립인 Internal 형태소가 없을 수 있다** → 설계 판단이 필요하므로
+                //     `verify` 없이 손대지 않는다(§5-C). HANDOFF §4-3-8 미결 목록.
+                string tail = rules[i][0] == "식무유수"
+                    ? "  ⛔ 측정 실패 (대조군 식息이 압력을 지운다 · §4-3-8)"
+                    : "";
                 Console.WriteLine("     {0,-12}{1}{2}{3}{4}",
                     rules[i][2], Signed(plain), Signed(status), Signed(counter), tail);
             }
