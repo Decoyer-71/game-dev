@@ -58,9 +58,15 @@ namespace Jianghu.Core.Martial.Morphemes
 
             // ── §3-1 공격 방식 (14자) · 택 1 · **공격 무공 필수** ──
             Row("벌참절단", "伐斬截斷", "베기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 2));
-            Row("자창", "刺槍", "찌르기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 1.5, speed: 0.5));
-            Row("구타격박", "毆打擊拍", "때리기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 1, speed: 1));
-            Row("투척포사", "投擲拋射", "던지기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 0.5, speed: 1.5));
+            // ⚠⚠ 2026-08-02 — 속도를 0.5/1.0/1.5 → **1.0/2.0/3.0** 으로 올렸다(사용자 확정 · HANDOFF §4-2-W).
+            //   사다리가 *공격 −0.5 ↔ 속도 +0.5* 로 **1:1 교환**하고 있었는데, 두 축의 실제 가치가
+            //   그렇지 않아 한 칸 내려갈 때마다 순손실이 났다. 규칙을 **"공격 0.5 를 팔면 속도 1.0 을 산다"**
+            //   로 바꿨다 — 실측에서 이 값이 공격방식 축을 가장 평평하게 만든다(스프레드 19.2 → 8.3%p).
+            //   ⚠ 더 올리면(2.0/4.0/6.0) 축이 반대로 21.7%p 벌어지고 던지기가 베기를 넘어 이름이 거짓말한다.
+            //   ⚠ 이 교정이 계층 내 격차까지 줄이는 것은 **공격방식과 유형이 69/71 로 1:1 결합**돼 있어서다.
+            Row("자창", "刺槍", "찌르기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 1.5, speed: 1));
+            Row("구타격박", "毆打擊拍", "때리기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 1, speed: 2));
+            Row("투척포사", "投擲拋射", "던지기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 0.5, speed: 3));
 
             // ── §3-2 방어 (11자) · 택 1 · **경공 무공 필수** ──
             Row("방거항어호", "防拒抗禦護", "막기", MorphemeCategory.Defense, ArtStatDelta.Of(defense: 1.2, blockChance: 8));
