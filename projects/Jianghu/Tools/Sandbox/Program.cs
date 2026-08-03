@@ -331,7 +331,25 @@ namespace Jianghu.Sandbox
                 new[] { "정면합광", "정합광", "면 면역" },
                 new[] { "음쌍쾌신", "음쾌신", "쌍 2회행동" },
                 new[] { "합통현유", "합현유", "통 상성우위" },
-                new[] { "식무유수", "식유수", "무 무소모" },
+                // ⚠⚠ **무(無) 행만 패딩이 카탈로그 이름과 다르다** (2026-08-02).
+                //   원래 `식무유수`(천마신교 카탈로그) vs `식유수` 였는데 **대조군이 스스로 압력을
+                //   지우고 있었다** — 식(息)이 `qiCostPercent −10` 이라 양쪽 다 전락률 0.0% 가 되고,
+                //   **둘 다 안 마르면 무소모는 잴 것이 없다**(`diagnosis` 규명 · HANDOFF §4-3-8).
+                //   → 내공 형태소 넷 중 **양(陽)만 `maxQi` 만 건드려 턴당 순기력을 안 바꾼다**
+                //     (음 회복+2 · 합 회복+0.5 · 식 소모−10% 는 전부 수지를 바꾼다).
+                //     양은 **버퍼만 키우므로 전락이 늦춰질 뿐 사라지지 않는다.**
+                //   ⚠ 그래서 이 행이 재는 것은 **카탈로그 무공 `식무유수` 가 아니라 규칙 무(無) 자체**다.
+                //     카탈로그 무공은 자기 식(息) 때문에 이 이점을 스스로 깎는다 — 별건(§4-5).
+                //
+                // ⚠⚠ **그리고 식(息)만 바꾼 1차 수정은 절반만 맞았다** — 남은 패딩 **수(水)** 가
+                //   `qiRegen +1` 인데 **숙련 배율(만렙 정파 ≈2.15배)이 곱해져 정확히 +2** 가 된다.
+                //   회복 10+2 = **12** 가 공격 무공 `참정독명`(4자) 소모 **12** 와 정확히 같아져
+                //   대조군이 영원히 안 마른다(실측 A·B 둘 다 전락률 0.0%). 같은 병의 재발이다.
+                //   → **수(水) → 화(火).** 화는 `attack +0.6` 뿐인데 **보조 무공의 공격은 엔진이
+                //     아예 안 읽으므로**(HANDOFF §3-2 실측) 양쪽에게 문자 그대로 아무것도 안 준다.
+                //   ⚠ 사전 전수 확인: 기력 축을 건드리는 글자는 **내공 4자 + 수(水) + 선(仙) + 만(萬)**
+                //     이 전부다(`qiRegen|qiCostPercent|maxQi` grep). 나머지는 패딩으로 안전하다.
+                new[] { "양무유화", "양유화", "무 무소모" },
             };
 
             // ⚠⚠ **값은 `SymmetricAdvantage` 로 낸다** — 0 이 진짜 0 이다. 기준선을 빼지 마라.
@@ -361,8 +379,8 @@ namespace Jianghu.Sandbox
                 //     Internal 1자가 필수이고 **양(maxQi+10)·음(qiRegen+2)·합(둘 다) 도 전부 압력을 줄인다.**
                 //     즉 **완전히 중립인 Internal 형태소가 없을 수 있다** → 설계 판단이 필요하므로
                 //     `verify` 없이 손대지 않는다(§5-C). HANDOFF §4-3-8 미결 목록.
-                string tail = rules[i][0] == "식무유수"
-                    ? "  ⛔ 측정 실패 (대조군 식息이 압력을 지운다 · §4-3-8)"
+                string tail = rules[i][0] == "양무유수"
+                    ? "  ⚠ 패딩을 양(陽)으로 바꿔 잰다 (식息은 압력을 지운다 · §4-3-8)"
                     : "";
                 Console.WriteLine("     {0,-12}{1}{2}{3}{4}",
                     rules[i][2], Signed(plain), Signed(status), Signed(counter), tail);
@@ -426,7 +444,15 @@ namespace Jianghu.Sandbox
                 ArtTier.Absolute, Discipline.InnerArt, null, null, 1, null, out absolute, out problems);
             MartialArtFactory.TryCreate("c_" + controlName, controlName, ArtKind.Internal,
                 ArtTier.Major, Discipline.InnerArt, Alignment.Orthodox, "화산파", 1, null, out control, out problems);
-            if (absolute == null || control == null) return 0;
+            // ⚠⚠ **조용히 0 을 반환하지 않는다** (2026-08-02). 생성 실패와 *"효과 없음"* 이 **같은
+            //   0.00 으로 나오면 구분할 수 없다.** `diagnosis` 가 무(無) 진단에서 가장 먼저 의심한
+            //   함정이 이것이다(HANDOFF §4-3-8). 실패는 실패라고 말해야 한다.
+            if (absolute == null || control == null)
+            {
+                Console.WriteLine("     ⛔ 무공 생성 실패: " + absoluteName + " / " + controlName
+                                  + " — " + string.Join(" · ", problems));
+                return 0;
+            }
 
             // ⚠ 양쪽이 같은 공격 무공·같은 분류다. 다른 것은 **규칙 글자 하나**뿐이다.
             //   상성 대조에서는 양쪽 다 음기(Yin)로 두어 낙월(음기 상성)이 서로에게 걸리게 한다 —
