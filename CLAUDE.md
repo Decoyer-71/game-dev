@@ -41,6 +41,10 @@ D:\GameDev\                          ← 이 폴더 (작업공간 루트)
 │   └── memory\                      ← ⚠ **이동용 사본이다.** Claude 가 실제로 읽는 곳은
 │                                       저장소 밖(`%USERPROFILE%\.claude\projects\...`)이라
 │                                       새 PC 에서는 직접 복사해 넣어야 한다 → `docs/SETUP.md` §4
+├── refs\                            ← ⚠ **커밋 안 함.** 참고 영상·프레임 원본 (2026-08-03 신설)
+│   ├── README.md                    ←   넣는 법·확장자·한계. **이것만 커밋된다**
+│   ├── video\                       ←   사용자가 영상을 넣는 곳
+│   └── frames\                      ←   ffmpeg 이 뽑은 프레임
 ├── docs\                            ← 조사·설계 문서 보관
 │   ├── SETUP.md                     ← **새 PC 셋업 체크리스트** (2026-07-31)
 │   ├── unity-mcp-research.md        ← Unity MCP 조사 결과 (2026-07-27)
@@ -69,6 +73,7 @@ D:\GameDev\                          ← 이 폴더 (작업공간 루트)
 | 기존 프로젝트 | `C:\Users\cvcv6\My project` (Unity Hub 기본 위치, 빈 프로젝트 — C 에 있으므로 이설 검토 대상) |
 | 3D 툴 | blender / maya / assimp **없음**. python `bpy`/`trimesh`/`numpy` **없음** |
 | 이미지 | **PIL 9.2.0 만 있음** (2D PNG/DDS 가능, DXT 압축 불가) |
+| **ffmpeg** | **8.1.2 설치됨** — `D:\Tools\ffmpeg\bin` (2026-08-03, gyan.dev essentials 포터블 zip 104.6MB). **사용자 PATH 등록됨**이지만 §6 대로 **기존 셸은 물려받지 못하므로 전체 경로**를 쓴다: `D:/Tools/ffmpeg/bin/ffmpeg.exe`. 용도는 **참고 영상 → 프레임 추출**(Claude 는 영상을 직접 못 읽고 이미지만 읽는다). 영상은 `refs/video/` 에 두며 **커밋하지 않는다**(`refs/README.md`) |
 | 이미지 생성 MCP | higgsfield 연결됨. **⚠⚠ 2026-07-30 실측: 잔여 1,200 크레딧 / 플랜 `plus`** (`balance` 툴 직접 조회). 결제 완료됨 — 이전 기록(2026-07-27 잔여 2, 결제 예정)은 폐기. ⚠ **생성 단가 "1회 = 2크레딧" 은 2026-07-27 기록이라 미검증** — 모델마다 다를 수 있으므로 실제 생성 전 `models_explore` 로 단가 확인 |
 | Unity 2D 템플릿 | `com.unity.template.2d-cross-platform-5.1.0.tgz` **로컬 보유** — 다운로드 없이 2D 프로젝트 생성 가능 |
 
