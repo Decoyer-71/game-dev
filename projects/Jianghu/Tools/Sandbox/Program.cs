@@ -864,22 +864,76 @@ namespace Jianghu.Sandbox
             }
             rows.Sort((x, y) => y.Value.CompareTo(x.Value));
 
+            var live = new List<double>();      // 범위 무공을 뺀 값들
+            int scopeCount = 0;
+
             for (int i = 0; i < rows.Count; i++)
             {
                 MartialArt a = rows[i].Key;
+                bool scoped = HasScopeMorpheme(a);
+                if (scoped) scopeCount++; else live.Add(rows[i].Value);
+
                 string school = a.IsWandererArt ? "(강호무학)" : a.School;
                 Console.Write("  " + (i + 1).ToString().PadLeft(2) + "  "
                               + Pad(a.Name, 26) + Pad(school, 12)
                               + Pad(Short(a.Discipline) + "·" + Short(a.Alignment), 8)
                               + (rows[i].Value * 100).ToString("F1").PadLeft(6) + "%");
-                if (rows[i].Value >= DominantThreshold) Console.Write("  ⚠ 지배 의심");
+                if (scoped) Console.Write("  ⛔ 범위 · 판정 보류(1대1이라 이점이 없다)");
+                else if (rows[i].Value >= DominantThreshold) Console.Write("  ⚠ 지배 의심");
                 else if (rows[i].Value <= DeadThreshold) Console.Write("  ⚠ 죽은 선택지 의심");
                 Console.WriteLine();
             }
 
             double gap = (rows[0].Value - rows[rows.Count - 1].Value) * 100;
-            Console.WriteLine("  → 계층 내 격차 " + gap.ToString("F1") + "%p"
+            Console.WriteLine("  → 계층 내 격차(전체) " + gap.ToString("F1") + "%p"
                               + (gap <= 30 ? "  ✅ 목표(30%p) 이내" : "  ⚠ 목표(30%p) 초과"));
+
+            // ⚠⚠ **범위 무공을 뺀 격차를 따로 낸다** (2026-08-04 사용자 확정 · HANDOFF §4-6).
+            //   격차는 최고−최저인데, **죽은 무공 하나가 그 계층의 격차 전체를 정의**해 버린다.
+            //   실제로 대문파는 `정천창군`(10.4%), 전승은 `만우쾌사`(3.6%) 하나가 숫자를 만들고
+            //   있었고, 둘 다 **범위 형태소 때문에 약한 것이지 밸런스가 나빠서가 아니다** —
+            //   `AttackScope` 가 미연결이라(§3-2) 공격 −1/−2/−3 · 만(萬) 기력 +200% 라는
+            //   **대가만 내고 다중 타격이라는 이점은 존재하지 않는다.** 1대1이기 때문이다.
+            //   → 한 숫자에 *"밸런스가 나쁘다"* 와 *"엔진이 아직 없다"* 를 섞으면
+            //     **무엇을 고쳤는지 판정할 수 없다.** 그래서 두 벌로 낸다.
+            //   ⚠ 이건 무공을 봐주는 것이 아니다. Phase 3 다대다가 붙으면 **판정 보류를 풀고**
+            //     그때 다시 잰다. 그전까지는 이 무공들의 승률에 **손대지 않는다.**
+            if (scopeCount > 0 && live.Count >= 2)
+            {
+                double liveGap = (live[0] - live[live.Count - 1]) * 100;
+                Console.WriteLine("  → 계층 내 격차(범위 " + scopeCount + "종 제외) " + liveGap.ToString("F1") + "%p"
+                                  + (liveGap <= 30 ? "  ✅ 목표(30%p) 이내" : "  ⚠ 목표(30%p) 초과")
+                                  + "   ← **이쪽이 지금 고칠 대상이다**");
+            }
+        }
+
+        /// <summary>
+        /// 이름에 **범위 형태소**(다多·군群·전全·만萬)가 들어 있는가 — 2026-08-04 신설.
+        ///
+        /// ⚠⚠ **문자열 대조가 아니라 파서로 판정한다.** 한글 한 글자가 키라서 `전`·`만` 같은
+        ///   글자는 다른 뜻으로도 쓰일 수 있고, 실제로 `bash` 문자 클래스로 세다가 한 번 틀렸다.
+        ///   `MorphemeParser` 가 실제로 무엇으로 해석하는지가 유일한 진실이다.
+        /// ⚠ 파싱 실패는 **false** 로 둔다 — 못 읽은 것을 범위로 단정하지 않는다.
+        ///
+        /// ⚠⚠ **`kind` 를 반드시 넘겨야 한다.** null 로 부르면 파서가 *"접미사에서 종류를 얻는"*
+        ///   강호무학 경로를 타서 **문파 무공이 전부 파싱 실패**한다(처음에 그렇게 만들어 표시가
+        ///   하나도 안 붙었다). 반대로 강호무학에 `kind` 를 넘기면 접미사(검법·도법…)를 안 떼고
+        ///   본체로 읽어 실패한다. **두 경로가 배타적**이므로 갈라서 부른다.
+        /// </summary>
+        private static bool HasScopeMorpheme(MartialArt art)
+        {
+            ParsedArtName parsed;
+            IReadOnlyList<string> problems;
+            // ⚠ `MartialArt` 는 `Kind` 를 들고 있지 않다. 유형(Discipline)에서 되돌린다.
+            ArtKind kind = art.Discipline == Discipline.InnerArt ? ArtKind.Internal
+                         : art.Discipline == Discipline.Movement ? ArtKind.Movement
+                         : ArtKind.Attack;
+
+            bool ok = art.IsWandererArt
+                ? MorphemeParser.TryParse(art.Name, out parsed, out problems)       // 접미사에서 종류를 읽는다
+                : MorphemeParser.TryParse(art.Name, kind, out parsed, out problems); // 이름 전체가 본체다
+            if (!ok) return false;
+            return parsed.CountOf(MorphemeCategory.Scope) > 0;
         }
 
         /// <summary>계층 간 격차 — 여기는 벌어지는 것이 **정상**이다. 다만 압도적이면 안 된다.</summary>
