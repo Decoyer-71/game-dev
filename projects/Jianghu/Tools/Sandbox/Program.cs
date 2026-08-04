@@ -388,6 +388,75 @@ namespace Jianghu.Sandbox
             Console.WriteLine("     ⚠ 무해=상태이상 없는 상대 · 상태이상=독 보유 · 상성=낙월(음기 상성) 보유");
 
             PrintDoubleActionByQiCost(stage);
+            PrintNoQiCostAsAttackArt(stage);
+        }
+
+        /// <summary>
+        /// **㉯ 실험 — 무(無)를 공격 무공으로 만들면 어떤가** (2026-08-04 사용자 지시로 측정).
+        ///
+        /// ⚠⚠ **이것은 측정이지 채택이 아니다. 카탈로그는 건드리지 않았다.**
+        ///
+        /// 문제 — 천마신교 절대경지 `식무유수`는 **4자 중 2자가 죽어 있다**(HANDOFF §4-5-4).
+        ///   무(無)를 가진 사람은 `EffectiveQiCost`가 0을 반환하므로 기력 경제 글자가 전부 무의미해지는데,
+        ///   조합 규칙이 **내공 무공에 내공 형태소 1자를 필수**로 요구하고 그 넷이 전부 기력 경제다.
+        ///   → **개명으로는 못 푼다.**
+        ///
+        /// ㉯ 안 — **공격 무공으로 만들면** 필수가 공격방식·무공형태로 바뀌어 **죽는 글자가 0**이 된다.
+        ///   ✅ 규칙상 막혀 있지 않다: 조합 규칙이 강제하는 것은 *"규칙 형태소는 절대경지 **계층**에만"*
+        ///     이지 종류가 아니고, 정의서 §5-3-a 도 *"규칙은 이름의 **둘째 자리**"* 라는 작명 규칙뿐이다.
+        ///     넷이 전부 내공인 것은 **카탈로그의 선택**이다.
+        ///   ⚠ 대가 — 4종 중 하나만 공격이 되어 대칭이 깨지고, **기력 0짜리 4자 공격 무공**이
+        ///     계층 승률표를 지배할 수 있다. **그 지배 여부를 재는 것이 이 블록의 목적이다.**
+        ///
+        /// 덤 — 지금 절대경지 4종은 **전부 내공이라 계층 승률표에 아예 안 나온다**(§3-2 측정 공백).
+        ///   공격 무공이면 표에 들어와 직접 측정된다.
+        /// </summary>
+        private static void PrintNoQiCostAsAttackArt(int stage)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  ── ㉯ 실험: 무(無)를 공격 무공으로 (카탈로그 미반영) ──");
+
+            // 후보 이름 — 둘째 자리가 규칙 글자여야 한다(§5-3-a). 공격 무공은 공격방식·무공형태 필수.
+            //
+            // ⚠⚠ **대조군을 3자로 두면 정확히 0 이 나온다. 그건 무(無)가 무용해서가 아니다.**
+            //   3자 무공은 기력 9 < 회복 10 이라 **애초에 마르지 않는다** — 절약할 것이 없다.
+            //   같은 병을 오늘만 세 번째 밟았다(식息 · 수水 · 여기). HANDOFF §4-3-6 일반화 6.
+            //   → **결정에 필요한 비교는 4자 대문파와의 대결**이다. 절대경지가 실제로 밀어낼 상대이고,
+            //     4자는 기력 12 > 회복 10 이라 **전락률 11.8% 로 압력을 받는다.**
+            //   ⚠ 규칙 글자가 슬롯을 하나 먹으므로 무(無) 공격 무공의 **성능 형태소는 3자뿐**이다.
+            //     즉 *"성능 3 + 무소모"* 대 *"성능 4 + 전락 11.8%"* 의 교환이다.
+            string[][] pairs =
+            {
+                new[] { "정무참광", "정참광",   "3자 대조(압력 없음 — 0 이 정상)" },
+                new[] { "정무참광", "참정독명", "**4자 대문파 — 지배 판정은 이쪽**" },
+                new[] { "중무격명", "참정독명", "**4자 대문파 — 지배 판정은 이쪽**" },
+            };
+
+            for (int i = 0; i < pairs.Length; i++)
+            {
+                MartialArt withRule = TryMakeAttack(pairs[i][0], ArtTier.Absolute);
+                MartialArt control = TryMakeAttack(pairs[i][1], ArtTier.Major);
+                if (withRule == null || control == null) continue;
+
+                double adv = SymmetricAdvantage(
+                    ToCombatant(withRule, stage), ToCombatant(control, stage), SensitivityFights);
+                Console.WriteLine("     {0,-10} vs {1,-10} {2}   {3}",
+                    pairs[i][0], pairs[i][1], Signed(adv), pairs[i][2]);
+            }
+        }
+
+        /// <summary>측정용 공격 무공을 만든다. 실패하면 **조용히 넘기지 않고 사유를 찍는다.**</summary>
+        private static MartialArt TryMakeAttack(string name, ArtTier tier)
+        {
+            IReadOnlyList<string> problems;
+            MartialArt art;
+            MartialArtFactory.TryCreate("x_" + name, name, ArtKind.Attack, tier,
+                Discipline.Sword, Alignment.Demonic, "천마신교", 1, null, out art, out problems);
+            if (art == null)
+            {
+                Console.WriteLine("     ⛔ 생성 실패 " + name + " — " + string.Join(" · ", problems));
+            }
+            return art;
         }
 
         /// <summary>
