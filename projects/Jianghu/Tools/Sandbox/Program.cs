@@ -971,8 +971,41 @@ namespace Jianghu.Sandbox
             {
                 double liveGap = (live[0] - live[live.Count - 1]) * 100;
                 Console.WriteLine("  → 계층 내 격차(범위 " + scopeCount + "종 제외) " + liveGap.ToString("F1") + "%p"
-                                  + (liveGap <= 30 ? "  ✅ 목표(30%p) 이내" : "  ⚠ 목표(30%p) 초과")
-                                  + "   ← **이쪽이 지금 고칠 대상이다**");
+                                  + (liveGap <= 30 ? "  ✅ 목표(30%p) 이내" : "  ⚠ 목표(30%p) 초과"));
+            }
+
+            // ⚠⚠ **성향별로도 가른다** (2026-08-04 사용자 가설). 성향 곡선은 **의도적으로 다르다** —
+            //   정파 선형(만렙 2.15) · 사파 제곱근(2.00, 초반 급상승) · 마도 계단(2.24, 24숙련까지 1.0).
+            //   §3-3 이 *"초반 사파 → 중반 정파 → 후반 마도"* 라는 역전 순서를 **의도**로 못박았다.
+            //   → 그렇다면 계층 격차에는 **고쳐야 할 불균형**과 **의도된 성향 차이**가 섞여 있다.
+            //     성향 안에서의 격차가 작고 성향 사이가 크다면, 그 격차는 **설계대로 작동하는 것**이다.
+            //   ⚠ 범위 무공은 여기서도 뺀다. 강호무학은 성향이 없어 이 표에 안 나온다.
+            var byAlign = new Dictionary<Alignment, List<double>>();
+            for (int i = 0; i < rows.Count; i++)
+            {
+                MartialArt a = rows[i].Key;
+                if (a.IsWandererArt || HasScopeMorpheme(a)) continue;
+                if (a.Alignment == null) continue;         // ⚠ 성향 없는 무공은 이 표에 못 넣는다
+                Alignment al = a.Alignment.Value;
+                if (!byAlign.ContainsKey(al)) byAlign[al] = new List<double>();
+                byAlign[al].Add(rows[i].Value);            // rows 가 이미 내림차순이라 순서 유지된다
+            }
+            foreach (KeyValuePair<Alignment, List<double>> kv in byAlign)
+            {
+                if (kv.Value.Count < 2) continue;
+                double g = (kv.Value[0] - kv.Value[kv.Value.Count - 1]) * 100;
+                double avg = 0;
+                for (int i = 0; i < kv.Value.Count; i++) avg += kv.Value[i];
+                avg /= kv.Value.Count;
+                double var = 0;
+                for (int i = 0; i < kv.Value.Count; i++) var += (kv.Value[i] - avg) * (kv.Value[i] - avg);
+                double sd = Math.Sqrt(var / kv.Value.Count) * 100;
+
+                Console.WriteLine("     └ " + Short(kv.Key) + "파 " + kv.Value.Count.ToString().PadLeft(2) + "종 · "
+                                  + "격차 " + g.ToString("F1").PadLeft(5) + "%p"
+                                  + (g <= 30 ? " ✅" : " ⚠")
+                                  + " · 표준편차 " + sd.ToString("F1").PadLeft(4) + "%p"
+                                  + " · 평균 " + (avg * 100).ToString("F1") + "%");
             }
         }
 
