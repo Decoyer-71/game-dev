@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using Jianghu.Core.Characters;
 using Jianghu.Core.Combat;
@@ -74,9 +75,132 @@ namespace Jianghu.Sandbox
             ArtTier.Wanderer, ArtTier.Minor, ArtTier.Major, ArtTier.Legacy, ArtTier.Absolute,
         };
 
-        private static void Main()
+        /// <summary>
+        /// **판정 지표 수집기 — 2026-08-05 신설.**
+        ///
+        /// ⚠⚠ **왜 만들었나.** 이 도구의 출력에는 필요한 지표가 **전부 들어 있었는데도**,
+        ///   안을 실험할 때마다 `grep` 으로 **보고 싶은 부분만 잘라 보고** 전체 결론을 내는 실수가
+        ///   2026-08-04~05 이틀에 **네 번** 반복됐다. 마지막 사례가 결정적이다 — 기만 형태소의
+        ///   대가를 옮기고 *"소문파가 좋아졌으니 작동한다"* 고 보고했는데, 같은 출력의 **전승무학
+        ///   블록에는 종환화격이 79.7%(지배)로 올라 있었다.** 안 본 것이지 없던 것이 아니다.
+        ///
+        /// → **정보 부족이 아니라 선택적 관찰이다.** 그러니 대책도 *"더 잘 보자"* 가 아니라
+        ///   **"안 본 지표의 변화를 도구가 들이밀게"** 여야 한다. 이 프로젝트가 §1 에서
+        ///   *"실수를 사람 기억에 맡기지 않고 컴파일이 깨지게 만들어 뒀다"* 고 한 것과 같은 선이다.
+        ///
+        /// 쓰는 법 — `--metrics <파일>` 로 기준선을 뜨고, 고친 뒤 `--compare <파일>` 로 **전 지표 diff**.
+        /// </summary>
+        private static class Metrics
+        {
+            private static readonly SortedDictionary<string, double> Values =
+                new SortedDictionary<string, double>(StringComparer.Ordinal);
+
+            public static void Add(string key, double value)
+            {
+                Values[key] = value;   // 같은 키가 두 번 오면 마지막이 이긴다(경지 루프 안에서 키에 경지를 넣는다)
+            }
+
+            public static void Dump(string path)
+            {
+                var sb = new StringBuilder();
+                sb.Append("# Jianghu 밸런스 기준선 — Sandbox --metrics 로 생성. 손으로 고치지 말 것.\n");
+                sb.Append("# 지표 ").Append(Values.Count).Append("개\n");
+                foreach (KeyValuePair<string, double> kv in Values)
+                {
+                    sb.Append(kv.Key).Append(" = ").Append(kv.Value.ToString("F2")).Append('\n');
+                }
+                File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+                Console.WriteLine();
+                Console.WriteLine("기준선 " + Values.Count + "개 지표를 " + path + " 에 썼다.");
+            }
+
+            /// <summary>
+            /// 기준선과 대조해 **바뀐 지표 전부**를 낸다.
+            /// ⚠ 임계(<paramref name="epsilon"/>) 미만은 잡음으로 보고 접는다 — 단 접은 개수는 반드시 찍는다.
+            /// </summary>
+            public static void Compare(string path, double epsilon = 0.05)
+            {
+                if (!File.Exists(path))
+                {
+                    Console.WriteLine("⛔ 기준선 파일이 없다: " + path + "  (먼저 --metrics 로 뜨라)");
+                    return;
+                }
+
+                var baseline = new Dictionary<string, double>(StringComparer.Ordinal);
+                foreach (string raw in File.ReadAllLines(path))
+                {
+                    string line = raw.Trim();
+                    if (line.Length == 0 || line[0] == '#') continue;
+                    int eq = line.IndexOf('=');
+                    if (eq < 0) continue;
+                    double v;
+                    if (double.TryParse(line.Substring(eq + 1).Trim(),
+                            System.Globalization.NumberStyles.Float,
+                            System.Globalization.CultureInfo.InvariantCulture, out v))
+                    {
+                        baseline[line.Substring(0, eq).Trim()] = v;
+                    }
+                }
+
+                var changed = new List<KeyValuePair<string, double[]>>();   // key -> {before, after}
+                var added = new List<string>();
+                int same = 0;
+
+                foreach (KeyValuePair<string, double> kv in Values)
+                {
+                    double before;
+                    if (!baseline.TryGetValue(kv.Key, out before)) { added.Add(kv.Key); continue; }
+                    if (Math.Abs(kv.Value - before) < epsilon) { same++; continue; }
+                    changed.Add(new KeyValuePair<string, double[]>(kv.Key, new[] { before, kv.Value }));
+                }
+
+                var removed = new List<string>();
+                foreach (KeyValuePair<string, double> kv in baseline)
+                {
+                    if (!Values.ContainsKey(kv.Key)) removed.Add(kv.Key);
+                }
+
+                // 변화가 큰 순으로. **부호가 아니라 크기**로 정렬한다 — 어느 쪽이 나쁜지는 지표마다 다르다.
+                changed.Sort((x, y) =>
+                    Math.Abs(y.Value[1] - y.Value[0]).CompareTo(Math.Abs(x.Value[1] - x.Value[0])));
+
+                Console.WriteLine();
+                Console.WriteLine("══════ 기준선 대조 (" + path + ") ══════");
+                Console.WriteLine("  바뀜 " + changed.Count + "건 · 같음 " + same + "건 · 신규 "
+                                  + added.Count + "건 · 사라짐 " + removed.Count + "건");
+                if (changed.Count == 0 && added.Count == 0 && removed.Count == 0)
+                {
+                    Console.WriteLine("  ✅ 모든 지표가 기준선과 같다.");
+                    return;
+                }
+
+                Console.WriteLine();
+                for (int i = 0; i < changed.Count; i++)
+                {
+                    double b = changed[i].Value[0], a = changed[i].Value[1];
+                    Console.WriteLine("   " + Pad(changed[i].Key, 46)
+                                      + b.ToString("F1").PadLeft(8) + " →" + a.ToString("F1").PadLeft(8)
+                                      + "   (" + (a - b >= 0 ? "+" : "") + (a - b).ToString("F1") + ")");
+                }
+                for (int i = 0; i < added.Count; i++) Console.WriteLine("   🆕 신규   " + added[i]);
+                for (int i = 0; i < removed.Count; i++) Console.WriteLine("   ⛔ 사라짐 " + removed[i]);
+
+                Console.WriteLine();
+                Console.WriteLine("  ⚠⚠ **이 목록 전부를 보고에 넣는다.** 일부만 인용하면 이 도구를 만든 이유가 사라진다.");
+                Console.WriteLine("  ⚠ 좋아짐/나빠짐은 도구가 판정하지 않는다 — 지표마다 방향이 다르다. 사람이 읽어야 한다.");
+            }
+        }
+
+        private static void Main(string[] args)
         {
             Console.OutputEncoding = Encoding.UTF8;
+
+            string metricsOut = null, compareTo = null;
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i] == "--metrics") metricsOut = args[i + 1];
+                else if (args[i] == "--compare") compareTo = args[i + 1];
+            }
 
             PrintMorphemeReport();
 
@@ -103,6 +227,10 @@ namespace Jianghu.Sandbox
 
             PrintStartingViability();
             PrintSampleBattle(MartialStage.MaxStage);
+
+            // ⚠⚠ 기준선 대조는 **맨 마지막**이다. 앞의 모든 표가 지표를 채운 뒤여야 한다.
+            if (metricsOut != null) Metrics.Dump(metricsOut);
+            if (compareTo != null) Metrics.Compare(compareTo);
         }
 
         // ─────────────────────────── 형태소 역산 리포트 (설계안 §5-2) ───────────────────────────
@@ -607,6 +735,7 @@ namespace Jianghu.Sandbox
                 if (art == null) continue;
 
                 double rate = MirrorBasicStrikeRate(art, stage);
+                Metrics.Add("qi.전락률." + name.Length + "자." + stage + "성", rate);
                 string flag = rate <= 0.05 ? "  ⚠⚠ 기력 축이 죽어 있다"
                     : rate < 10 ? "  ⚠ 목표 미만"
                     : rate > 30 ? "  ⚠ 목표 초과" : "  ✅";
@@ -626,6 +755,7 @@ namespace Jianghu.Sandbox
             {
                 MartialArt art = TryBuild("참정독명", kind.Value);
                 if (art == null) continue;
+                Metrics.Add("qi.전락률.4자." + kind.Key + "." + stage + "성", MirrorBasicStrikeRate(art, stage));
                 Console.WriteLine("     " + Pad(kind.Key, 22)
                                   + MirrorBasicStrikeRate(art, stage).ToString("F1").PadLeft(5) + "%");
             }
@@ -772,6 +902,29 @@ namespace Jianghu.Sandbox
 
         private static void Report(List<KeyValuePair<string, double>> rows)
         {
+            Report(rows, null, 0);
+        }
+
+        /// <summary>
+        /// ⚠⚠ `label`/`stage` 를 받는 판은 **지표를 함께 수집한다**(2026-08-05). 표를 눈으로만 읽던
+        ///   것이 선택적 관찰의 원인이었으므로, 찍는 자리에서 바로 <see cref="Metrics"/> 에 넣는다.
+        /// </summary>
+        private static void Report(List<KeyValuePair<string, double>> rows, string label, int stage)
+        {
+            if (label != null)
+            {
+                rows.Sort((x, y) => y.Value.CompareTo(x.Value));
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    Metrics.Add("sens." + label + "." + rows[i].Key + "." + stage + "성", rows[i].Value * 100);
+                }
+                if (rows.Count >= 2)
+                {
+                    Metrics.Add("sens." + label + ".격차." + stage + "성",
+                        (rows[0].Value - rows[rows.Count - 1].Value) * 100);
+                }
+            }
+
             rows.Sort((x, y) => y.Value.CompareTo(x.Value));
             for (int i = 0; i < rows.Count; i++)
             {
@@ -954,6 +1107,9 @@ namespace Jianghu.Sandbox
             }
 
             double gap = (rows[0].Value - rows[rows.Count - 1].Value) * 100;
+            Metrics.Add("tier." + TierName(tier) + ".격차전체." + stage + "성", gap);
+            Metrics.Add("tier." + TierName(tier) + ".최고." + stage + "성", rows[0].Value * 100);
+            Metrics.Add("tier." + TierName(tier) + ".최저." + stage + "성", rows[rows.Count - 1].Value * 100);
             Console.WriteLine("  → 계층 내 격차(전체) " + gap.ToString("F1") + "%p"
                               + (gap <= 30 ? "  ✅ 목표(30%p) 이내" : "  ⚠ 목표(30%p) 초과"));
 
@@ -970,6 +1126,7 @@ namespace Jianghu.Sandbox
             if (scopeCount > 0 && live.Count >= 2)
             {
                 double liveGap = (live[0] - live[live.Count - 1]) * 100;
+                Metrics.Add("tier." + TierName(tier) + ".격차범위제외." + stage + "성", liveGap);
                 Console.WriteLine("  → 계층 내 격차(범위 " + scopeCount + "종 제외) " + liveGap.ToString("F1") + "%p"
                                   + (liveGap <= 30 ? "  ✅ 목표(30%p) 이내" : "  ⚠ 목표(30%p) 초과"));
             }
@@ -1001,6 +1158,8 @@ namespace Jianghu.Sandbox
                 for (int i = 0; i < kv.Value.Count; i++) var += (kv.Value[i] - avg) * (kv.Value[i] - avg);
                 double sd = Math.Sqrt(var / kv.Value.Count) * 100;
 
+                Metrics.Add("tier." + TierName(tier) + "." + Short(kv.Key) + "파.표준편차." + stage + "성", sd);
+                Metrics.Add("tier." + TierName(tier) + "." + Short(kv.Key) + "파.평균." + stage + "성", avg * 100);
                 Console.WriteLine("     └ " + Short(kv.Key) + "파 " + kv.Value.Count.ToString().PadLeft(2) + "종 · "
                                   + "격차 " + g.ToString("F1").PadLeft(5) + "%p"
                                   + (g <= 30 ? " ✅" : " ⚠")
@@ -1128,6 +1287,8 @@ namespace Jianghu.Sandbox
                 }
 
                 double avg = (double)turnSum / FightsPerMatchup;
+                Metrics.Add("combat.전투길이." + row.Key.Trim(), avg);
+                Metrics.Add("combat.무승부." + row.Key.Trim(), draws);
                 string flag = draws > 0 ? "  ⚠ 무승부 발생"
                     : (avg < 8 || avg > 15) ? "  ⚠ 목표 8~15턴 밖" : "  ✅";
                 Console.WriteLine("  " + Pad(row.Key, 18)
