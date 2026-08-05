@@ -366,6 +366,7 @@ namespace Jianghu.Sandbox
             CompareOptional("상태이상", stage, "독", "혈", "비", "염", "빙", "탈", "경");
 
             PrintInnerArtSensitivity(stage);
+            PrintPinnacleSensitivity(stage);
             PrintAbsoluteRuleSensitivity(stage);
             PrintDisciplineSensitivity(stage);
             PrintMorphemeCountSensitivity(stage);
@@ -425,6 +426,154 @@ namespace Jianghu.Sandbox
                     Signed(InnerDuel("참정독명", inners[i], stage)),
                     Signed(InnerDuel("참정탈", inners[i], stage)));
             }
+        }
+
+        /// <summary>
+        /// **극한경지 9자(존·제·마·패·성·선·왕·황·종) — 2026-08-05 신설.**
+        ///
+        /// ⚠⚠ **이 축은 지금까지 한 번도 상시 측정된 적이 없다.** 무공형태·수식·방어·자연속성·
+        ///   상태이상·내공·절대경지 규칙에는 전부 고정 대조군 블록이 있는데 극한경지만 없었고,
+        ///   그래서 이 9자는 **전승무학 8종의 계층 승률로 간접 추정**하는 수밖에 없었다.
+        ///   그 승률에는 나머지 3글자가 섞여 있다 — 실제로 `존풍쾌절`(존 공격 1.5)이
+        ///   `제화정참`(제 공격 1.0)보다 낮게 나오는데, 그게 존 탓인지 같이 붙은 쾌(快 명중−2) 탓인지
+        ///   **가릴 방법이 없었다.**
+        ///   → 저장소 교훈 *"측정하지 않는 축은 고장 나도 보이지 않는다"* 의 **네 번째** 사례다
+        ///     (앞선 셋: 방어 카테고리 · 내공 형태소 · 절대경지 규칙).
+        ///   → `balance-audit` 스킬의 한계 항목 *"Sandbox 가 안 재는 축은 diff 에도 안 나온다"* 가
+        ///     정확히 여기였다. 이 블록이 없으면 마(魔)를 깎아도 `--compare` 가 결과를 못 보여준다.
+        ///
+        /// ── 대조군 설계 (이 블록의 본체다) ────────────────────────────────────────
+        ///
+        /// ⚠⚠ **`X풍쾌참` vs `풍쾌참` 로 재지 않는다.** 2026-08-02 §4-2-X 가 그 방식을 썼는데
+        ///   **4자 vs 3자**라 두 겹으로 오염돼 있다: ⓐ 형태소 하나만큼의 성능 차 ⓑ **기력비용 12 vs 9**.
+        ///   ⓑ 가 특히 나쁘다 — 회복이 10 이라 3자는 **어떤 시작 기력에서도 마르지 않는다**.
+        ///   즉 대조군이 기력 축에서 일방적으로 유리했고, 그 상태로 잰 선(仙) 값은 신뢰할 수 없다.
+        ///   같은 병을 2026-08-02~04 에 세 번 밟았다(식息 · 수水 · ㉯실험 3자 대조).
+        ///
+        /// ✅ **대조군은 `명풍쾌참` — 극한경지 자리에 평범한 수식 글자 명(明)을 넣은 같은 길이 4자다.**
+        ///   ⓐ 성능 형태소 4자로 같다 ⓑ **기력비용이 12 로 같다** ⓒ 전승무학은 극한경지를 **요구하지
+        ///   않으므로**(`ArtCompositionRule` 은 *"극한경지는 전승무학 전용"* 만 강제한다. 실제로
+        ///   사천당가 `만우쾌사`에 극한경지가 없다) 대조군이 같은 계층에 설 수 있다.
+        ///   → 그래서 각 행은 **"이 극한경지 글자는 평범한 수식 한 글자보다 얼마나 나은가"** 를 뜻한다.
+        ///   ⚠ 명(明)은 중립이 아니라 `critChance +10` 이다. **눈금의 영점이 0 이 아니라 명(明)이다** —
+        ///     그래서 황(皇 critChance+15)처럼 성격이 겹치는 글자는 낮게 나오는 것이 정상이다.
+        ///
+        /// ⚠⚠ **조건은 제3자가 아니라 양쪽을 함께 바꿔서 만든다.** 상대를 따로 세우고 두 승률을
+        ///   빼면 **한 대조군 값을 전 행에서 빼는** 금지된 방식이 된다(HANDOFF §4-2-AA — 그 방식이
+        ///   실제로 결론을 뒤집은 전례가 있다). 대신 **패딩 한 글자를 양쪽 다 갈아** 조건을 만든다:
+        ///   - **평범** = 풍(風) — 아무 조건 없음
+        ///   - **방어전** = 방(防 방어+1.2·막기+8) — 서로 방어가 있어야 **마(魔)의 방어무시 25%** 가 일한다
+        ///   - **기력전** = 탈(奪 기력소실) — 서로 기력을 깎아야 **선(仙)** 이 살아난다(§4-2-X: 선은
+        ///     죽은 것이 아니라 **조건부**다. 탈 대전에서만 46.5 → 64.0 으로 올랐다)
+        ///   세 열 모두 **양쪽이 같은 패딩**이라 `SymmetricAdvantage` 의 정의상 **0 이 진짜 0** 이다.
+        ///
+        /// ⚠ 첫 행의 자기대전 sanity 행은 지우지 말 것 (HANDOFF §4-3-6 일반화 1 —
+        ///   *"측정 방식이 0 을 0 으로 내는지부터 확인한다"*). `+0.00%p` 가 아니면 표 전체를 못 쓴다.
+        /// </summary>
+        private static void PrintPinnacleSensitivity(int stage)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  ── 극한경지 9자 (같은 4자 전승무학 · 극한경지 자리에 명(明)을 넣은 대조군) ──");
+            Console.WriteLine("     ⚠ 영점이 0 이 아니라 명(明 치명률+10)이다. 성격이 겹치는 글자는 낮게 나온다");
+
+            // 패딩 3자 = <조건글자> + 쾌(무공형태 필수) + 참(공격방식 필수).
+            // ⚠ 조건 글자만 다르고 나머지는 전 열에서 같다 — 열끼리 비교할 수 있는 이유다.
+            string[][] columns =
+            {
+                new[] { "풍쾌참", "평범" },
+                new[] { "방쾌참", "방어전" },
+                new[] { "탈쾌참", "기력전" },
+            };
+
+            Console.WriteLine("     {0,-10}{1,11}{2,11}{3,11}", "", "평범", "방어전", "기력전");
+            Console.WriteLine("     {0,-10}{1}{2}{3}  ← 0 이어야 한다 (sanity)",
+                "대조군",
+                Signed(PinnacleDuel('명', columns[0][0], stage)),
+                Signed(PinnacleDuel('명', columns[1][0], stage)),
+                Signed(PinnacleDuel('명', columns[2][0], stage)));
+
+            // 정의서 §3-8 게재 순서. 표시용 한자는 사전에서 읽어 이름과 성능이 어긋날 수 없게 한다.
+            char[] pinnacles = { '존', '제', '마', '패', '성', '선', '왕', '황', '종' };
+
+            double best = double.MinValue;
+            double worst = double.MaxValue;
+
+            for (int i = 0; i < pinnacles.Length; i++)
+            {
+                double plain = PinnacleDuel(pinnacles[i], columns[0][0], stage);
+                double guard = PinnacleDuel(pinnacles[i], columns[1][0], stage);
+                double drain = PinnacleDuel(pinnacles[i], columns[2][0], stage);
+
+                Morpheme m = MorphemeDictionary.Get(pinnacles[i]);
+                Console.WriteLine("     {0,-10}{1}{2}{3}",
+                    pinnacles[i] + " " + m.Hanja, Signed(plain), Signed(guard), Signed(drain));
+
+                Metrics.Add("sens.극한경지.평범." + pinnacles[i] + "." + stage + "성", plain * 100);
+                Metrics.Add("sens.극한경지.방어전." + pinnacles[i] + "." + stage + "성", guard * 100);
+                Metrics.Add("sens.극한경지.기력전." + pinnacles[i] + "." + stage + "성", drain * 100);
+
+                if (plain > best) best = plain;
+                if (plain < worst) worst = plain;
+            }
+
+            // ⚠ 격차는 **평범 열만** 낸다. 조건 열의 격차는 "그 조건이 얼마나 갈리는가" 라
+            //   축의 평탄함과 뜻이 다르다 — 한 숫자로 합치면 둘 다 못 읽는다.
+            Console.WriteLine("     → 평범 열 스프레드 {0:F1}%p", (best - worst) * 100);
+            Metrics.Add("sens.극한경지.격차평범." + stage + "성", (best - worst) * 100);
+
+            PrintDoublesFormByForm(stage);
+        }
+
+        /// <summary>
+        /// **종(宗)만 따로 — 무공형태를 갈아 가며 잰다** (2026-08-05 신설).
+        ///
+        /// ⚠⚠ **종은 위 표에서 읽으면 안 된다.** 9자 중 홀로 수치가 아니라 **규칙**을 만지기 때문이다
+        ///   (`doublesFormEffect` — 무공형태 효과를 페널티까지 2배로 키운다). 위 표의 패딩 무공형태는
+        ///   쾌(快 속도+2·명중−2)라서 종이 붙으면 **속도+4·명중−4** 가 되고, 명중 −4 는 명중률
+        ///   −20%p 다(1점 = 5%p). 즉 위 표의 종 행은 *"종이 약하다"* 가 아니라
+        ///   **"종을 가장 나쁜 무공형태와 묶었다"** 를 재고 있다.
+        ///
+        /// ⚠ 이 성질은 사전 주석이 이미 못박아 둔 것이다 — *"종의 값은 어떤 무공형태와 묶느냐가
+        ///   정한다. 정체성은 수치가 아니라 2배 메커니즘이다."* 그렇다면 **하나의 숫자로 낼 수 없고,
+        ///   무공형태별로 내야 한다.** 2026-08-05 에 공격 3 → 1 을 판정한 근거가 바로 이 축의
+        ///   격차(공격 1 에서 28.0%p · 공격 3 에서 25.5%p)였는데, **그 측정이 상시 블록에 없었다.**
+        /// </summary>
+        private static void PrintDoublesFormByForm(int stage)
+        {
+            Console.WriteLine("     ── 종(宗)만 따로 — 무공형태에 기생하므로 형태별로 잰다 ──");
+
+            // 무공형태 9자의 대표 5행(정직 · 중후 · 쾌 · 환궤 · 유변) 중 성격이 갈리는 넷.
+            // ⚠ 패딩의 나머지 둘은 풍(자연)·참(공격방식)으로 고정한다 — 무공형태만 움직인다.
+            char[] forms = { '정', '중', '쾌', '환', '유' };
+
+            double best = double.MinValue;
+            double worst = double.MaxValue;
+            for (int i = 0; i < forms.Length; i++)
+            {
+                double v = PinnacleDuel('종', "풍" + forms[i] + "참", stage);
+                Console.WriteLine("        무공형태 {0}   {1}", forms[i], Signed(v));
+                Metrics.Add("sens.극한경지.종.무공형태" + forms[i] + "." + stage + "성", v * 100);
+                if (v > best) best = v;
+                if (v < worst) worst = v;
+            }
+            Console.WriteLine("        → 형태별 스프레드 {0:F1}%p  ⚠ 이 크기가 종의 정체성이다", (best - worst) * 100);
+            Metrics.Add("sens.극한경지.종.형태별격차." + stage + "성", (best - worst) * 100);
+        }
+
+        /// <summary>
+        /// 극한경지 글자 하나만 다른 **같은 길이 전승무학 4자** 한 쌍을 붙인다.
+        ///
+        /// ⚠ 대조군은 언제나 명(明) 자리다. <c>pinnacle == '명'</c> 이면 양쪽이 완전히 같은 표본이므로
+        ///   <see cref="SymmetricAdvantage"/> 의 정의상 **정확히 0** 이 나온다 — 그것이 sanity 행이다.
+        /// </summary>
+        private static double PinnacleDuel(char pinnacle, string padding, int stage)
+        {
+            MartialArt art = TryMakeAttack(pinnacle + padding, ArtTier.Legacy);
+            MartialArt control = TryMakeAttack("명" + padding, ArtTier.Legacy);
+            if (art == null || control == null) return 0;
+
+            return SymmetricAdvantage(
+                ToCombatant(art, stage), ToCombatant(control, stage), SensitivityFights);
         }
 
         /// <summary>
@@ -858,7 +1007,7 @@ namespace Jianghu.Sandbox
                     }
                     if (n > 0) rows.Add(new KeyValuePair<string, double>(kinds[i].Key, sum / n));
                 }
-                Report(rows);
+                Report(rows, "유형." + name, stage);
             }
         }
 
@@ -883,7 +1032,7 @@ namespace Jianghu.Sandbox
                 }
                 rows.Add(new KeyValuePair<string, double>(chars[i], sum / n));
             }
-            Report(rows);
+            Report(rows, label, stage);
         }
 
         /// <summary>선택 카테고리 — 그 글자를 넣은 무공 vs 안 넣은 무공.</summary>
@@ -897,7 +1046,7 @@ namespace Jianghu.Sandbox
             {
                 rows.Add(new KeyValuePair<string, double>(chars[i], Duel("참정" + chars[i], "참정", stage)));
             }
-            Report(rows);
+            Report(rows, label, stage);
         }
 
         private static void Report(List<KeyValuePair<string, double>> rows)
@@ -908,6 +1057,15 @@ namespace Jianghu.Sandbox
         /// <summary>
         /// ⚠⚠ `label`/`stage` 를 받는 판은 **지표를 함께 수집한다**(2026-08-05). 표를 눈으로만 읽던
         ///   것이 선택적 관찰의 원인이었으므로, 찍는 자리에서 바로 <see cref="Metrics"/> 에 넣는다.
+        ///
+        /// ⚠⚠ **2026-08-05 2차 — 이 판을 만들어 놓고 아무도 호출하지 않고 있었다.**
+        ///   민감도표 7종(공격방식·무공형태·방어·수식·자연속성·상태이상·유형)이 전부 인자 없는
+        ///   <see cref="Report(List{KeyValuePair{string,double}})"/> 를 불러서, **기준선 124개 지표에
+        ///   `sens.*` 키가 하나도 없었다.** 즉 `--compare` 가 형태소 축을 통째로 못 봤다.
+        ///   → §5-D 가 *"안 본 지표를 도구가 들이밀게"* 만든 장치인데 **그 도구에 같은 구멍이 있었다.**
+        ///   실제 피해: §4-6-8(공격 페널티 분리) 이후 무공형태 격차가 **9.4 → 16.3%p** 로 벌어졌는데
+        ///   그 변화가 어느 `--compare` 보고에도 뜨지 않았다.
+        ///   ⚠ 그래서 이 오버로드는 **호출되는지까지가 기능**이다. 새 민감도표를 만들면 반드시 라벨을 넘긴다.
         /// </summary>
         private static void Report(List<KeyValuePair<string, double>> rows, string label, int stage)
         {
