@@ -272,6 +272,42 @@ namespace Jianghu.Tests.Martial
         }
 
         [Test]
+        public void 공격_페널티는_합산과_두배를_따라간다()
+        {
+            // ⚠⚠ 2026-08-05 신설. `AttackPenalty` 는 **공격 축 중 음수 성분만** 따로 합한 값이다.
+            //   `CombatResolver` 가 이걸 배율 밖으로 빼서 *"이득은 수련으로 자라고 대가는 고정"* 을 만든다.
+            //   합산·2배를 못 따라가면 그 분리가 조용히 틀린 값을 낸다 — 그래서 여기서 고정한다.
+            ArtStatDelta gain = ArtStatDelta.Of(attack: 2);          // 베기
+            ArtStatDelta loss = ArtStatDelta.Of(attack: -0.75);      // 기만
+
+            Assert.AreEqual(0, gain.AttackPenalty, 1e-9, "이득만 있는 형태소에 페널티가 잡혔다.");
+            Assert.AreEqual(-0.75, loss.AttackPenalty, 1e-9, "음수 공격이 페널티로 안 잡혔다.");
+
+            // ⚠ 합쳐도 **Attack 안에는 여전히 포함**돼 있다. 빼서 쓰는 쪽이 책임진다.
+            ArtStatDelta sum = gain + loss;
+            Assert.AreEqual(1.25, sum.Attack, 1e-9, "공격 합이 어긋난다.");
+            Assert.AreEqual(-0.75, sum.AttackPenalty, 1e-9, "합산에서 페널티가 사라졌다.");
+
+            // 종(宗)의 *"페널티까지 함께 2배"*(정의서 §3-8)가 여기에 걸린다.
+            ArtStatDelta doubled = loss * 2;
+            Assert.AreEqual(-1.5, doubled.AttackPenalty, 1e-9, "2배에서 페널티가 함께 커지지 않았다.");
+        }
+
+        [Test]
+        public void 순수_이득_형태소는_페널티가_없다()
+        {
+            // 정직(正直)처럼 공격이 **이득**인 무공형태는 이 분리의 영향을 받지 않아야 한다.
+            // ⚠ 받으면 *"대가만 고정"* 이라는 규칙이 이득에도 새어 나간 것이다.
+            foreach (char c in new[] { '정', '중', '참', '자', '타' })
+            {
+                Morpheme m = MorphemeDictionary.Get(c);
+                if (m.Delta.Attack < 0) continue;
+                Assert.AreEqual(0, m.Delta.AttackPenalty, 1e-9,
+                    "{0} 의 공격이 음수가 아닌데 페널티가 잡혔다.", m);
+            }
+        }
+
+        [Test]
         public void 공격_합은_음수가_될_수_있다()
         {
             // ⚠ 설계안 §1-E — `사(던지기 +0.5)` + `환(기만 −2)` = 공격 −1.5 이고, 이건 §2-2 상 적법한 2자 무공이다.

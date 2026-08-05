@@ -115,6 +115,21 @@ namespace Jianghu.Core.Martial.Morphemes
         /// </summary>
         public double ParalysisStack { get; }
 
+        /// <summary>
+        /// **공격 축 중 음수 성분만 따로 합한 값** (0 이하). 2026-08-05 신설.
+        ///
+        /// ⚠⚠ 왜 따로 드는가 — <see cref="Attack"/> 은 합산 스칼라라 *"이 안에 −0.75 짜리 페널티가
+        ///   있었는지"* 를 잃어버린다. 그런데 `CombatResolver` 가 **공격에만 숙련 배율을 곱하므로**
+        ///   페널티가 경지에 비례해 커지는 비대칭이 생겼다 — 기만 형태소가 3성 60.5 → 10성 51.7 로
+        ///   혼자 시들었다(HANDOFF §4-6-6). 대가는 고정이어야 하므로 음수분을 배율 밖으로 빼야 하고,
+        ///   그러려면 **얼마가 음수였는지**를 합산 뒤에도 알아야 한다.
+        ///
+        /// ⚠ 형태소 하나에서는 `min(0, attack)` 이고, 합칠 때 함께 더해지며, 종(宗)의 2배에서도
+        ///   함께 2배가 된다 — *"페널티까지 함께 2배"* 라는 정의서 §3-8 규정을 그대로 따른다.
+        /// ⚠ **이 값은 이미 <see cref="Attack"/> 안에 포함돼 있다.** 빼서 쓰는 쪽이 책임진다.
+        /// </summary>
+        public double AttackPenalty { get; }
+
         private ArtStatDelta(
             double attack, double defense, double accuracy, double speed,
             double evasion, double blockChance, double counterRate,
@@ -122,9 +137,11 @@ namespace Jianghu.Core.Martial.Morphemes
             double maxQi, double qiRegen, double qiCostPercent,
             double statusApplyBonus, double statusResist,
             double poisonChance, double bleedChance, double burnChance, double frostbiteChance,
-            double qiDrainChance, double staggerChance, double paralysisStack)
+            double qiDrainChance, double staggerChance, double paralysisStack,
+            double attackPenalty)
         {
             Attack = attack;
+            AttackPenalty = attackPenalty;
             Defense = defense;
             Accuracy = accuracy;
             Speed = speed;
@@ -176,7 +193,9 @@ namespace Jianghu.Core.Martial.Morphemes
                 maxQi, qiRegen, qiCostPercent,
                 statusApplyBonus, statusResist,
                 poisonChance, bleedChance, burnChance, frostbiteChance,
-                qiDrainChance, staggerChance, paralysisStack);
+                qiDrainChance, staggerChance, paralysisStack,
+                // ⚠ 형태소 하나의 페널티는 그 글자의 음수 공격분이다. 합·곱은 아래 연산자가 잇는다.
+                attack < 0 ? attack : 0);
         }
 
         /// <summary>
@@ -210,7 +229,8 @@ namespace Jianghu.Core.Martial.Morphemes
                 a.FrostbiteChance + b.FrostbiteChance,
                 a.QiDrainChance + b.QiDrainChance,
                 a.StaggerChance + b.StaggerChance,
-                a.ParalysisStack + b.ParalysisStack);
+                a.ParalysisStack + b.ParalysisStack,
+                a.AttackPenalty + b.AttackPenalty);
         }
 
         /// <summary>
@@ -244,7 +264,8 @@ namespace Jianghu.Core.Martial.Morphemes
                 a.FrostbiteChance * factor,
                 a.QiDrainChance * factor,
                 a.StaggerChance * factor,
-                a.ParalysisStack * factor);
+                a.ParalysisStack * factor,
+                a.AttackPenalty * factor);
         }
 
         /// <summary>아무 축도 만지지 않는가. 부정·무학분류·배경어 판별과 사전 무결성 테스트에 쓴다.</summary>
