@@ -1139,7 +1139,7 @@ namespace Jianghu.Core.Combat
         private static LearnedArt SelectArt(Fighter actor, bool free = false)
         {
             LearnedArt best = null;
-            double bestScore = -1;
+            double bestScore = double.NegativeInfinity;
 
             IReadOnlyList<LearnedArt> arts = actor.Def.Arts;
             for (int i = 0; i < arts.Count; i++)
@@ -1151,7 +1151,24 @@ namespace Jianghu.Core.Combat
                 int mastery = actor.Def.MasteryOf(learned.Art.Discipline);
                 if (!free && EffectiveQiCost(learned.Art, mastery, actor.Def) > actor.Qi) continue;
 
-                double score = learned.Art.BasePower * learned.PowerMultiplier * learned.Art.HitCount;
+                // ⚠⚠ **2026-08-05 — 이 줄이 통째로 고장 나 있었다.**
+                //   ~~`score = BasePower × PowerMultiplier × HitCount`~~ 였는데,
+                //   형태소 무공은 `BasePower` 가 **0** 이다(`MartialArt.FromMorphemes` 가 하드코딩).
+                //   카탈로그 138종이 전부 형태소 경로이므로 **모든 후보의 점수가 0** 이었고,
+                //   비교가 엄격 부등호라 **맨 처음 것만 통과**했다.
+                //   → ⛔ **기력이 충분한 한, 맨 처음 배운 공격 무공만 평생 썼다.**
+                //     실측: 같은 두 무공을 배운 **순서만** 바꾸면 다른 것이 나갔다(`SelectArtTests`).
+                //   ⚠ 얼굴이 둘이었다 — 레거시 무공(`BasePower > 0`)이 섞이면 **순서와 무관하게
+                //     레거시가 항상** 이겼다. 지금 카탈로그엔 레거시가 없어 발현되지 않았을 뿐이다.
+                //
+                //   ⚠⚠ **왜 안 보였나** — Sandbox 표본과 테스트 전부가 공격 무공을 **1개씩만** 준다.
+                //     후보가 하나면 순서 의존이 드러나지 않는다. 축이 아니라 **표본이 가린** 경우다.
+                //
+                //   → **피해 공식과 같은 식(<see cref="ArtPower"/>)을 쓴다.** 따로 지으면 또 갈라진다.
+                // ⚠ `× HitCount` 는 **뺐다.** `DamagePerHit` 이 `/ attempts` 로 나누므로 타격수는
+                //   총 피해를 바꾸지 않는다 — 곱하면 다타 무공을 근거 없이 우대한다.
+                //   (지금 카탈로그는 전부 `HitCount == 1` 이라 수치 영향은 0 이다.)
+                double score = ArtPower(learned);
                 if (score > bestScore)
                 {
                     bestScore = score;
@@ -1161,6 +1178,27 @@ namespace Jianghu.Core.Combat
 
             // 쓸 수 있는 초식이 없으면 맨손. 기력이 마르면 전투 양상이 바뀌는 것이 의도다.
             return best ?? BasicStrike;
+        }
+
+        /// <summary>
+        /// **무공이 위력에 더하는 몫.** 어느 초식을 낼지(<see cref="SelectArt"/>)와 얼마나 아픈지
+        /// (<see cref="DamagePerHit"/>)가 **반드시 같은 식을 쓰도록** 여기 하나로 둔다.
+        ///
+        /// ⚠⚠ **갈라져 있던 동안 선택 쪽이 통째로 고장 나 있었다** (2026-08-05 발견).
+        ///   피해는 `Delta.Attack` 을 읽는데 선택은 `BasePower` 를 읽었고, 형태소 무공은 후자가 0 이다.
+        ///   **한 값을 두 곳에서 따로 계산하면 언젠가 갈라진다** — 그래서 함수로 묶는다.
+        ///
+        /// 규칙 셋이 여기 모여 있다(근거는 <see cref="DamagePerHit"/> 안의 주석):
+        ///   ⓐ 형태소 무공은 `Delta.Attack`, 레거시는 `BasePower` — **같은 자리에 들어가지만 스케일이 다르다**
+        ///   ⓑ **이득은 배율 안, 대가(음수 공격)는 배율 밖** (§4-6-8)
+        ///   ⓒ **맨손보다 약해질 수 없다** — 하한 0 (§1-3-e)
+        /// </summary>
+        private static double ArtPower(LearnedArt art)
+        {
+            double basePower = art.Art.IsMorphemeDerived ? art.Art.Delta.Attack : art.Art.BasePower;
+            double penalty = art.Art.IsMorphemeDerived ? art.Art.Delta.AttackPenalty : 0;
+            double power = (basePower - penalty) * art.PowerMultiplier + penalty;
+            return power < 0 ? 0 : power;
         }
 
         /// <summary>
@@ -1210,7 +1248,9 @@ namespace Jianghu.Core.Combat
             // ⚠⚠ **스케일이 완전히 다르다.** 레거시는 `BasePower` 22~28 인데 형태소 공격 합은 최대 5 다.
             //   그래서 캐릭터 기본 능력치도 정의서 §1-1(공격 1)로 맞춰야 하며,
             //   **2026-07-30 이전의 승률표 측정값은 전부 무의미하다**(HANDOFF §5-2).
-            double basePower = art.Art.IsMorphemeDerived ? art.Art.Delta.Attack : art.Art.BasePower;
+            // ⚠⚠ 2026-08-05 — 이 계산은 <see cref="ArtPower"/> 로 옮겼다. **선택(`SelectArt`)과
+            //   피해가 같은 식을 쓰게 하려는 것**이며, 갈라져 있던 동안 선택 쪽이 통째로 고장 나
+            //   있었다(아래 `SelectArt` 주석). 아래 주석들은 그 식의 근거로 여기 남긴다.
 
             // ⚠⚠ **공격 페널티는 배율 밖에 둔다** (2026-08-05 · HANDOFF §4-6-6/§4-6-8).
             //   ~~`artPower = basePower * PowerMultiplier`~~ 였다.
@@ -1230,8 +1270,7 @@ namespace Jianghu.Core.Combat
             //
             // ⚠ 파급 — 범위 형태소(다 −1 · 군 −2 · 전 −3)도 음수 공격이라 함께 배율에서 빠진다.
             //   지금 죽어 있는 범위 무공이 후반에 덜 나빠진다. 의도한 방향이지만 측정으로 확인할 것.
-            double penalty = art.Art.IsMorphemeDerived ? art.Art.Delta.AttackPenalty : 0;
-            double artPower = (basePower - penalty) * art.PowerMultiplier + penalty;
+            double artPower = ArtPower(art);
 
             // ⚠⚠ **무공은 아무리 대가가 커도 맨손보다 약해질 수 없다** (2026-08-02 신설 · 사용자 확정).
             //   그전까지 공격 합이 음수인 무공이 **7종** 있었고(궤암포독·궤암척혈·환한투독·궤야척혈·
@@ -1247,7 +1286,7 @@ namespace Jianghu.Core.Combat
             //
             //   ⚠ 대가 — 하한에 걸리는 조합에서는 기만의 *"공격 −0.75"* 가 실제로 실현되지 않는다.
             //     그래도 사전 값 수정으로는 범위 무공(−2.75)을 못 닫으므로 이쪽을 택했다(정의서 §1-3-e).
-            if (artPower < 0) artPower = 0;
+            //   ⚠ 하한 처리도 <see cref="ArtPower"/> 안으로 들어갔다.
             double totalPower = (actor.Stats.Attack + artPower) * (100 + actor.PowerBonusPercent) / 100.0;
 
             // ⚠ 실험(2026-08-02): 쌍(雙) 2회 행동에 위력 −50% — 되돌리거나 확정할 것
