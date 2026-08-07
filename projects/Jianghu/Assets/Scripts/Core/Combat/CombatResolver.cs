@@ -875,7 +875,12 @@ namespace Jianghu.Core.Combat
             {
                 // 극한경지 왕(王) — 모든 상태이상 부여확률 +15%p. 여기가 그 축이 붙는 유일한 자리다.
                 chanceBonus += (int)Math.Round(art.Delta.StatusApplyBonus, MidpointRounding.AwayFromZero);
-                return ApplyMorphemeStatus(turn, target, art, chanceBonus, rng, log);
+
+                // 비도 숙달 → 상태이상이 더 **세게** 걸린다 (2026-08-05 신설).
+                // ⚠ 확률 축은 이미 90%(상한 100)로 포화라 크기를 못 준다. **가산**이다 —
+                //   경위는 `DisciplineCurve.StatusPotencyBonus` 주석.
+                int potencyBonus = DisciplineCurve.StatusPotencyBonus(art.Discipline, mastery);
+                return ApplyMorphemeStatus(turn, target, art, chanceBonus, potencyBonus, rng, log);
             }
 
             if (art.Effects.Count == 0) return null;
@@ -908,9 +913,14 @@ namespace Jianghu.Core.Combat
         /// ⚠ 세기·지속은 델타에 없다. 정의서 §3-4 가 확률만 적었기 때문이며,
         ///   그래서 상수(<see cref="BleedPotency"/> 등)로 둔다 — **무공별로 다르지 않다.**
         ///   달라지는 것은 "무엇이 걸리는가" 뿐이고, 그게 일곱 글자를 가르는 축이다.
+        ///
+        /// ⚠⚠ 2026-08-05 — `potencyBonus`(%) 가 생겼다. **여전히 무공별로 다르지 않다** —
+        ///   무공이 아니라 **사람의 유형 숙달**이 정하는 값이다(비도만 0 이 아니다).
+        ///   위 문단의 원칙은 그대로다.
         /// </summary>
         private static string ApplyMorphemeStatus(
-            int turn, Fighter target, MartialArt art, int chanceBonus, IRandomSource rng, List<CombatLogEntry> log)
+            int turn, Fighter target, MartialArt art, int chanceBonus, int potencyBonus,
+            IRandomSource rng, List<CombatLogEntry> log)
         {
             ArtStatDelta d = art.Delta;
 
@@ -974,6 +984,20 @@ namespace Jianghu.Core.Combat
                 BaseStatusChance + (int)Math.Round(points, MidpointRounding.AwayFromZero) + chanceBonus
                 - target.Def.StatusResistPercent, 0, 100);
             if (!rng.Chance(chance)) return null;
+
+            // 비도 숙달 — 세기를 키운다 (2026-08-05). **가산이다. 곱이 아니다.**
+            //
+            // ⚠⚠ 처음에 `세기 × 1.4` 로 만들었다가 되돌렸다(사용자 확정 · `verify` 지적).
+            //   HANDOFF §5 의 *"숙련·성향 배율을 곱하지 않는다"* 에 배수판이 정면으로 걸렸다 —
+            //   숙련도에 정비례해 스케일하는 곱이었기 때문이다. 경위는
+            //   `DisciplineCurve.StatusPotencyBonus` 주석.
+            //   → 가산으로 바꾸면 **직접가산형 축들과 같은 모양**이 된다(검 명중 · 창 선공 · 창 속도 ·
+            //     비도 확률). ⚠ 권·도는 여전히 비율 곱셈형이라 *"유형 숙달에 곱이 없다"* 는 말은
+            //     사실이 아니다 — 상세는 `DisciplineCurve.StatusPotencyBonus` 주석.
+            //
+            // ⚠ 동상은 potency 가 0 이다(스스로는 피해를 주지 않는다). 거기에 더하면 **없던 피해가
+            //   생겨** 동상의 정의가 바뀌므로 `potency > 0` 조건으로 막는다 — 한계는 위 주석 그대로.
+            if (potencyBonus > 0 && potency > 0) potency += potencyBonus;
 
             string applied = Apply(turn, target, kind, potency, duration, stackGain, log);
             return applied == null ? null : "[" + applied + "]";

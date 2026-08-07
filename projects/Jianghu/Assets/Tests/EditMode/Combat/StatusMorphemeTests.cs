@@ -205,6 +205,76 @@ namespace Jianghu.Tests.Combat
             }
         }
 
+        /// <summary>
+        /// **비도(飛刀) 숙달은 상태이상을 더 세게 건다** (2026-08-05 신설 축).
+        ///
+        /// ⚠⚠ 이 축이 생긴 이유는 **확률 축이 포화**했기 때문이다 —
+        ///   부여확률 `기본 30 + 형태소 10 + 비도숙달 50 = 90%` 에 상한이 100 이라
+        ///   `DaggerMaxStatusChance` 를 올려도 남은 여지가 10%p 뿐이었다.
+        ///   경위는 `DisciplineCurve.StatusPotencyPercent` 주석.
+        ///
+        /// ⚠ 절대 수치를 박지 않는다(위 클래스 주석) — 검사하는 것은 **부호와 방향**이다.
+        ///   ⓐ 비도가 검보다 지속피해를 많이 낸다 ⓑ 상태이상이 없으면 차이가 없다.
+        ///   ⓑ 가 핵심이다. 그게 없으면 *"비도가 그냥 세다"* 와 구분되지 않는다.
+        /// </summary>
+        [Test]
+        public void 비도_숙달은_상태이상_세기를_키운다()
+        {
+            // 출혈(혈)을 가진 같은 무공을 검과 비도로 들린다. 다른 것은 유형뿐이다.
+            int swordBleed = TotalStatusDamage("참정혈", Discipline.Sword);
+            int daggerBleed = TotalStatusDamage("참정혈", Discipline.Dagger);
+
+            Assert.Greater(daggerBleed, swordBleed,
+                "비도가 검보다 지속피해를 더 내지 못한다 — 세기 보너스가 엔진에 닿지 않았다는 뜻이다.");
+
+            // ⚠⚠ **상태이상이 없는 무공에서는 차이가 0 이어야 한다.** 이 행이 없으면
+            //   위 결과가 "비도 숙달" 때문인지 "비도가 그냥 세다" 때문인지 갈리지 않는다.
+            Assert.AreEqual(0, TotalStatusDamage("참정", Discipline.Dagger),
+                "상태이상 형태소가 없는데 지속피해가 났다 — 측정 방식이 잘못됐다.");
+        }
+
+        /// <summary>
+        /// 200판에서 지속피해(`피해 N` 이 아니라 상태이상 틱) 총합을 센다.
+        /// ⚠ 유형만 바꾸고 나머지는 전부 고정한다.
+        /// </summary>
+        private static int TotalStatusDamage(string name, Discipline discipline)
+        {
+            MartialArt art = MartialArtFactory.Create(
+                "s_" + name, name, ArtKind.Attack, ArtTier.Major,
+                discipline, Alignment.Orthodox, "화산파");
+
+            int sessions = AlignmentCurve.SessionsToReach(
+                Alignment.Orthodox, MartialStage.ProficiencyForStage(MasterySessions));
+
+            var attacker = new Combatant(name, SpecStats(),
+                new List<LearnedArt> { new LearnedArt(art, sessions, Alignment.Orthodox) },
+                new List<DisciplineMastery>
+                {
+                    new DisciplineMastery(discipline, DisciplineCurve.SessionsToMaster(discipline)),
+                });
+            Combatant defender = Fighter("참정", MasterySessions);
+
+            int total = 0;
+            for (uint seed = 1; seed <= Seeds; seed++)
+            {
+                CombatResult r = CombatResolver.Resolve(attacker, defender, new XorShiftRandom(seed));
+                IReadOnlyList<CombatLogEntry> log = r.Log;
+                for (int i = 0; i < log.Count; i++)
+                {
+                    // 지속피해 줄은 `<이름> : 출혈 피해 N` 꼴이다 — 타격 줄(`→`)과 구분된다.
+                    string line = log[i].ToString();
+                    int mark = line.IndexOf("출혈 피해 ");
+                    if (mark < 0) continue;
+
+                    int start = mark + "출혈 피해 ".Length;
+                    int end = start;
+                    while (end < line.Length && line[end] >= '0' && line[end] <= '9') end++;
+                    if (end > start) total += int.Parse(line.Substring(start, end - start));
+                }
+            }
+            return total;
+        }
+
         /// <summary>같은 조건에서 앞 무공의 승률. 무승부는 0.5 로 센다.</summary>
         private static double WinRate(string nameA, string nameB)
         {

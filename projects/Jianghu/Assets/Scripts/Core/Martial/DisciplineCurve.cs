@@ -51,6 +51,9 @@ namespace Jianghu.Core.Martial
         private const int SpearMaxSpeed = 2;               // 창 — ⚠ 신설. 선공만으로는 전투당 1회라 크기가 안 나온다
         private const int FistMaxQiReductionPercent = 100; // 권 — 지치지 않는다 (50 → 100: 50%로는 회복에 묻혔다)
         private const int DaggerMaxStatusChance = 50;      // 비도 — 암기에 독을 바른다 (30 → 50)
+        // ⚠⚠ 2026-08-05 신설. 확률 축이 90%(상한 100)로 포화해 크기를 못 준다 —
+        //   근거와 경위는 아래 <see cref="StatusPotencyBonus"/> 주석.
+        private const int DaggerMaxStatusPotency = 3;      // 비도 — 만숙 시 상태이상 세기 +3
         /// <summary>
         /// 도 — 상대 방어를 무시하는 비율. **100 이 물리적 상한이다.**
         ///
@@ -158,6 +161,55 @@ namespace Jianghu.Core.Martial
         public static int StatusChanceBonus(Discipline discipline, int proficiency)
         {
             return discipline == Discipline.Dagger ? Scale(DaggerMaxStatusChance, proficiency) : 0;
+        }
+
+        /// <summary>
+        /// 비도 — 상태이상 **세기** 보너스(고정 가산). 2026-08-05 신설.
+        ///
+        /// ⚠⚠ **왜 확률이 아니라 세기인가 — 확률 축이 포화했기 때문이다.**
+        ///   부여확률은 `기본 30 + 형태소 10 + 비도숙달 50 = 90%` 이고 상한이 100 이다.
+        ///   즉 <see cref="DaggerMaxStatusChance"/> 를 아무리 올려도 **남은 여지가 10%p 뿐**이라
+        ///   크기를 줄 수 없다. 2026-08-05 에 *"비도 숙달을 키우자"* 는 안을 올렸다가
+        ///   이 상한을 확인하고 **단순판이 무효임을 알았다.**
+        ///   → HANDOFF §5 의 *"밸런싱이 막혔을 때 원인이 값이 아니라 표현력일 수 있다"* 와 같은 자리다.
+        ///     여기서는 표현력이 아니라 **축이 이미 천장에 닿아 있었다.**
+        ///
+        /// ⚠⚠ **왜 배수가 아니라 가산인가 (2026-08-05 사용자 확정 · `verify` 지적으로).**
+        ///   처음에 `세기 × 1.4` 로 만들었다가 되돌렸다. HANDOFF §5 가 *"숙련·성향 배율을 곱하지
+        ///   않는다 · 경지·버프도 곱셈으로 넣지 않는다"* 를 못박았는데, 배수판은 **비도 숙련도에
+        ///   정비례해 스케일하는 곱**이라 그 문언의 정면 대상이었다.
+        ///   ⚠ 그때 근거로 *"치명배율도 같은 자리에 있다"* 고 적었는데 **틀렸다** — 치명배율은
+        ///     숙련과 무관한 고정 상수다(`CombatResolver.BaseCritMultiplier`. 그 근처
+        ///     `PerformAction` 이 *"확률축에는 숙련 배율을 곱하지 않는다"* 고 적어 뒀다).
+        ///     비유가 성립하지 않았다.
+        ///   → 가산으로 바꾸면 이 축이 **직접가산형 넷과 같은 모양**이 된다 —
+        ///     검 명중 +7 · 창 선공 +25 · 창 속도 +2 · 비도 확률 +50.
+        ///
+        /// ⚠⚠ **단 "유형 숙달에 곱이 없다" 는 말은 사실이 아니다** (`verify` 2회차 지적).
+        ///   권(<see cref="QiCostReductionPercent"/>)과 도(<see cref="DefensePenetrationPercent"/>)는
+        ///   **이미 숙련도에 비례한 퍼센트를 다른 스탯에 곱한다** — 반려된 배수판과 같은 구조다.
+        ///   즉 이번 선택은 *"전례 없는 예외를 피했다"* 가 아니라 **"둘 중 더 단순한 쪽을 골랐다"** 이다.
+        ///   ⚠ 권·도의 곱셈 구조가 §5 위반인지는 **별건이며 판정된 적이 없다.** 여기서 단정하지 않는다.
+        ///
+        /// ⚠ **정체성은 안 바뀐다.** *"암기에 독을 바른다"* 를 확률이 아니라 **농도**로 읽는 것이며,
+        ///   `유형마다 특성 딱 하나` 규칙(위 §특성 주석)도 지켜진다 — 비도의 특성은 여전히
+        ///   **상태이상 하나**이고, 확률과 세기는 그 한 축의 두 표현이다.
+        ///   (창槍이 선공 + 속도 두 수치를 갖는 것과 같은 선례다 — <see cref="SpeedBonus"/>)
+        ///
+        /// ⚠⚠ **왜 지속(turns)이 아니라 세기(potency)인가** — 지속은 갱신 규칙과 엉킨다.
+        ///   화상은 갱신되지 않고(`CombatResolver.BurnTurns` 주석) 중독은 스택제라 지속 개념이 없다.
+        ///   턴을 건드리면 일곱 글자가 **서로 다른 방향으로** 움직인다. 세기는 전부 같은 뜻이다.
+        ///
+        /// ⚠⚠ **가산의 대가 — 상태이상마다 상대적 크기가 다르다.** 출혈 5 에 +3 은 +60% 지만
+        ///   중독 10 에 +3 은 +30% 다(`CombatResolver.BleedPotency`·`PoisonPotencyPerStack`).
+        ///   배수판에는 없던 성질이며, **약한 상태이상을 더 키우는 방향**이다.
+        ///   ⚠ 지금 비도 카탈로그 7종은 전부 독·혈이라 이 둘만 문제가 되고, 실측이 그 상태에서 나왔다.
+        /// ⚠ 동상(Frostbite)은 세기가 0 이라(스스로는 피해를 주지 않는다) 이 보너스가 닿지 않는다.
+        ///   **빙(氷)을 쓰는 비도 무공이 생기면 그 무공만 숙달이 죽는다.** 그때 다시 볼 것.
+        /// </summary>
+        public static int StatusPotencyBonus(Discipline discipline, int proficiency)
+        {
+            return discipline == Discipline.Dagger ? Scale(DaggerMaxStatusPotency, proficiency) : 0;
         }
 
         private static int Scale(int maxValue, int proficiency)

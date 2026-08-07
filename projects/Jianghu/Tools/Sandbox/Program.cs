@@ -225,6 +225,7 @@ namespace Jianghu.Sandbox
                 PrintSensitivity(stage);
             }
 
+            PrintDaggerMasteryCondition(techniques);
             PrintStartingViability();
             PrintSampleBattle(MartialStage.MaxStage);
 
@@ -1253,11 +1254,17 @@ namespace Jianghu.Sandbox
                 bool scoped = HasScopeMorpheme(a);
                 if (scoped) scopeCount++; else live.Add(rows[i].Value);
 
+                // ⚠⚠ **공격 합을 함께 찍는다** (2026-08-05). 순위표에 승률만 있어서 *"왜 이 무공이
+                //   바닥인가"* 를 물을 때마다 이름을 손으로 분해하고 있었다. 형태소 합은 파서가
+                //   이미 갖고 있으므로 **눈으로 세지 말고 도구가 내게** 한다(§5-D 와 같은 선).
+                //   ⚠ 이 값은 **형태소 합이지 실제 피해가 아니다** — 성향 숙련 배율·유형 숙달·
+                //     캐릭터 공격(만렙 8)이 그 위에 얹힌다. 무공끼리 비교하는 용도로만 읽을 것.
                 string school = a.IsWandererArt ? "(강호무학)" : a.School;
                 Console.Write("  " + (i + 1).ToString().PadLeft(2) + "  "
                               + Pad(a.Name, 26) + Pad(school, 12)
                               + Pad(Short(a.Discipline) + "·" + Short(a.Alignment), 8)
-                              + (rows[i].Value * 100).ToString("F1").PadLeft(6) + "%");
+                              + (rows[i].Value * 100).ToString("F1").PadLeft(6) + "%"
+                              + "  공" + a.Delta.Attack.ToString("F2").PadLeft(5));
                 if (scoped) Console.Write("  ⛔ 범위 · 판정 보류(1대1이라 이점이 없다)");
                 else if (rows[i].Value >= DominantThreshold) Console.Write("  ⚠ 지배 의심");
                 else if (rows[i].Value <= DeadThreshold) Console.Write("  ⚠ 죽은 선택지 의심");
@@ -1323,6 +1330,201 @@ namespace Jianghu.Sandbox
                                   + (g <= 30 ? " ✅" : " ⚠")
                                   + " · 표준편차 " + sd.ToString("F1").PadLeft(4) + "%p"
                                   + " · 평균 " + (avg * 100).ToString("F1") + "%");
+            }
+
+            PrintTierByDiscipline(tier, stage, rows);
+            PrintTierByAttackSum(tier, stage, rows);
+        }
+
+        /// <summary>
+        /// **공격 합이 승률을 설명하는가 — 2026-08-05 신설.**
+        ///
+        /// ⚠⚠ **순위표에 공격 합을 찍어 놓고 눈으로 상관을 읽으려다 그만뒀다.** 오늘만 두 번
+        ///   눈으로 세다 틀렸고(§4-8-2), 39종을 손으로 옮겨 적는 것 자체가 그 실수의 자리다.
+        ///   → **상관계수와 구간별 평균을 도구가 낸다.** 그래야 기준선에 남고 `--compare` 가 본다.
+        ///
+        /// ⚠ 상관은 인과가 아니다. 이 표가 답하는 것은 딱 하나 — *"공격 형태소를 조정하면
+        ///   계층 격차가 움직이는가"* 다. r² 이 작으면 **그 손잡이로는 격차를 못 고친다.**
+        /// ⚠ 범위 무공은 뺀다(대가만 내고 이점이 0 이라 관계를 통째로 왜곡한다).
+        /// </summary>
+        private static void PrintTierByAttackSum(
+            ArtTier tier, int stage, List<KeyValuePair<MartialArt, double>> rows)
+        {
+            var w = new List<double>();
+            var a = new List<double>();
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (HasScopeMorpheme(rows[i].Key)) continue;
+                w.Add(rows[i].Value * 100);
+                a.Add(rows[i].Key.Delta.Attack);
+            }
+            if (w.Count < 5) return;
+
+            double mw = 0, ma = 0;
+            for (int i = 0; i < w.Count; i++) { mw += w[i]; ma += a[i]; }
+            mw /= w.Count; ma /= a.Count;
+
+            double cov = 0, sw = 0, sa = 0;
+            for (int i = 0; i < w.Count; i++)
+            {
+                cov += (w[i] - mw) * (a[i] - ma);
+                sw += (w[i] - mw) * (w[i] - mw);
+                sa += (a[i] - ma) * (a[i] - ma);
+            }
+            if (sw <= 0 || sa <= 0) return;
+
+            double r = cov / (Math.Sqrt(sw) * Math.Sqrt(sa));
+            Console.WriteLine("     → 공격 합 vs 승률  r " + r.ToString("F3")
+                              + " · r² " + (r * r).ToString("F3")
+                              + ((r * r) < 0.25 ? "  ⚠ 공격 축으로는 격차를 못 고친다" : ""));
+            Metrics.Add("tier." + TierName(tier) + ".공격상관r." + stage + "성", r);
+
+            // 구간별 평균 — 상관계수 하나로는 **비선형(하한선)** 을 못 본다.
+            //   실제로 대문파는 "0.5 이하만 나쁘고 그 위로는 평평" 이라 r 이 작게 나온다.
+            double[] cuts = { 0.5, 1.5, 2.5 };
+            string[] names = { "≤0.5", "0.5~1.5", "1.5~2.5", ">2.5" };
+            for (int b = 0; b < 4; b++)
+            {
+                double sum = 0;
+                int n = 0;
+                for (int i = 0; i < w.Count; i++)
+                {
+                    int bucket = a[i] <= cuts[0] ? 0 : (a[i] <= cuts[1] ? 1 : (a[i] <= cuts[2] ? 2 : 3));
+                    if (bucket != b) continue;
+                    sum += w[i]; n++;
+                }
+                if (n == 0) continue;
+                Console.WriteLine("        공격 합 " + Pad(names[b], 9) + n.ToString().PadLeft(2) + "종 · 평균 "
+                                  + (sum / n).ToString("F1").PadLeft(5) + "%");
+                Metrics.Add("tier." + TierName(tier) + ".공격구간" + names[b] + ".평균." + stage + "성", sum / n);
+            }
+        }
+
+        /// <summary>
+        /// **계층을 유형(무기)으로도 가른다 — 2026-08-05 신설.**
+        ///
+        /// ⚠⚠ **성향 분해는 2026-08-04 에 만들었는데 유형 분해는 없었다.** 그래서 계층 격차를
+        ///   *"성향 때문인가 아닌가"* 로만 물을 수 있었고, 실제로 그렇게 물었다가 한 번 틀렸다
+        ///   (§4-8-2 — 지배 4종이 마도라고 세었는데 실은 **문파 편중**이었다).
+        ///
+        /// ⚠⚠ **유형은 성향과 달리 "의도된 차이" 라는 방패가 없다.** §3-3 이 성향 역전 순서를
+        ///   설계 의도로 못박은 것과 달리, 다섯 무기는 **서로 대등해야 한다** — 무기 선택이 곧
+        ///   문파 선택이므로 특정 무기가 구조적으로 밀리면 그 문파들이 통째로 밀린다.
+        ///
+        /// ⚠ **유형 민감도표(<see cref="PrintDisciplineSensitivity"/>)로는 이걸 못 본다.**
+        ///   그 표는 *같은 무공명*을 다섯 무기로 들려 재므로 공격방식이 고정된다. 그런데 실제
+        ///   카탈로그에서는 **공격방식과 유형이 1:1 로 묶여 있다**(사전 §3-1 주석: 69/71).
+        ///   비도 무공은 반드시 던지기(투척포사 · 공격 0.5 로 최약)를 쓰고, 검·도는 베기(공격 2)를 쓴다.
+        ///   → **두 페널티가 겹치는데 그 겹침이 어느 표에도 안 나온다.** 이 분해가 그 자리다.
+        /// </summary>
+        private static void PrintTierByDiscipline(
+            ArtTier tier, int stage, List<KeyValuePair<MartialArt, double>> rows)
+        {
+            // ⚠ 범위 무공은 성향 분해와 같은 이유로 뺀다(`AttackScope` 미연결이라 이점이 0).
+            var byKind = new Dictionary<Discipline, List<double>>();
+            for (int i = 0; i < rows.Count; i++)
+            {
+                MartialArt a = rows[i].Key;
+                if (HasScopeMorpheme(a)) continue;
+                if (!byKind.ContainsKey(a.Discipline)) byKind[a.Discipline] = new List<double>();
+                byKind[a.Discipline].Add(rows[i].Value);   // rows 가 이미 내림차순이라 순서 유지된다
+            }
+            if (byKind.Count < 2) return;
+
+            double bestAvg = double.MinValue;
+            double worstAvg = double.MaxValue;
+
+            foreach (KeyValuePair<Discipline, List<double>> kv in byKind)
+            {
+                double avg = 0;
+                for (int i = 0; i < kv.Value.Count; i++) avg += kv.Value[i];
+                avg /= kv.Value.Count;
+
+                Metrics.Add("tier." + TierName(tier) + ".유형." + DisciplineName(kv.Key) + ".평균." + stage + "성",
+                    avg * 100);
+                Console.WriteLine("     └ " + Pad(DisciplineName(kv.Key), 5)
+                                  + kv.Value.Count.ToString().PadLeft(2) + "종 · 평균 "
+                                  + (avg * 100).ToString("F1").PadLeft(5) + "%"
+                                  + " · 최고 " + (kv.Value[0] * 100).ToString("F1").PadLeft(5)
+                                  + " · 최저 " + (kv.Value[kv.Value.Count - 1] * 100).ToString("F1").PadLeft(5));
+
+                // ⚠ 1종짜리 유형은 평균이 곧 그 무공이라 격차 판정에 넣으면 표본 착시가 된다.
+                if (kv.Value.Count < 2) continue;
+                if (avg > bestAvg) bestAvg = avg;
+                if (avg < worstAvg) worstAvg = avg;
+            }
+
+            if (bestAvg == double.MinValue || worstAvg == double.MaxValue) return;
+
+            double spread = (bestAvg - worstAvg) * 100;
+            Console.WriteLine("     → 유형 평균 격차 " + spread.ToString("F1") + "%p"
+                              + (spread <= 10 ? " ✅" : " ⚠") + " (2종 이상인 유형만)");
+            Metrics.Add("tier." + TierName(tier) + ".유형평균격차." + stage + "성", spread);
+        }
+
+        /// <summary>
+        /// **유형 숙달이 실제로 발동하는 무공의 비율 — 2026-08-05 신설 (사용자 지적으로).**
+        ///
+        /// ⚠⚠ **비도(飛刀)의 숙달만 조건부다.** `DisciplineCurve.cs:47` 이 이미 적어 뒀다 —
+        ///   *"비도(상태) — 상태이상 형태소를 넣은 무공에서만. 실측 기여 +4.9%p"*.
+        ///   검(명중)·창(선공·속도)·도(방어관통)는 무공 구성과 무관하게 항상 걸리고,
+        ///   권(기력 −100%)은 구성이 아니라 **런타임 조건**(기력이 말라야 한다)이다.
+        ///
+        /// ⚠⚠ **그래서 "비도 숙달을 손보자" 는 안에는 숨은 전제가 있다 — 비도 무공이 전부
+        ///   상태이상을 갖는가.** 세어 보지 않고 그 안을 올렸다가 사용자가 잡았다.
+        ///   → 전제를 사람 기억이 아니라 **도구가 매번 세게** 한다.
+        ///
+        /// ⚠ 판정은 **이름 문자열이 아니라 파싱된 델타**로 한다(§4-8 과 같은 이유 —
+        ///   한글 한 글자가 키라 문자 대조는 틀린다).
+        /// </summary>
+        private static void PrintDaggerMasteryCondition(List<MartialArt> all)
+        {
+            Console.WriteLine();
+            Console.WriteLine("██ 비도(飛刀) 숙달 발동 조건 — 상태이상 형태소가 있어야 값을 한다 ██");
+            Console.WriteLine("     ⚠ 다른 넷은 무조건 발동한다. 비도만 무공 구성에 걸려 있다");
+
+            int met = 0, total = 0;
+            for (int i = 0; i < all.Count; i++)
+            {
+                MartialArt a = all[i];
+                // ⚠ 넘겨받는 `all` 은 `MartialArtCatalog.Techniques()`(공격 초식)라 종류 필터가 필요 없다.
+                if (a.Discipline != Discipline.Dagger) continue;
+
+                total++;
+                bool has = HasStatusMorpheme(a);
+                if (has) met++;
+
+                Console.WriteLine("     " + (has ? "✅" : "❌") + "  " + Pad(a.Name, 12)
+                                  + Pad(TierName(a.Tier), 12)
+                                  + (a.IsWandererArt ? "(강호무학)" : a.School)
+                                  + (has ? "" : "   ⚠ 숙달이 통째로 죽는다"));
+            }
+
+            if (total == 0) return;
+            double rate = met * 100.0 / total;
+            Console.WriteLine("     → 충족 " + met + "/" + total + " (" + rate.ToString("F1") + "%)");
+            Metrics.Add("discipline.비도.숙달조건충족률", rate);
+        }
+
+        /// <summary>상태이상 형태소를 하나라도 가졌는가. 델타로 판정한다(문자열 대조 금지).</summary>
+        private static bool HasStatusMorpheme(MartialArt art)
+        {
+            ArtStatDelta d = art.Delta;
+            return d.PoisonChance > 0 || d.BleedChance > 0 || d.BurnChance > 0
+                   || d.FrostbiteChance > 0 || d.QiDrainChance > 0 || d.StaggerChance > 0
+                   || d.ParalysisStack > 0;
+        }
+
+        private static string DisciplineName(Discipline d)
+        {
+            switch (d)
+            {
+                case Discipline.Sword: return "검";
+                case Discipline.Blade: return "도";
+                case Discipline.Spear: return "창";
+                case Discipline.Fist: return "권";
+                case Discipline.Dagger: return "비도";
+                default: return d.ToString();
             }
         }
 
