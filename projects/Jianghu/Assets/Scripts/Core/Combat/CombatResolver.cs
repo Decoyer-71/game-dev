@@ -605,6 +605,27 @@ namespace Jianghu.Core.Combat
             int qiCost = free ? 0 : EffectiveQiCost(chosen.Art, mastery, actor.Def);  // 내공(식息) + 권 숙달 → 소모 감소
             actor.Qi -= qiCost;
 
+            StrikeTarget(turn, actor, target, chosen, mastery, qiCost, extra, rng, log);
+        }
+
+        /// <summary>
+        /// **한 대상에게 실제로 때린다** — 명중·치명·막기·피해·상태이상·반격.
+        ///
+        /// ⚠⚠ **2026-08-09 에 <see cref="PerformAction"/> 에서 갈라냈다. 동작은 한 줄도 안 바꿨다.**
+        ///   가른 선은 **행동 단위 / 대상 단위**다:
+        ///     · 행동 단위(`PerformAction`) — 무공 선택 · 기력 차감 · 행동 계수. **행동당 한 번**
+        ///     · 대상 단위(이 함수)       — 명중부터 반격까지. **맞는 사람마다 한 번**
+        ///   1대1에서는 둘이 붙어 있어도 구분이 없었지만, **범위 무공은 한 행동에 여럿을 때린다.**
+        ///   기력을 대상 수만큼 내면 안 되므로 이 선이 필요하다(`docs/multi-combat-plan.md`).
+        ///
+        /// ⚠ 이 갈라내기 자체는 **밸런스에 영향이 0** 이어야 한다 — `--compare` 바뀜 0 으로 확인했다.
+        /// ⚠ `qiCost` 는 **로그 표기용으로만** 받는다. 차감은 이미 `PerformAction` 이 했다.
+        ///   범위 무공에서 두 번째 대상부터 0 을 넘기면 *"한 번 냈다"* 가 로그에 그대로 보인다.
+        /// </summary>
+        private static void StrikeTarget(
+            int turn, Fighter actor, Fighter target, LearnedArt chosen, int mastery, int qiCost,
+            bool extra, IRandomSource rng, List<CombatLogEntry> log)
+        {
             int attempts = chosen.Art.HitCount < 1 ? 1 : chosen.Art.HitCount;
             int basePerHit = DamagePerHit(actor.Def, target.Def, chosen, attempts, mastery);
 
