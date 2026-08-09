@@ -383,6 +383,13 @@ namespace Jianghu.Core.Combat
             public int StaggerLockTurns;
             public bool IsDown => Health <= 0;
 
+            /// <summary>
+            /// 어느 편인가 — <see cref="TeamSideA"/> 또는 <see cref="TeamSideB"/>.
+            /// ⚠ 1대1 <see cref="Resolve"/> 는 이 값을 쓰지 않는다(양쪽 다 기본값 0 으로 남는다).
+            ///   팀 전투에서 **큐 하나에 양 팀이 섞여 서므로** 자기 적이 누구인지 표시가 필요하다.
+            /// </summary>
+            public int Team;
+
             /// <summary>낸 행동 수 — 평타 전락률의 분모.</summary>
             public int Actions;
 
@@ -747,6 +754,323 @@ namespace Jianghu.Core.Combat
 
             // 5) 맞은 쪽이 받아친다.
             if (landed > 0 && !target.IsDown) Counter(turn, target, actor, rng, log);
+        }
+
+        // ─────────────────────────── 다대다 (팀 전투) ───────────────────────────
+
+        /// <summary>A 팀 표식. <see cref="Fighter.Team"/> 에 들어간다.</summary>
+        private const int TeamSideA = 0;
+        private const int TeamSideB = 1;
+
+        /// <summary>
+        /// 이니셔티브 동률을 가르는 난수의 폭. 값 자체에 의미는 없다 —
+        /// 같은 값이 또 나와도 등록 순서로 갈리므로 결정론은 유지된다.
+        /// </summary>
+        private const int TieBreakRange = 1 << 16;
+
+        /// <summary>큐 한 자리. 정렬을 위해 이니셔티브 외에 동률 난수와 등록 순서를 함께 든다.</summary>
+        private struct QueueSlot
+        {
+            public Fighter Actor;
+            public int Tie;
+            public int Order;
+        }
+
+        /// <summary>
+        /// 정렬 규칙을 델리게이트로 한 번만 만들어 둔다 — 경합마다 새로 만들 이유가 없다.
+        /// </summary>
+        private static readonly Comparison<QueueSlot> QueueOrder = CompareQueueSlots;
+
+        /// <summary>
+        /// **팀 대 팀 전투.** 1대1 <see cref="Resolve"/> 의 <b>형제 메서드</b>다.
+        ///
+        /// ⚠⚠ <see cref="Resolve"/> 를 고치지 않는다. 개체 단위 헬퍼(<see cref="PerformActionOnTeam"/> 가 부르는
+        ///   <see cref="SelectArt"/>·<see cref="StrikeTarget"/>·<see cref="TickStatuses"/>·<see cref="Regenerate"/>)는
+        ///   **전부 공유**하고, 갈라지는 것은 <b>턴 루프와 승패 판정뿐</b>이다.
+        ///   근거와 그 대가는 <c>docs/multi-combat-plan.md</c> §3-2 — *"한 값을 두 곳에서 따로 계산하면 언젠가 갈라진다"*.
+        ///
+        /// **한 경합(round)의 진행** (설계 §D2):
+        ///   1. 살아 있는 전원이 기력을 <b>1회</b> 회복한다
+        ///   2. 살아 있는 전원을 <see cref="Combatant.Initiative"/> 내림차순으로 세운다. 동률은 난수
+        ///   3. 큐 순서대로 각자 1회 행동한다 — 그 사이에 쓰러진 사람은 자기 차례를 건너뛴다
+        ///
+        /// ⚠⚠ 정렬 키는 <b>속도가 아니라 이니셔티브</b>다. 둘은 2026-07-31 에 일부러 갈라 뒀고
+        ///   (<c>Combatant.Initiative</c> 주석), 속도를 순서에 쓰면 창을 든 사람이 추가 행동까지 독식한다.
+        ///   순서 = 이니셔티브 · 추가 행동 = 속도라는 현행 역할 분리를 그대로 옮긴 것이다.
+        ///
+        /// ⚠⚠ 회복이 <b>경합 시작 1회</b>인 것은 1대1이 턴 시작에 <c>Regenerate(a); Regenerate(d);</c> 로
+        ///   양쪽 동시에 부르는 것을 라운드 단위로 옮긴 것이다. *"각자 자기 차례 직전"* 으로 바꾸면
+        ///   기력 압력 축(인계 §4-3)의 캘리브레이션이 **조용히** 달라진다.
+        ///
+        /// ⚠ 진형(전열/후열)은 <b>아직 없다</b> — 대상은 살아 있는 적 중 무작위다.
+        ///   설계 §4 의 4단계에서 <c>BattleRow</c>·<c>RowOf</c>·우선 열 규칙이 이 자리에 들어온다.
+        /// </summary>
+        /// <param name="maxRounds">이 경합을 넘기면 무승부. 1대1의 최대 턴과 같은 장치다.</param>
+        public static TeamCombatResult ResolveTeams(
+            IReadOnlyList<Combatant> teamA, IReadOnlyList<Combatant> teamB,
+            IRandomSource rng, int maxRounds = DefaultMaxTurns)
+        {
+            if (teamA == null) throw new ArgumentNullException(nameof(teamA));
+            if (teamB == null) throw new ArgumentNullException(nameof(teamB));
+            if (rng == null) throw new ArgumentNullException(nameof(rng));
+            if (teamA.Count < 1) throw new ArgumentException("팀에는 한 명 이상이 있어야 한다.", nameof(teamA));
+            if (teamB.Count < 1) throw new ArgumentException("팀에는 한 명 이상이 있어야 한다.", nameof(teamB));
+            if (maxRounds < 1) throw new ArgumentOutOfRangeException(nameof(maxRounds), "최대 경합은 1 이상이어야 한다.");
+
+            Fighter[] a = NewTeam(teamA, TeamSideA);
+            Fighter[] b = NewTeam(teamB, TeamSideB);
+            var log = new List<CombatLogEntry>();
+            var queue = new List<QueueSlot>(a.Length + b.Length);
+            var targets = new List<Fighter>(a.Length + b.Length);
+
+            int round = 0;
+            while (round < maxRounds && AnyAlive(a) && AnyAlive(b))
+            {
+                round++;
+
+                // 1) 회복 — 생존자 전원 1회. `Regenerate` 가 쓰러진 사람은 스스로 걸러낸다.
+                for (int i = 0; i < a.Length; i++) Regenerate(a[i]);
+                for (int i = 0; i < b.Length; i++) Regenerate(b[i]);
+
+                // 2) 큐를 다시 세운다. **생존자 구성이 경합마다 바뀌기 때문**이고, 그것이 유일한 이유다.
+                BuildQueue(queue, a, b, rng);
+
+                // 3) 순서대로 1회씩.
+                for (int i = 0; i < queue.Count; i++)
+                {
+                    Fighter actor = queue[i].Actor;
+                    if (actor.IsDown) continue;   // 이 경합 안에서 이미 쓰러졌다 — 큐는 경합 시작에 한 번 만들어진다
+
+                    Fighter[] enemies = actor.Team == TeamSideA ? b : a;
+                    if (!AnyAlive(enemies)) break;
+
+                    ActTeam(round, actor, enemies, rng, targets, log);
+                    if (!AnyAlive(a) || !AnyAlive(b)) break;
+                }
+            }
+
+            bool aAlive = AnyAlive(a);
+            bool bAlive = AnyAlive(b);
+
+            TeamOutcome outcome;
+            if (aAlive && !bAlive) outcome = TeamOutcome.TeamAWin;
+            else if (bAlive && !aAlive) outcome = TeamOutcome.TeamBWin;
+            else outcome = TeamOutcome.Draw;   // 최대 경합 도달 또는 동시 전멸(출혈사)
+
+            return new TeamCombatResult(
+                outcome, round, HealthOf(a), HealthOf(b), log,
+                ActionsOf(a), BasicStrikesOf(a), ActionsOf(b), BasicStrikesOf(b));
+        }
+
+        private static Fighter[] NewTeam(IReadOnlyList<Combatant> team, int side)
+        {
+            var fighters = new Fighter[team.Count];
+            for (int i = 0; i < team.Count; i++)
+            {
+                if (team[i] == null) throw new ArgumentNullException(nameof(team), "팀에 비어 있는 자리가 있다.");
+                fighters[i] = NewFighter(team[i]);
+                fighters[i].Team = side;
+            }
+            return fighters;
+        }
+
+        private static void BuildQueue(List<QueueSlot> queue, Fighter[] a, Fighter[] b, IRandomSource rng)
+        {
+            queue.Clear();
+            AddAliveToQueue(queue, a, rng);
+            AddAliveToQueue(queue, b, rng);
+            queue.Sort(QueueOrder);
+        }
+
+        private static void AddAliveToQueue(List<QueueSlot> queue, Fighter[] team, IRandomSource rng)
+        {
+            for (int i = 0; i < team.Length; i++)
+            {
+                if (team[i].IsDown) continue;
+                queue.Add(new QueueSlot
+                {
+                    Actor = team[i],
+                    Tie = rng.Range(0, TieBreakRange),
+                    Order = queue.Count,
+                });
+            }
+        }
+
+        /// <summary>
+        /// 이니셔티브 내림차순. 동률이면 난수, 그것도 같으면 등록 순서.
+        ///
+        /// ⚠⚠ 동률 난수를 **정렬 중에** 굴리지 않고 미리 뽑아 두는 것이 요점이다.
+        ///   비교 함수 안에서 굴리면 같은 두 항목을 비교할 때마다 답이 달라져
+        ///   <c>List.Sort</c> 가 *"비교자가 일관되지 않다"* 로 던진다.
+        /// </summary>
+        private static int CompareQueueSlots(QueueSlot x, QueueSlot y)
+        {
+            int c = y.Actor.Def.Initiative.CompareTo(x.Actor.Def.Initiative);
+            if (c != 0) return c;
+            c = y.Tie.CompareTo(x.Tie);
+            if (c != 0) return c;
+            return x.Order.CompareTo(y.Order);
+        }
+
+        /// <summary>
+        /// 팀 전투에서의 한 사람 차례. 1대1 <see cref="Act"/> 와 <b>같은 순서</b>를 따른다 —
+        /// 상태이상 진행 → 마비 판정 → 행동 → 추가 행동.
+        ///
+        /// ⚠ 추가 행동의 속도 비교 상대는 **그 행동이 실제로 고른 첫 대상**이다.
+        ///   1대1에서는 상대가 하나뿐이라 물음 자체가 없던 값이고, 여럿을 때리는 행동에서는
+        ///   기준이 하나 필요하다. 첫 대상으로 잡는 이유는 그것이 **그 행동의 주 대상**이기 때문이다
+        ///   (범위 무공에서도 우선 열부터 채운 첫 사람이 된다 — 설계 §D4).
+        /// ⚠ 아무도 못 때렸으면(적이 전멸) 추가 행동도 없다.
+        /// </summary>
+        private static void ActTeam(
+            int round, Fighter actor, Fighter[] enemies, IRandomSource rng,
+            List<Fighter> targets, List<CombatLogEntry> log)
+        {
+            TickStatuses(round, actor, log);
+            if (actor.IsDown) return;
+
+            if (actor.StaggerLockTurns > 0) actor.StaggerLockTurns--;
+
+            if (actor.ParalyzeTurns > 0)
+            {
+                actor.ParalyzeTurns--;
+                log.Add(CombatLogEntry.Incapacitated(round, actor.Def.Name, "마비"));
+                return;
+            }
+
+            Fighter primary = PerformActionOnTeam(round, actor, enemies, rng, targets, log);
+            if (actor.IsDown || primary == null) return;
+            if (!AnyAlive(enemies)) return;
+
+            // 절대경지 쌍(雙) — 확정 1회. 속공 판정을 건너뛰는 것도 1대1과 같다.
+            // ⚠ 두 번째 행동은 **대상을 다시 고른다**(설계 §D5) — `PerformActionOnTeam` 이 매번 새로 고르므로
+            //   따로 할 일이 없다. 같은 대상을 두 번 치게 만들면 그것은 집중 공격 정책을 규칙에 박는 것이다.
+            if (actor.Def.ActsTwice)
+            {
+                PerformActionOnTeam(round, actor, enemies, rng, targets, log, extra: true, free: true);
+                return;
+            }
+
+            int advantage = actor.Def.Speed - primary.Def.Speed;
+            if (advantage <= 0) return;
+
+            int extraChance = Clamp(advantage * ExtraActionPercentPerSpeed, 0, MaxExtraActionChance);
+            if (!rng.Chance(extraChance)) return;
+
+            PerformActionOnTeam(round, actor, enemies, rng, targets, log, extra: true);
+        }
+
+        /// <summary>
+        /// 초식 하나를 **여러 대상에게** 쓴다. 1대1 <see cref="PerformAction"/> 의 팀 판이다.
+        ///
+        /// ⚠⚠ **행동 단위와 대상 단위의 구분이 여기서 실제로 쓰인다**(2026-08-09 갈라낸 선):
+        ///   무공 선택·기력 차감·행동 계수는 **행동당 1회**, <see cref="StrikeTarget"/> 은 **맞는 사람마다 1회**.
+        ///   범위 무공이 기력을 대상 수만큼 내면 안 된다.
+        /// ⚠ 로그의 기력 표기는 **첫 대상에만** 붙인다. 두 번째부터 0 이 보이는 것이
+        ///   *"한 번 냈다"* 를 그대로 드러낸다.
+        /// ⚠ 반격에 맞아 행동자가 쓰러지면 남은 대상은 때리지 못한다 — 죽은 사람이 계속 치면 안 된다.
+        /// </summary>
+        /// <returns>실제로 고른 첫 대상. 때릴 상대가 없었으면 null.</returns>
+        private static Fighter PerformActionOnTeam(
+            int round, Fighter actor, Fighter[] enemies, IRandomSource rng,
+            List<Fighter> targets, List<CombatLogEntry> log,
+            bool extra = false, bool free = false)
+        {
+            LearnedArt chosen = SelectArt(actor, free);
+
+            actor.Actions++;
+            if (ReferenceEquals(chosen, BasicStrike)) actor.BasicStrikes++;
+
+            int mastery = actor.Def.MasteryOf(chosen.Art.Discipline);
+            int qiCost = free ? 0 : EffectiveQiCost(chosen.Art, mastery, actor.Def);
+            actor.Qi -= qiCost;
+
+            PickTargets(enemies, TargetCount(chosen.Art.Scope), rng, targets);
+            if (targets.Count == 0) return null;
+
+            Fighter primary = targets[0];
+            for (int i = 0; i < targets.Count; i++)
+            {
+                StrikeTarget(round, actor, targets[i], chosen, mastery, i == 0 ? qiCost : 0, extra, rng, log);
+                if (actor.IsDown) break;
+            }
+
+            return primary;
+        }
+
+        /// <summary>
+        /// 범위(<see cref="AttackScope"/>)가 정한 대상 수. <see cref="AttackScope.All"/> 은 살아 있는 전원이다.
+        /// </summary>
+        private static int TargetCount(AttackScope scope)
+        {
+            switch (scope)
+            {
+                case AttackScope.Two: return 2;
+                case AttackScope.Three: return 3;
+                case AttackScope.All: return int.MaxValue;
+                default: return 1;
+            }
+        }
+
+        /// <summary>
+        /// 살아 있는 적 중에서 <paramref name="count"/> 명을 <b>중복 없이</b> 고른다.
+        /// 살아 있는 적이 그보다 적으면 있는 만큼만(설계 §D4).
+        ///
+        /// ⚠⚠ **진형은 아직 없다.** 지금은 생존자 전체에서 무작위로 고른다 —
+        ///   설계 §4 의 4단계에서 *"우선 열부터 채우고 모자라면 반대 열"* 이 이 함수에 들어온다.
+        ///   그때 바뀌는 것은 **후보의 순서**이지 이 함수의 자리나 호출부가 아니다.
+        /// ⚠ 전원을 때리는 경우에는 난수를 **쓰지 않는다.** 고를 것이 없기 때문이다 —
+        ///   쓸데없이 굴리면 같은 시드의 전개가 대상 수에 따라 흔들려 비교가 어려워진다.
+        /// </summary>
+        private static void PickTargets(Fighter[] enemies, int count, IRandomSource rng, List<Fighter> into)
+        {
+            into.Clear();
+            for (int i = 0; i < enemies.Length; i++)
+            {
+                if (!enemies[i].IsDown) into.Add(enemies[i]);
+            }
+
+            if (count >= into.Count) return;
+
+            // 부분 피셔-예이츠 — 앞 `count` 자리만 채우고 나머지는 버린다.
+            for (int i = 0; i < count; i++)
+            {
+                int j = i + rng.Range(0, into.Count - i);
+                Fighter swap = into[i];
+                into[i] = into[j];
+                into[j] = swap;
+            }
+            into.RemoveRange(count, into.Count - count);
+        }
+
+        private static bool AnyAlive(Fighter[] team)
+        {
+            for (int i = 0; i < team.Length; i++)
+            {
+                if (!team[i].IsDown) return true;
+            }
+            return false;
+        }
+
+        private static int[] HealthOf(Fighter[] team)
+        {
+            var health = new int[team.Length];
+            for (int i = 0; i < team.Length; i++) health[i] = team[i].Health;
+            return health;
+        }
+
+        private static int ActionsOf(Fighter[] team)
+        {
+            int n = 0;
+            for (int i = 0; i < team.Length; i++) n += team[i].Actions;
+            return n;
+        }
+
+        private static int BasicStrikesOf(Fighter[] team)
+        {
+            int n = 0;
+            for (int i = 0; i < team.Length; i++) n += team[i].BasicStrikes;
+            return n;
         }
 
         /// <summary>

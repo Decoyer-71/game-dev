@@ -206,10 +206,17 @@ namespace Jianghu.Core.Martial
             Effects = effects ?? NoEffects;
         }
 
-        /// <summary>공격 초식을 만든다. 유형은 검·도·권 중 하나여야 한다.</summary>
+        /// <summary>
+        /// 공격 초식을 만든다. 유형은 검·도·권 중 하나여야 한다.
+        ///
+        /// ⚠ <paramref name="scope"/> 는 2026-08-09 에 붙였다. 형태소 무공은 이름이 범위를 정하지만
+        ///   (<see cref="FromMorphemes"/>), 이 손수 만드는 통로에는 그 값을 넣을 자리가 아예 없어
+        ///   **범위를 가진 초식을 테스트에서 만들 수 없었다.** 기본값이 단일이라 기존 호출부는 무영향이다.
+        /// </summary>
         public static MartialArt Technique(
             string id, string name, Discipline discipline, Alignment? alignment,
             int basePower, int qiCost, int hitCount = 1, int accuracyBonus = 0, string school = null,
+            AttackScope scope = AttackScope.Single,
             params StatusApplication[] effects)
         {
             if (discipline.IsSupport())
@@ -220,7 +227,8 @@ namespace Jianghu.Core.Martial
             if (qiCost < 0) throw new ArgumentOutOfRangeException(nameof(qiCost));
             if (hitCount < 1) throw new ArgumentOutOfRangeException(nameof(hitCount), "타격 횟수는 1 이상이어야 한다.");
 
-            return new MartialArt(id, name, school, discipline, alignment, basePower, qiCost, hitCount, accuracyBonus, 0, 0, 0, 0, effects);
+            return new MartialArt(id, name, school, discipline, alignment, basePower, qiCost, hitCount, accuracyBonus, 0, 0, 0, 0, effects,
+                scope: scope);
         }
 
         /// <summary>보조 무공을 만든다. 유형은 내공·경공 중 하나여야 한다.</summary>
