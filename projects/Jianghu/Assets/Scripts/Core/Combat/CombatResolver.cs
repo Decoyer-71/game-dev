@@ -697,7 +697,9 @@ namespace Jianghu.Core.Combat
             if (target.Health < 0) target.Health = 0;
 
             // 4) 명중했으면 상태이상 부여를 판정한다.
-            string note = landed > 0 ? ApplyEffects(turn, actor, target, chosen.Art, mastery, rng, log) : null;
+            string note = landed > 0
+                ? ApplyEffects(turn, actor, target, chosen.Art, mastery, chosen.Proficiency, rng, log)
+                : null;
 
             // ⚠ 치명은 로그에 **반드시 보여야 한다.** 안 보이면 "왜 갑자기 크게 맞았지" 가 남고,
             //   그건 설계 §1 의 반증 조건 1("차이를 체감할 수 없다")에 그대로 걸린다.
@@ -852,7 +854,7 @@ namespace Jianghu.Core.Combat
 
         /// <summary>명중한 초식의 상태이상 부여를 판정한다. 로그에 붙일 설명을 돌려준다.</summary>
         private static string ApplyEffects(
-            int turn, Fighter actor, Fighter target, MartialArt art, int mastery,
+            int turn, Fighter actor, Fighter target, MartialArt art, int mastery, int artProficiency,
             IRandomSource rng, List<CombatLogEntry> log)
         {
             // ⚠⚠ **절대경지 면(免) — 모든 상태이상 면역** (2026-08-02 신설).
@@ -879,7 +881,10 @@ namespace Jianghu.Core.Combat
                 // 비도 숙달 → 상태이상이 더 **세게** 걸린다 (2026-08-05 신설).
                 // ⚠ 확률 축은 이미 90%(상한 100)로 포화라 크기를 못 준다. **가산**이다 —
                 //   경위는 `DisciplineCurve.StatusPotencyBonus` 주석.
-                int potencyBonus = DisciplineCurve.StatusPotencyBonus(art.Discipline, mastery);
+                // ⚠⚠ 2026-08-08 — 이 축의 구동자가 **유형 숙련도 → 무공 숙련도**로 바뀌었다.
+                //   비도가 후반에만 시들던 원인이 여기였다. 같은 주석에 전문이 있다.
+                //   ⚠ 위 확률 축(`chanceBonus`)은 여전히 `mastery`(유형 숙련도)를 탄다. 둘은 다른 축이다.
+                int potencyBonus = DisciplineCurve.StatusPotencyBonus(art.Discipline, artProficiency);
                 return ApplyMorphemeStatus(turn, target, art, chanceBonus, potencyBonus, rng, log);
             }
 

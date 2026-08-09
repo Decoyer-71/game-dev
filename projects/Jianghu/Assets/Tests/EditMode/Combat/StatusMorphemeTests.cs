@@ -234,17 +234,47 @@ namespace Jianghu.Tests.Combat
         }
 
         /// <summary>
+        /// **비도의 상태이상 세기는 무공 숙련도를 탄다** (2026-08-08 신설 · `DisciplineCurve` 주석).
+        ///
+        /// ⚠⚠ 2026-08-05 판은 `Scale(3, 유형 숙련도)` 라 **경지와 무관하게 항상 +3** 이었다.
+        ///   그래서 비도만 후반에 시들었다 — 직접 피해는 `PowerMultiplier` 로 경지 배율을 타는데
+        ///   상태이상은 그 곱셈 사슬 밖에서 절대량을 깎기 때문이다(대문파 유형 평균 3성 58.7 →
+        ///   10성 47.0. 다른 넷은 −0.4 ~ +4.7). 구동자를 **무공 숙련도**로 갈아 끼운 것이 이 규칙이다.
+        ///
+        /// ⚠ **검을 대조군으로 함께 잰다.** 경지가 오르면 전투가 빨리 끝나 지속피해 총량 자체가
+        ///   줄 수 있으므로, 절대값이 아니라 **비도−검 차이가 벌어지는가**를 본다.
+        ///   검에는 이 보너스가 0 이라 차이는 곧 비도 숙달분이다.
+        /// </summary>
+        [Test]
+        public void 비도의_상태이상_세기는_무공_숙련도를_탄다()
+        {
+            int early = TotalStatusDamage("참정혈", Discipline.Dagger, 3)
+                        - TotalStatusDamage("참정혈", Discipline.Sword, 3);
+            int late = TotalStatusDamage("참정혈", Discipline.Dagger, MartialStage.MaxStage)
+                       - TotalStatusDamage("참정혈", Discipline.Sword, MartialStage.MaxStage);
+
+            Assert.Greater(late, early,
+                "10성에서 비도의 상태이상 우위가 3성보다 크지 않다 — 세기 보너스가 무공 숙련도를 "
+                + "타지 않는다는 뜻이다(구동자가 유형 숙련도로 되돌아갔는지 확인할 것).");
+        }
+
+        /// <summary>
         /// 200판에서 지속피해(`피해 N` 이 아니라 상태이상 틱) 총합을 센다.
         /// ⚠ 유형만 바꾸고 나머지는 전부 고정한다.
         /// </summary>
         private static int TotalStatusDamage(string name, Discipline discipline)
+        {
+            return TotalStatusDamage(name, discipline, MasterySessions);
+        }
+
+        private static int TotalStatusDamage(string name, Discipline discipline, int stage)
         {
             MartialArt art = MartialArtFactory.Create(
                 "s_" + name, name, ArtKind.Attack, ArtTier.Major,
                 discipline, Alignment.Orthodox, "화산파");
 
             int sessions = AlignmentCurve.SessionsToReach(
-                Alignment.Orthodox, MartialStage.ProficiencyForStage(MasterySessions));
+                Alignment.Orthodox, MartialStage.ProficiencyForStage(stage));
 
             var attacker = new Combatant(name, SpecStats(),
                 new List<LearnedArt> { new LearnedArt(art, sessions, Alignment.Orthodox) },
