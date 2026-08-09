@@ -1219,15 +1219,39 @@ namespace Jianghu.Sandbox
         /// <summary>한 계층 안에서 전수 대전을 돌려 순위를 낸다.</summary>
         private static void PrintRanking(List<MartialArt> all, ArtTier tier, int stage)
         {
+            // ⚠⚠ **범위 무공을 토너먼트에서 뺀다** (2026-08-08 사용자 확정 · `verify` 통과).
+            //   그전에는 범위 무공을 **참가시킨 뒤 격차·σ 계산에서만** 뺐다(아래 `live`).
+            //   그것으로는 **1차 오염(범위 무공 자신의 승률)만** 지워지고
+            //   **2차 오염 — 다른 무공이 그 샌드백을 이겨서 얻은 승률 — 은 그대로 남는다.**
+            //
+            //   실측(10성, 이 변경 전후):
+            //     · 대문파  평균±2σ 39.5~65.7 ⚠ → **36.7~63.0 ✅** (평균 52.7 → 49.9)
+            //     · 전승    38.3~74.9 ⚠ → 29.0~71.0 ⚠ (σ 9.1 → 10.5)
+            //     · `마한중참` 67.1 → **62.0** — 지배 의심이 사라진다
+            //     · `황야환투` 37.4 → **28.0 ⚠ 죽은 선택지** — 더 심한 샌드백(`만우쾌사` 3.7)에 가려져 있었다
+            //   → **오염이 양방향이다**: 상단을 부풀리고(모두가 샌드백을 이긴다),
+            //     동시에 약한 무공을 가린다(더 심한 것이 밑에 깔려 있으면 덜 나빠 보인다).
+            //
+            //   ⚠ 강호무학·소문파는 영향이 없다. 우연이 아니라 `ArtCompositionRule` 이
+            //     **범위 형태소를 대문파 이상으로 제한**하기 때문이다.
+            //   ⚠⚠ **이것은 "미래의 참값" 이 아니다.** 다대다가 붙으면 범위 무공은 사라지는 것이
+            //     아니라 **경쟁력 있는 상태로 토너먼트에 돌아온다.** 지금 재는 것은
+            //     *"샌드백 왜곡의 크기"* 이지 *"범위 무공이 제 몫을 했을 때의 값"* 이 아니다.
+            //   ⚠ 범위 무공을 **버리지 않는다** — 아래에서 깨끗한 집단을 상대로 따로 재서 낸다.
+            //     승률에는 손대지 않는다. Phase 3 가 붙으면 판정 보류를 풀고 다시 잰다.
             var group = new List<MartialArt>();
+            var scoped = new List<MartialArt>();
             for (int i = 0; i < all.Count; i++)
             {
-                if (all[i].Tier == tier) group.Add(all[i]);
+                if (all[i].Tier != tier) continue;
+                if (HasScopeMorpheme(all[i])) scoped.Add(all[i]); else group.Add(all[i]);
             }
             if (group.Count < 2) return;
 
             Console.WriteLine();
-            Console.WriteLine("── " + TierName(tier) + " (" + group.Count + "종) " + new string('─', 40));
+            Console.WriteLine("── " + TierName(tier) + " (" + group.Count + "종"
+                              + (scoped.Count > 0 ? " · 범위 " + scoped.Count + "종은 따로" : "") + ") "
+                              + new string('─', 36));
 
             var fighters = new List<Combatant>();
             for (int i = 0; i < group.Count; i++) fighters.Add(ToCombatant(group[i], stage));
@@ -1245,14 +1269,14 @@ namespace Jianghu.Sandbox
             }
             rows.Sort((x, y) => y.Value.CompareTo(x.Value));
 
-            var live = new List<double>();      // 범위 무공을 뺀 값들
-            int scopeCount = 0;
+            // ⚠ `live` 는 이제 `rows` 와 같다 — 범위 무공이 애초에 `group` 에 안 들어오기 때문이다.
+            //   그래도 이름을 남겨 둔다: 아래 σ 블록이 *"판정에 쓰는 값들"* 이라는 뜻으로 읽는다.
+            var live = new List<double>();
 
             for (int i = 0; i < rows.Count; i++)
             {
                 MartialArt a = rows[i].Key;
-                bool scoped = HasScopeMorpheme(a);
-                if (scoped) scopeCount++; else live.Add(rows[i].Value);
+                live.Add(rows[i].Value);
 
                 // ⚠⚠ **공격 합을 함께 찍는다** (2026-08-05). 순위표에 승률만 있어서 *"왜 이 무공이
                 //   바닥인가"* 를 물을 때마다 이름을 손으로 분해하고 있었다. 형태소 합은 파서가
@@ -1265,8 +1289,7 @@ namespace Jianghu.Sandbox
                               + Pad(Short(a.Discipline) + "·" + Short(a.Alignment), 8)
                               + (rows[i].Value * 100).ToString("F1").PadLeft(6) + "%"
                               + "  공" + a.Delta.Attack.ToString("F2").PadLeft(5));
-                if (scoped) Console.Write("  ⛔ 범위 · 판정 보류(1대1이라 이점이 없다)");
-                else if (rows[i].Value >= DominantThreshold) Console.Write("  ⚠ 지배 의심");
+                if (rows[i].Value >= DominantThreshold) Console.Write("  ⚠ 지배 의심");
                 else if (rows[i].Value <= DeadThreshold) Console.Write("  ⚠ 죽은 선택지 의심");
                 Console.WriteLine();
             }
@@ -1278,20 +1301,16 @@ namespace Jianghu.Sandbox
             Console.WriteLine("  → 계층 내 격차(전체) " + gap.ToString("F1") + "%p"
                               + "  (참고 — 판정은 아래 평균±2σ 가 한다)");
 
-            // ⚠⚠ **범위 무공을 뺀 격차를 따로 낸다** (2026-08-04 사용자 확정 · HANDOFF §4-6).
-            //   격차는 최고−최저인데, **죽은 무공 하나가 그 계층의 격차 전체를 정의**해 버린다.
-            //   실제로 대문파는 `정천창군`(10.4%), 전승은 `만우쾌사`(3.6%) 하나가 숫자를 만들고
-            //   있었고, 둘 다 **범위 형태소 때문에 약한 것이지 밸런스가 나빠서가 아니다** —
-            //   `AttackScope` 가 미연결이라(§3-2) 공격 −1/−2/−3 · 만(萬) 기력 +200% 라는
-            //   **대가만 내고 다중 타격이라는 이점은 존재하지 않는다.** 1대1이기 때문이다.
-            //   → 한 숫자에 *"밸런스가 나쁘다"* 와 *"엔진이 아직 없다"* 를 섞으면
-            //     **무엇을 고쳤는지 판정할 수 없다.** 그래서 두 벌로 낸다.
-            //   ⚠ 이건 무공을 봐주는 것이 아니다. Phase 3 다대다가 붙으면 **판정 보류를 풀고**
-            //     그때 다시 잰다. 그전까지는 이 무공들의 승률에 **손대지 않는다.**
-            if (scopeCount > 0 && live.Count >= 2)
+            // ⚠⚠ **`격차범위제외` 지표는 2026-08-08 에 없앴다.** 범위 무공이 애초에 토너먼트에
+            //   안 들어오므로 `격차전체` 와 값이 같아졌다 — 같은 값을 두 이름으로 내면
+            //   나중에 *"어느 쪽이 판정 기준이었지"* 를 다시 묻게 된다.
+            //   ⚠ `--compare` 에 **사라짐 12건**으로 뜬다(4계층 × 3경지 중 범위가 있던 조합). 정상이다.
+            //
+            //   옛 경위 — 2026-08-04 에 이 지표를 만든 이유는 *"죽은 무공 하나가 계층 격차 전체를
+            //   정의해 버린다"* 였다(대문파 `정천창군` 10.4% · 전승 `만우쾌사` 3.6%). 그 진단은
+            //   맞았지만 처방이 절반이었다 — **범위 무공을 계산에서만 빼고 토너먼트에는 남겨 둬서**
+            //   다른 무공이 그 샌드백을 이겨 얻은 승률은 그대로 남았다(위 `group` 주석의 2차 오염).
             {
-                double liveGap = (live[0] - live[live.Count - 1]) * 100;
-                Metrics.Add("tier." + TierName(tier) + ".격차범위제외." + stage + "성", liveGap);
                 // ⚠⚠ **2026-08-05 — 격차에서 ✅/⚠ 판정을 뗐다.** 판정은 아래 `평균±2σ` 가 한다.
                 //   격차(최고−최저)는 **종수에 체계적으로 끌려간다.** 정규분포 N표본의 기대 range 는
                 //   `k(N)·σ` 이고 k 는 N 과 함께 커진다 — 5종짜리 강호무학과 39종짜리 대문파를
@@ -1309,8 +1328,33 @@ namespace Jianghu.Sandbox
                 //     몬테카를로 200만 회로 확인). 기억으로 적은 상수는 근거가 아니다.
                 //
                 //   ⚠ 격차는 지표로 계속 낸다 — 사람이 순위표를 읽을 때 눈금이 되고, 과거 기록과도 잇는다.
-                Console.WriteLine("  → 계층 내 격차(범위 " + scopeCount + "종 제외) " + liveGap.ToString("F1") + "%p"
-                                  + "  (참고 — 판정은 아래 평균±2σ 가 한다)");
+            }
+
+            // ⚠⚠ **범위 무공을 따로 잰다** (2026-08-08 신설).
+            //   토너먼트에서 뺐다고 **버리는 것이 아니다.** 깨끗한 집단(위 `fighters`)을 상대로
+            //   각각 재서 여기 낸다 — 서로를 상대하지 않으므로 범위 무공끼리의 오염도 없고,
+            //   비범위 무공의 승률에도 영향을 주지 않는다.
+            //   ⛔ **이 값으로 밸런스를 판정하지 마라.** `AttackScope` 미연결이라 대가만 내고
+            //     이점이 0 인 상태의 숫자다. Phase 3 다대다가 붙으면 그때 판정 보류를 푼다.
+            if (scoped.Count > 0)
+            {
+                Console.WriteLine("  ── 범위 무공 " + scoped.Count + "종 (위 " + group.Count
+                                  + "종을 상대로 · ⛔ 판정 보류 — 1대1이라 이점이 없다) ──");
+                for (int i = 0; i < scoped.Count; i++)
+                {
+                    Combatant c = ToCombatant(scoped[i], stage);
+                    double sum = 0;
+                    for (int j = 0; j < fighters.Count; j++) sum += WinRate(c, fighters[j]);
+                    double rate = sum / fighters.Count;
+
+                    MartialArt a = scoped[i];
+                    Console.WriteLine("      " + Pad(a.Name, 26)
+                                      + Pad(a.IsWandererArt ? "(강호무학)" : a.School, 12)
+                                      + Pad(Short(a.Discipline) + "·" + Short(a.Alignment), 8)
+                                      + (rate * 100).ToString("F1").PadLeft(6) + "%"
+                                      + "  공" + a.Delta.Attack.ToString("F2").PadLeft(5));
+                    Metrics.Add("scope." + a.Name + "." + stage + "성", rate * 100);
+                }
             }
 
             // ⚠⚠ **계층 전체 표준편차 — 2026-08-05 신설.**
