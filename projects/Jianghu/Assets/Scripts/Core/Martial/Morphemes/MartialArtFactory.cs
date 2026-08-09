@@ -77,10 +77,15 @@ namespace Jianghu.Core.Martial.Morphemes
             //   다시 유도해, `SchoolCatalog` 에 없는 대형세력이 전부 강호무학이 됐다.
             // ⚠⚠ **상성도 실어 보낸다** (2026-08-02). 그전에는 `parsed.CounterTargets` 가 여기서
             //   버려져 정의서 §4 의 상성 규칙이 전투 엔진에 **한 번도 닿은 적이 없었다.**
-            //   `AttackScope`(범위)는 아직 같은 상태로 남아 있다 — 1대1 전투에서는 표현이 불가능하다.
+            // ⚠⚠ **범위도 실어 보낸다** (2026-08-09). 그전까지 `parsed.Scope` 가 여기서 버려져
+            //   범위 형태소 4자(다·군·전·만)가 **엔진에 한 번도 닿은 적이 없었다** — 위 상성과
+            //   똑같은 형태의 누락이고, 이 자리 주석이 *"AttackScope 는 아직 같은 상태로 남아
+            //   있다"* 고 스스로 적어 두고 있었다.
+            //   ⚠ **이것만으로는 게임이 안 바뀐다.** 1대1은 상대가 하나뿐이라 읽을 곳이 없다.
+            //     실제로 쓰는 것은 다대다(`ResolveTeams`)다 — `docs/multi-combat-plan.md`.
             art = MartialArt.FromMorphemes(
                 id, name, school, discipline, alignment, parsed.Delta, parsed.QiCost, tier, hitCount,
-                parsed.CounterTargets, parsed.Rule, effects);
+                parsed.CounterTargets, parsed.Rule, parsed.Scope, effects);
             return true;
         }
     }

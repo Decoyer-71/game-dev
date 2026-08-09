@@ -134,6 +134,22 @@ namespace Jianghu.Core.Martial
         public AbsoluteRule Rule { get; }
 
         /// <summary>
+        /// **한 번에 때리는 대상 수**(정의서 §3-12). 범위 형태소(다多·군群·전全·만萬)에서 유도되며
+        /// 없으면 <see cref="Morphemes.AttackScope.Single"/>.
+        ///
+        /// ⚠⚠ **2026-08-09 신설.** 그전까지 `MorphemeParser` 가 만든 `ParsedArtName.Scope` 를
+        ///   <see cref="Morphemes.MartialArtFactory"/> 가 **그냥 버려서** 전투 엔진에 닿지 않았다 —
+        ///   `CounterTargets`(2026-08-02)와 **똑같은 형태의 누락**이고, 그 자리 주석이
+        ///   *"`AttackScope`(범위)는 아직 같은 상태로 남아 있다"* 고 스스로 적어 두고 있었다.
+        ///   그래서 범위 무공 6종은 **대가만 내고 이점이 0** 이었다(공격 −1/−2/−3 · 만萬 기력 +200%).
+        ///
+        /// ⚠ **이 값을 실어 보내는 것만으로는 아무것도 안 바뀐다.** 1대1(<see cref="Combat.CombatResolver.Resolve"/>)은
+        ///   상대가 하나뿐이라 읽을 곳이 없다. 실제로 쓰는 것은 다대다(`ResolveTeams`)이며,
+        ///   설계는 `docs/multi-combat-plan.md` 에 있다.
+        /// </summary>
+        public AttackScope Scope { get; }
+
+        /// <summary>
         /// **형태소에서 유도해 만든다.** 무공명을 분해한 결과를 그대로 받는다.
         ///
         /// ⚠ 수치를 인자로 받지 않는 것이 요점이다 — 수치의 출처는 오직 이름이다(정의서 §0).
@@ -143,6 +159,7 @@ namespace Jianghu.Core.Martial
             string id, string name, string school, Discipline discipline, Alignment? alignment,
             ArtStatDelta delta, int qiCost, ArtTier tier, int hitCount = 1,
             IReadOnlyList<ArtLineage> counterTargets = null, AbsoluteRule rule = AbsoluteRule.None,
+            AttackScope scope = AttackScope.Single,
             params StatusApplication[] effects)
         {
             if (hitCount < 1) throw new ArgumentOutOfRangeException(nameof(hitCount), "타격 횟수는 1 이상이어야 한다.");
@@ -152,7 +169,7 @@ namespace Jianghu.Core.Martial
                 basePower: 0, qiCost: qiCost, hitCount: hitCount, accuracyBonus: 0,
                 maxQiBonus: 0, powerBonusPercent: 0, evasionBonus: 0, initiativeBonus: 0,
                 effects: effects, delta: delta, morphemeDerived: true, tier: tier,
-                counterTargets: counterTargets, rule: rule);
+                counterTargets: counterTargets, rule: rule, scope: scope);
         }
 
         private MartialArt(
@@ -161,13 +178,15 @@ namespace Jianghu.Core.Martial
             int maxQiBonus, int powerBonusPercent, int evasionBonus, int initiativeBonus,
             StatusApplication[] effects,
             ArtStatDelta delta = default, bool morphemeDerived = false, ArtTier tier = ArtTier.Wanderer,
-            IReadOnlyList<ArtLineage> counterTargets = null, AbsoluteRule rule = AbsoluteRule.None)
+            IReadOnlyList<ArtLineage> counterTargets = null, AbsoluteRule rule = AbsoluteRule.None,
+            AttackScope scope = AttackScope.Single)
         {
             Delta = delta;
             IsMorphemeDerived = morphemeDerived;
             Tier = tier;
             CounterTargets = counterTargets ?? NoCounters;
             Rule = rule;
+            Scope = scope;
             if (string.IsNullOrEmpty(id)) throw new ArgumentException("무공 Id 는 비어 있을 수 없다.", nameof(id));
             if (string.IsNullOrEmpty(name)) throw new ArgumentException("무공 이름은 비어 있을 수 없다.", nameof(name));
 
