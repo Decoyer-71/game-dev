@@ -222,6 +222,15 @@ namespace Jianghu.Sandbox
                 }
                 PrintCrossTier(techniques, stage);
 
+                // ⚠⚠ 다대다는 **별도 표 · 별도 지표**다. 위 1대1 순위표와 섞지 않는다(설계 §D8).
+                Console.WriteLine();
+                Console.WriteLine("████ 4대4 동질 팀 — 범위 형태소가 값을 갖는가 (" + MultiFights + "전/쌍) ████");
+                foreach (ArtTier tier in RankedTiers)
+                {
+                    PrintMultiCombat(techniques, tier, stage);
+                    PrintCounterProbe(techniques, tier, stage);
+                }
+
                 PrintSensitivity(stage);
             }
 
@@ -1715,6 +1724,353 @@ namespace Jianghu.Sandbox
             string flag = rate >= 90 ? "  ⚠ 하위 계층이 무의미해짐" : rate <= 50 ? "  ⚠ 상위 계층 이점이 없음" : "";
             Console.WriteLine("  " + Pad(TierName(high) + " vs " + TierName(low), 28)
                               + rate.ToString("F1").PadLeft(6) + "%" + flag);
+        }
+
+        // ─────────────────── 다대다 4대4 (2026-08-09 신설 · 설계 §D8) ───────────────────
+
+        /// <summary>4대4. 측정에서만 쓰는 편성이며 엔진은 비대칭·가변을 받는다(설계 §D1).</summary>
+        private const int MultiTeamSize = 4;
+
+        /// <summary>
+        /// 4대4 한 쌍당 전투 수.
+        ///
+        /// ⚠ 1대1(<see cref="FightsPerMatchup"/> 100전)보다 낮게 잡았다 — **한 전투가 훨씬 길다**
+        ///   (참가자 8명이 매 경합 행동한다). 실행 시간을 재고 정한 값이며, 표본이 작은 만큼
+        ///   **소수점 한 자리를 신뢰하지 말 것**. 이 블록은 *"범위가 쓸모 있어졌는가"* 라는
+        ///   **부호와 크기**를 보는 자리이지 미세 조정용이 아니다.
+        /// </summary>
+        private const int MultiFights = 40;
+
+        /// <summary>
+        /// 대조군 표본 수. ⚠ 전수로 돌리면 대문파 4자군만 30종이 넘어 30×29 매치업이 된다.
+        /// 뽑는 방식과 버린 개수는 <see cref="SampleControls"/> 가 **반드시 찍는다**(§5-D — 조용한 절단 금지).
+        /// </summary>
+        private const int MultiControlSample = 12;
+
+        private sealed class MultiTally
+        {
+            public long Counters;
+            public long Rounds;
+            public int Draws;
+            public int Fights;
+        }
+
+        /// <summary>
+        /// **동질 4인 팀끼리의 라운드로빈** — 범위 형태소가 실제로 값을 갖는가를 처음으로 잰다.
+        ///
+        /// ⚠⚠ **1대1 표와 절대 섞지 않는다.** 다른 토너먼트를 한 표에 섞는 것은 이 저장소가 이미 밟은
+        ///   실수다(HANDOFF §4-3-6 실수 #2). 지표 이름도 <c>multi.*</c> 로 갈라 둔다.
+        ///
+        /// ⚠⚠ **이것은 범위 형태소 가치의 상한이다**(설계 §D8). 동질 팀에서는 **넷 전부가 범위 무공**을
+        ///   쓰는데, 실제 편성이라면 한둘만 들 것이다. *"실전 값"* 이 아니다.
+        ///
+        /// ⛔⛔ **이 데이터로 엔진의 다중 후보 동작을 판단하지 마라.** 동질 팀은 각 전투원이 공격 초식
+        ///   후보를 **1개만** 갖는 조건이고, 그것은 §4-9-6 이 *"Sandbox·테스트 31곳 전부가 후보 1개라
+        ///   `SelectArt` 의 순서 의존 결함이 안 보였다"* 고 지적한 **바로 그 조건**이다.
+        ///
+        /// **대조군 설계** — 범위 무공만 재면 *"세다/약하다"* 를 말할 기준이 없다. 같은 계층 안에서
+        /// **글자 수가 같고 반격 형태소 보유 여부가 같은** 비범위 무공을 짝지어 **같은 표에** 넣는다.
+        /// ⚠ 반격을 통제하는 이유(설계 §D6) — 범위 공격은 맞은 사람 **각자**가 반격하므로 그것이
+        ///   내장 대가인데, `Counter()` 는 반격 형태소가 있을 때만 발동한다. 통제하지 않으면 제동의
+        ///   유무가 **대조군 뽑기에 좌우되고**, 우리가 재는 것이 대조군 선택의 산물이 된다.
+        /// </summary>
+        private static void PrintMultiCombat(List<MartialArt> all, ArtTier tier, int stage)
+        {
+            // 같은 계층 안에서 (글자 수 · 반격 보유) 로 묶는다. 범위 무공이 없는 묶음은 잴 이유가 없다.
+            var groups = new SortedDictionary<string, List<MartialArt>>(StringComparer.Ordinal);
+            for (int i = 0; i < all.Count; i++)
+            {
+                if (all[i].Tier != tier) continue;
+                string key = all[i].Name.Length + "자" + (HasCounterMorpheme(all[i]) ? "·반격" : "");
+                if (!groups.ContainsKey(key)) groups[key] = new List<MartialArt>();
+                groups[key].Add(all[i]);
+            }
+
+            foreach (KeyValuePair<string, List<MartialArt>> kv in groups)
+            {
+                var scoped = new List<MartialArt>();
+                var controls = new List<MartialArt>();
+                for (int i = 0; i < kv.Value.Count; i++)
+                {
+                    if (HasScopeMorpheme(kv.Value[i])) scoped.Add(kv.Value[i]); else controls.Add(kv.Value[i]);
+                }
+                if (scoped.Count == 0 || controls.Count == 0) continue;
+
+                List<MartialArt> sampled = SampleControls(controls, kv.Key);
+
+                var field = new List<MartialArt>(scoped);
+                field.AddRange(sampled);
+
+                var teams = new List<List<BattlePlacement>>();
+                for (int i = 0; i < field.Count; i++) teams.Add(HomogeneousTeam(field[i], stage));
+
+                var tally = new MultiTally();
+                var rows = new List<KeyValuePair<MartialArt, double>>();
+                for (int i = 0; i < field.Count; i++)
+                {
+                    double sum = 0;
+                    for (int j = 0; j < field.Count; j++)
+                    {
+                        if (i == j) continue;
+                        sum += TeamWinRate(teams[i], teams[j], tally);
+                    }
+                    rows.Add(new KeyValuePair<MartialArt, double>(field[i], sum / (field.Count - 1)));
+                }
+                rows.Sort((x, y) => y.Value.CompareTo(x.Value));
+
+                Console.WriteLine();
+                Console.WriteLine("  ── " + TierName(tier) + " " + kv.Key + " · 4대4 동질 팀 (범위 "
+                                  + scoped.Count + " · 대조 " + sampled.Count + ") "
+                                  + "⚠ 범위 가치의 **상한**이다 — 넷 전부가 범위를 쓴다 ──");
+
+                double scopeSum = 0, controlSum = 0;
+                var byDiscipline = new SortedDictionary<string, List<double>>(StringComparer.Ordinal);
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    MartialArt a = rows[i].Key;
+                    bool isScope = HasScopeMorpheme(a);
+                    if (isScope) scopeSum += rows[i].Value; else controlSum += rows[i].Value;
+
+                    string d = DisciplineName(a.Discipline);
+                    if (!byDiscipline.ContainsKey(d)) byDiscipline[d] = new List<double>();
+                    byDiscipline[d].Add(rows[i].Value);
+
+                    Console.Write("    " + (i + 1).ToString().PadLeft(2) + "  "
+                                  + Pad(a.Name, 26) + Pad(isScope ? "범위" : "대조", 6)
+                                  + Pad(Short(a.Discipline) + "·" + Short(a.Alignment), 8)
+                                  + (rows[i].Value * 100).ToString("F1").PadLeft(6) + "%"
+                                  + "  공" + a.Delta.Attack.ToString("F2").PadLeft(5));
+                    if (rows[i].Value >= DominantThreshold) Console.Write("  ⚠ 지배 의심");
+                    else if (rows[i].Value <= DeadThreshold) Console.Write("  ⚠ 죽은 선택지 의심");
+                    Console.WriteLine();
+
+                    Metrics.Add("multi." + a.Name + "." + stage + "성", rows[i].Value * 100);
+                }
+
+                string tag = TierName(tier) + "." + kv.Key;
+                double scopeAvg = scopeSum / scoped.Count * 100;
+                double controlAvg = controlSum / sampled.Count * 100;
+                Metrics.Add("multi." + tag + ".범위평균." + stage + "성", scopeAvg);
+                Metrics.Add("multi." + tag + ".대조평균." + stage + "성", controlAvg);
+                Metrics.Add("multi." + tag + ".범위이득." + stage + "성", scopeAvg - controlAvg);
+
+                Console.WriteLine("    → 범위 평균 " + scopeAvg.ToString("F1") + "%  ·  대조 평균 "
+                                  + controlAvg.ToString("F1") + "%  ·  차 "
+                                  + (scopeAvg - controlAvg >= 0 ? "+" : "") + (scopeAvg - controlAvg).ToString("F1") + "%p");
+
+                // ⚠ 유형별 — §D3-4-a 의 *"비도 필수 픽"* 위험을 보는 자리다. 후열 접근권이 비도에
+                //   몰려 있으므로 비도가 혼자 올라가면 반대 방향의 지배가 된다.
+                foreach (KeyValuePair<string, List<double>> dk in byDiscipline)
+                {
+                    double s = 0;
+                    for (int i = 0; i < dk.Value.Count; i++) s += dk.Value[i];
+                    Metrics.Add("multi." + tag + ".유형." + dk.Key + "." + stage + "성", s / dk.Value.Count * 100);
+                }
+
+                // ⚠⚠ 미결 M3 — 반격 계수는 *"라운드당 상대 1명"* 전제로 맞춰진 값이다(설계 §6).
+                //   범위 공격은 맞은 사람 각자가 반격하므로 한 경합에 최대 팀 크기만큼 나올 수 있다.
+                //   **얼마나 커지는지 먼저 재고** 나서 값을 본다 — 측정 전에 고치지 않는다.
+                double perRound = tally.Rounds == 0 ? 0 : (double)tally.Counters / tally.Rounds;
+                double drawRate = tally.Fights == 0 ? 0 : tally.Draws * 100.0 / tally.Fights;
+                double avgRounds = tally.Fights == 0 ? 0 : (double)tally.Rounds / tally.Fights;
+                Metrics.Add("multi." + tag + ".반격_경합당." + stage + "성", perRound);
+                Metrics.Add("multi." + tag + ".무승부율." + stage + "성", drawRate);
+                Metrics.Add("multi." + tag + ".경합수." + stage + "성", avgRounds);
+
+                Console.WriteLine("    → 평균 " + avgRounds.ToString("F1") + "경합 · 무승부 "
+                                  + drawRate.ToString("F1") + "% · 반격 " + perRound.ToString("F2") + "회/경합"
+                                  + (drawRate > 0 ? "   ⚠ 무승부가 0 이 아니다 — 그 자체가 신호다" : ""));
+            }
+        }
+
+        /// <summary>
+        /// **미결 M3 전용 탐침 — 반격이 몇 배로 늘어나는가** (설계 §6 · 2026-08-09 신설).
+        ///
+        /// ⚠⚠ **위 <see cref="PrintMultiCombat"/> 의 `반격_경합당` 은 M3 을 재지 못한다.**
+        ///   그 표는 대조군을 **반격 보유 여부로 통제**하는데(§D6), 범위 무공이 들어 있는 묶음에는
+        ///   반격 형태소를 가진 무공이 하나도 없어 값이 **구조적으로 0** 이 된다.
+        ///   → **0.00 은 *"폭증이 없다"* 가 아니라 *"이 표본에 반격자가 없다"* 이다.**
+        ///   그래서 통제를 일부러 깨는 별도 탐침을 둔다. 안 그러면 0 을 보고 *"M3 은 문제없다"* 로 읽는다.
+        ///
+        /// 재는 것 — **같은 반격 보유 팀**을 상대로 ⓐ 범위 무공 팀과 ⓑ 단일 대상 무공 팀이
+        /// 각각 경합당 몇 회의 반격을 받는가. 설계는 *"최대 팀 크기만큼"* 을 우려했다.
+        /// ⛔ **재기만 한다. 값을 고치지 않는다**(설계 §6 — 측정 전에 반격 계수를 손대지 않는다).
+        ///
+        /// ⚠⚠ **반격을 가진 상대를 만들려면 경공 무공을 함께 들려야 한다.** 사전 §3-2 가 방어 11자를
+        ///   **경공 무공 필수**로 묶어 두어 반·역·응은 보법에만 붙는다. 그런데 이 도구의
+        ///   <see cref="ToCombatant"/> 는 **공격 초식 하나만** 들려준다 — 그래서 다른 모든 블록에서
+        ///   <c>CounterRate</c> 가 **구조적으로 0** 이다. 이 탐침만 예외로 보법을 하나 얹는다.
+        /// </summary>
+        private static void PrintCounterProbe(List<MartialArt> all, ArtTier tier, int stage)
+        {
+            var scoped = new List<MartialArt>();
+            var plain = new List<MartialArt>();
+            for (int i = 0; i < all.Count; i++)
+            {
+                if (all[i].Tier != tier) continue;
+                if (HasScopeMorpheme(all[i])) scoped.Add(all[i]); else plain.Add(all[i]);
+            }
+            if (scoped.Count == 0 || plain.Count == 0) return;
+
+            MartialArt counterStep = FindCounterStep();
+            if (counterStep == null)
+            {
+                Console.WriteLine("    ⛔ 반격 형태소를 가진 경공 무공이 카탈로그에 없다 — M3 을 잴 수 없다.");
+                return;
+            }
+
+            // 상대 팀 — 단일 대상 무공 + **반격 보법**. 표본은 대조군 뽑기와 같은 방식으로 줄인다.
+            List<MartialArt> foes = SampleEvenly(plain, MultiControlSample, TierName(tier) + " M3 상대");
+
+            // ⚠⚠ **비교군도 같은 방식으로 뽑는다** (2026-08-09 `verify` 가 잡았다).
+            //   처음에는 `plain` 앞에서부터 `scoped.Count` 개를 그냥 잘라 썼는데, 카탈로그 선언 순서라
+            //   **앞쪽 두 문파(소림·무당)에 쏠린 표본**이었다. 균등 표집으로 바꾸니 대문파 배수가
+            //   2.8 → 2.4 로 움직였다 — *"조용한 절단"* 을 `SampleControls` 주석에 적어 두고
+            //   같은 함수의 반대편에서 스스로 어긴 사례다.
+            List<MartialArt> singles = SampleEvenly(plain, scoped.Count, TierName(tier) + " M3 단일군");
+
+            var scopeTally = new MultiTally();
+            var plainTally = new MultiTally();
+            for (int f = 0; f < foes.Count; f++)
+            {
+                List<BattlePlacement> foe = HomogeneousTeam(foes[f], stage, counterStep);
+                for (int i = 0; i < scoped.Count; i++)
+                {
+                    TeamWinRate(HomogeneousTeam(scoped[i], stage), foe, scopeTally);
+                }
+                for (int i = 0; i < singles.Count; i++)
+                {
+                    TeamWinRate(HomogeneousTeam(singles[i], stage), foe, plainTally);
+                }
+            }
+
+            double scopeRate = scopeTally.Rounds == 0 ? 0 : (double)scopeTally.Counters / scopeTally.Rounds;
+            double plainRate = plainTally.Rounds == 0 ? 0 : (double)plainTally.Counters / plainTally.Rounds;
+            Metrics.Add("multi.M3." + TierName(tier) + ".반격_경합당.범위." + stage + "성", scopeRate);
+            Metrics.Add("multi.M3." + TierName(tier) + ".반격_경합당.단일." + stage + "성", plainRate);
+            if (plainRate > 0)
+            {
+                Metrics.Add("multi.M3." + TierName(tier) + ".반격배수." + stage + "성", scopeRate / plainRate);
+            }
+
+            Console.WriteLine("    M3 탐침 — 상대 " + foes.Count + "종에 반격 보법(" + counterStep.Name
+                              + ") 을 얹었다 · 반격 회수/경합 : 범위 " + scopeRate.ToString("F2")
+                              + " vs 단일 " + plainRate.ToString("F2")
+                              + (plainRate > 0 ? "  (배수 " + (scopeRate / plainRate).ToString("F2") + ")" : ""));
+        }
+
+        /// <summary>반격 형태소(반·역·응)를 가진 경공 무공 하나. 없으면 null.</summary>
+        private static MartialArt FindCounterStep()
+        {
+            IReadOnlyList<MartialArt> all = MartialArtCatalog.All;
+            for (int i = 0; i < all.Count; i++)
+            {
+                if (all[i].Discipline == Discipline.Movement && HasCounterMorpheme(all[i])) return all[i];
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// 대조군을 <see cref="MultiControlSample"/> 종으로 줄인다.
+        ///
+        /// ⚠⚠ **공격 합 순으로 정렬해 균등 간격으로 뽑는다.** 앞에서부터 잘라내면 대조군이 한쪽으로
+        ///   치우쳐, 범위 무공이 세 보이는지 약해 보이는지가 **자르는 방식**에 좌우된다.
+        /// ⚠⚠ **버린 개수를 반드시 찍는다.** 조용한 절단은 *"전부 쟀다"* 로 읽힌다(§5-D).
+        /// </summary>
+        private static List<MartialArt> SampleControls(List<MartialArt> controls, string groupKey)
+        {
+            return SampleEvenly(controls, MultiControlSample, "대조군 " + groupKey);
+        }
+
+        /// <summary>
+        /// <paramref name="want"/> 종을 **공격 합 균등 간격**으로 뽑는다. 뽑을 것이 그보다 적으면 전부.
+        /// ⚠ 표본을 줄이는 자리는 **전부 이 함수를 지난다** — 한쪽만 다른 방식으로 자르면
+        ///   그 차이가 결론에 스며들고, 실제로 M3 탐침에서 한 번 그렇게 됐다.
+        /// </summary>
+        private static List<MartialArt> SampleEvenly(List<MartialArt> pool, int want, string label)
+        {
+            if (want < 1 || pool.Count <= want) return pool;
+
+            var sorted = new List<MartialArt>(pool);
+            sorted.Sort((x, y) => x.Delta.Attack.CompareTo(y.Delta.Attack));
+
+            var picked = new List<MartialArt>(want);
+            for (int i = 0; i < want; i++)
+            {
+                int index = want == 1 ? sorted.Count / 2
+                          : (int)Math.Round(i * (sorted.Count - 1.0) / (want - 1));
+                picked.Add(sorted[index]);
+            }
+
+            Console.WriteLine("    ⚠ " + label + " " + pool.Count + "종 중 " + want
+                              + "종만 썼다(공격 합 균등 간격). 뺀 것 " + (pool.Count - want)
+                              + "종 — 실행 시간 때문이다.");
+            return picked;
+        }
+
+        /// <summary>
+        /// 같은 무공을 넷이 든 팀. **전열 2 · 후열 2 고정**(측정 상수 — 설계 §D1).
+        /// ⚠ 넷이 같은 무공이므로 **누구를 앞에 세우든 같다** — 배치가 변수로 새지 않는다.
+        /// </summary>
+        /// <param name="support">함께 익힐 보조 무공(내공·경공). M3 탐침만 쓴다. 없으면 null.</param>
+        private static List<BattlePlacement> HomogeneousTeam(MartialArt art, int stage, MartialArt support = null)
+        {
+            var team = new List<BattlePlacement>(MultiTeamSize);
+            for (int i = 0; i < MultiTeamSize; i++)
+            {
+                team.Add(new BattlePlacement(
+                    support == null ? ToCombatant(art, stage) : ToCombatantWith(art, support, stage),
+                    i < MultiTeamSize / 2 ? BattleRow.Front : BattleRow.Rear));
+            }
+            return team;
+        }
+
+        /// <summary>공격 초식 + 보조 무공 하나를 함께 익힌 대전자. <see cref="ToCombatant"/> 와 같은 규칙이다.</summary>
+        private static Combatant ToCombatantWith(MartialArt art, MartialArt support, int stage)
+        {
+            Alignment owner = art.Alignment ?? Alignment.Orthodox;
+            int sessions = AlignmentCurve.SessionsToReach(owner, MartialStage.ProficiencyForStage(stage));
+
+            var arts = new List<LearnedArt>
+            {
+                new LearnedArt(art, sessions, owner),
+                new LearnedArt(support, sessions, owner),
+            };
+            var masteries = new List<DisciplineMastery>
+            {
+                new DisciplineMastery(art.Discipline, MasteredSessions(art.Discipline)),
+            };
+            return new Combatant(art.Name, Stats(), arts, masteries, LineageOf(art));
+        }
+
+        private static double TeamWinRate(
+            List<BattlePlacement> a, List<BattlePlacement> b, MultiTally tally)
+        {
+            double score = 0;
+            for (uint seed = 1; seed <= MultiFights; seed++)
+            {
+                TeamCombatResult r = CombatResolver.ResolveTeams(a, b, new XorShiftRandom(seed));
+                if (r.Outcome == TeamOutcome.TeamAWin) score += 1.0;
+                else if (r.Outcome == TeamOutcome.Draw) { score += 0.5; tally.Draws++; }
+
+                tally.Fights++;
+                tally.Rounds += r.Rounds;
+                for (int i = 0; i < r.Log.Count; i++)
+                {
+                    CombatLogEntry e = r.Log[i];
+                    if (e.Kind == CombatLogKind.Action
+                        && !string.IsNullOrEmpty(e.Note) && e.Note.IndexOf("[반격]") >= 0)
+                    {
+                        tally.Counters++;
+                    }
+                }
+            }
+            return score / MultiFights;
+        }
+
+        private static bool HasCounterMorpheme(MartialArt art)
+        {
+            return art.Delta.CounterRate > 0;
         }
 
         // ─────────────────── 시작 캐릭터 전투 성립 검사 (2026-07-31 신설) ───────────────────
