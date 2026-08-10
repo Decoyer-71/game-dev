@@ -150,6 +150,17 @@ namespace Jianghu.Core.Martial
         public AttackScope Scope { get; }
 
         /// <summary>
+        /// **먼저 닿는 열**(진형). 공격방식(던지기만 후열) ∪ 수식 `어둡다` 중 **이름에서 앞선 글자**가 정한다.
+        /// 규칙과 그 선택의 근거는 <see cref="BattleRowRule"/>.
+        ///
+        /// ⚠ <see cref="Scope"/> 와 같은 통로로 실려 온다 — 파서가 <see cref="ParsedArtName.PreferredRow"/> 로
+        ///   정하고 <see cref="Morphemes.MartialArtFactory"/> 가 여기 옮긴다.
+        /// ⚠ 손수 만든 무공(<see cref="Technique"/>)과 평타는 열 성향이 없으므로 **전열**이다.
+        /// ⚠ 1대1에서는 읽히지 않는다 — 열은 다대다에만 있다(설계 §D3-8).
+        /// </summary>
+        public BattleRow PreferredRow { get; }
+
+        /// <summary>
         /// **형태소에서 유도해 만든다.** 무공명을 분해한 결과를 그대로 받는다.
         ///
         /// ⚠ 수치를 인자로 받지 않는 것이 요점이다 — 수치의 출처는 오직 이름이다(정의서 §0).
@@ -159,7 +170,7 @@ namespace Jianghu.Core.Martial
             string id, string name, string school, Discipline discipline, Alignment? alignment,
             ArtStatDelta delta, int qiCost, ArtTier tier, int hitCount = 1,
             IReadOnlyList<ArtLineage> counterTargets = null, AbsoluteRule rule = AbsoluteRule.None,
-            AttackScope scope = AttackScope.Single,
+            AttackScope scope = AttackScope.Single, BattleRow preferredRow = BattleRow.Front,
             params StatusApplication[] effects)
         {
             if (hitCount < 1) throw new ArgumentOutOfRangeException(nameof(hitCount), "타격 횟수는 1 이상이어야 한다.");
@@ -169,7 +180,7 @@ namespace Jianghu.Core.Martial
                 basePower: 0, qiCost: qiCost, hitCount: hitCount, accuracyBonus: 0,
                 maxQiBonus: 0, powerBonusPercent: 0, evasionBonus: 0, initiativeBonus: 0,
                 effects: effects, delta: delta, morphemeDerived: true, tier: tier,
-                counterTargets: counterTargets, rule: rule, scope: scope);
+                counterTargets: counterTargets, rule: rule, scope: scope, preferredRow: preferredRow);
         }
 
         private MartialArt(
@@ -179,7 +190,7 @@ namespace Jianghu.Core.Martial
             StatusApplication[] effects,
             ArtStatDelta delta = default, bool morphemeDerived = false, ArtTier tier = ArtTier.Wanderer,
             IReadOnlyList<ArtLineage> counterTargets = null, AbsoluteRule rule = AbsoluteRule.None,
-            AttackScope scope = AttackScope.Single)
+            AttackScope scope = AttackScope.Single, BattleRow preferredRow = BattleRow.Front)
         {
             Delta = delta;
             IsMorphemeDerived = morphemeDerived;
@@ -187,6 +198,7 @@ namespace Jianghu.Core.Martial
             CounterTargets = counterTargets ?? NoCounters;
             Rule = rule;
             Scope = scope;
+            PreferredRow = preferredRow;
             if (string.IsNullOrEmpty(id)) throw new ArgumentException("무공 Id 는 비어 있을 수 없다.", nameof(id));
             if (string.IsNullOrEmpty(name)) throw new ArgumentException("무공 이름은 비어 있을 수 없다.", nameof(name));
 
@@ -209,14 +221,15 @@ namespace Jianghu.Core.Martial
         /// <summary>
         /// 공격 초식을 만든다. 유형은 검·도·권 중 하나여야 한다.
         ///
-        /// ⚠ <paramref name="scope"/> 는 2026-08-09 에 붙였다. 형태소 무공은 이름이 범위를 정하지만
-        ///   (<see cref="FromMorphemes"/>), 이 손수 만드는 통로에는 그 값을 넣을 자리가 아예 없어
-        ///   **범위를 가진 초식을 테스트에서 만들 수 없었다.** 기본값이 단일이라 기존 호출부는 무영향이다.
+        /// ⚠ <paramref name="scope"/> 와 <paramref name="preferredRow"/> 는 2026-08-09 에 붙였다.
+        ///   형태소 무공은 이름이 둘 다 정하지만(<see cref="FromMorphemes"/>), 이 손수 만드는 통로에는
+        ///   그 값을 넣을 자리가 아예 없어 **범위·열을 가진 초식을 테스트에서 만들 수 없었다.**
+        ///   기본값이 단일·전열이라 기존 호출부는 무영향이다.
         /// </summary>
         public static MartialArt Technique(
             string id, string name, Discipline discipline, Alignment? alignment,
             int basePower, int qiCost, int hitCount = 1, int accuracyBonus = 0, string school = null,
-            AttackScope scope = AttackScope.Single,
+            AttackScope scope = AttackScope.Single, BattleRow preferredRow = BattleRow.Front,
             params StatusApplication[] effects)
         {
             if (discipline.IsSupport())
@@ -228,7 +241,7 @@ namespace Jianghu.Core.Martial
             if (hitCount < 1) throw new ArgumentOutOfRangeException(nameof(hitCount), "타격 횟수는 1 이상이어야 한다.");
 
             return new MartialArt(id, name, school, discipline, alignment, basePower, qiCost, hitCount, accuracyBonus, 0, 0, 0, 0, effects,
-                scope: scope);
+                scope: scope, preferredRow: preferredRow);
         }
 
         /// <summary>보조 무공을 만든다. 유형은 내공·경공 중 하나여야 한다.</summary>

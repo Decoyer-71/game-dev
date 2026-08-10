@@ -12,12 +12,12 @@ namespace Jianghu.Tests.Combat
     /// <summary>
     /// **다대다 전투** — <see cref="CombatResolver.ResolveTeams"/> 검증 (2026-08-09 신설).
     ///
-    /// 설계는 <c>docs/multi-combat-plan.md</c> 이고 이 파일은 그 §4 의 **2단계**를 건다:
-    /// 경합 루프 · 이니셔티브 큐 · 범위(<see cref="AttackScope"/>) 대상 수 · 승패 판정.
+    /// 설계는 <c>docs/multi-combat-plan.md</c> 이고 이 파일은 그 §4 의 **2·3단계**를 건다:
+    /// 경합 루프 · 이니셔티브 큐 · 범위(<see cref="AttackScope"/>) 대상 수 · 승패 판정,
+    /// 그리고 **진형**(<see cref="BattleRow"/> — 열 성향 판정과 우선 열 타겟팅).
     ///
-    /// ⚠⚠ **진형(전열/후열)은 아직 없다.** 4단계에서 들어오며, 그때 이 파일에
-    ///   *"전열이 살아 있으면 근접이 후열을 못 친다"* 류 7건이 더 붙는다.
-    ///   지금 대상 선택은 **살아 있는 적 중 무작위**이므로 그 전제로 읽어야 한다.
+    /// ⚠ 진형이 변수가 아닌 시험은 <c>Team(...)</c> 로 **전원을 전열**에 세운다.
+    ///   열을 재는 시험만 <c>Line(BattlePlacement.Front/Rear(...))</c> 로 배치를 명시한다.
     ///
     /// ⚠ 절대 수치를 박지 않는다(HANDOFF §7) — 보는 것은 **개수·순서·존재**다.
     ///   피해량·승률은 여기서 판정하지 않는다. 그건 Sandbox 측정의 일이다.
@@ -44,11 +44,18 @@ namespace Jianghu.Tests.Combat
         private static LearnedArt Learned(MartialArt art, int sessions = 100)
             => new LearnedArt(art, sessions);
 
-        /// <summary>범위를 지정한 평범한 검법.</summary>
-        private static MartialArt Sword(AttackScope scope = AttackScope.Single, int qiCost = 4, int basePower = 20)
+        /// <summary>범위·열을 지정한 평범한 검법. 기본은 단일 대상 · 전열 우선(근접)이다.</summary>
+        private static MartialArt Sword(
+            AttackScope scope = AttackScope.Single, int qiCost = 4, int basePower = 20,
+            BattleRow row = BattleRow.Front)
             => MartialArt.Technique(
-                "sword_" + scope, "범위검법", Discipline.Sword, Alignment.Orthodox,
-                basePower: basePower, qiCost: qiCost, hitCount: 1, accuracyBonus: 10, school: null, scope: scope);
+                "sword_" + scope + "_" + row, "범위검법", Discipline.Sword, Alignment.Orthodox,
+                basePower: basePower, qiCost: qiCost, hitCount: 1, accuracyBonus: 10, school: null,
+                scope: scope, preferredRow: row);
+
+        /// <summary>후열을 먼저 치는 무공(던지기 자리). 수치는 검법과 같게 두어 **열만** 변수로 남긴다.</summary>
+        private static MartialArt Thrown(AttackScope scope = AttackScope.Single, int qiCost = 4, int basePower = 20)
+            => Sword(scope, qiCost, basePower, BattleRow.Rear);
 
         /// <summary>
         /// 형태소 유도 무공 — <see cref="ArtStatDelta"/> 와 <see cref="AbsoluteRule"/> 을 직접 지정한다.
@@ -63,7 +70,17 @@ namespace Jianghu.Tests.Combat
                 delta, qiCost, ArtTier.Minor, hitCount: 1,
                 counterTargets: null, rule: rule, scope: scope);
 
-        private static List<Combatant> Team(params Combatant[] members) => new List<Combatant>(members);
+        /// <summary>전원을 **전열**에 세운다. 진형이 변수가 아닌 시험은 이걸 쓴다.</summary>
+        private static List<BattlePlacement> Team(params Combatant[] members)
+        {
+            var placed = new List<BattlePlacement>(members.Length);
+            for (int i = 0; i < members.Length; i++) placed.Add(BattlePlacement.Front(members[i]));
+            return placed;
+        }
+
+        /// <summary>열을 직접 지정해 세운다.</summary>
+        private static List<BattlePlacement> Line(params BattlePlacement[] placed)
+            => new List<BattlePlacement>(placed);
 
         private static string Serialize(TeamCombatResult r)
         {
@@ -388,12 +405,13 @@ namespace Jianghu.Tests.Combat
         [Test]
         public void 같은_시드는_같은_팀전투_결과를_낸다()
         {
-            List<Combatant> A() => Team(
-                Man("A1", Stats(health: 300), Learned(Sword(AttackScope.Two))),
-                Man("A2", Stats(health: 300), Learned(Sword())));
-            List<Combatant> B() => Team(
-                Man("B1", Stats(health: 300), Learned(Sword(AttackScope.Three))),
-                Man("B2", Stats(health: 300), Learned(Sword())));
+            // ⚠ 열을 섞어 둔다 — 진형이 들어온 뒤로는 배치도 재현 대상이다.
+            List<BattlePlacement> A() => Line(
+                BattlePlacement.Front(Man("A1", Stats(health: 300), Learned(Sword(AttackScope.Two)))),
+                BattlePlacement.Rear(Man("A2", Stats(health: 300), Learned(Thrown()))));
+            List<BattlePlacement> B() => Line(
+                BattlePlacement.Front(Man("B1", Stats(health: 300), Learned(Sword(AttackScope.Three)))),
+                BattlePlacement.Rear(Man("B2", Stats(health: 300), Learned(Sword()))));
 
             TeamCombatResult first = CombatResolver.ResolveTeams(A(), B(), new XorShiftRandom(9001u));
             TeamCombatResult second = CombatResolver.ResolveTeams(A(), B(), new XorShiftRandom(9001u));
@@ -422,7 +440,226 @@ namespace Jianghu.Tests.Combat
         public void 빈_팀은_거부한다()
         {
             Assert.Throws<System.ArgumentException>(() =>
-                CombatResolver.ResolveTeams(new List<Combatant>(), Team(Dummy("B1")), new XorShiftRandom(1u)));
+                CombatResolver.ResolveTeams(new List<BattlePlacement>(), Team(Dummy("B1")), new XorShiftRandom(1u)));
+        }
+
+        // ───────────────────────── 진형 — 열 성향 (설계 §D3-3) ─────────────────────────
+
+        [Test]
+        public void 공격방식_넷_중_던지기만_후열이다()
+        {
+            // ⚠ 이 시험이 없으면 사전의 뜻 문자열이 바뀔 때 규칙이 **조용히 죽는다**(전부 전열이 된다).
+            AssertRow("벌참절단", BattleRow.Front);
+            AssertRow("자창", BattleRow.Front);
+            AssertRow("구타격박", BattleRow.Front);
+            AssertRow("투척포사", BattleRow.Rear);
+        }
+
+        [Test]
+        public void 수식_어둡다_세_자는_후열이다()
+        {
+            AssertRow("야암한", BattleRow.Rear);
+        }
+
+        [Test]
+        public void 기만에는_열_성향이_없다()
+        {
+            // ⛔ B안(기만에 후열을 주는 안) 기각을 코드에 고정한다 — 설계 §D3-3-b.
+            //   기만은 명중 +2 인 이미 강한 형태소라 후열까지 얹으면 중복 강화다.
+            foreach (char c in "환궤")
+            {
+                Morpheme m = MorphemeDictionary.Get(c);
+                BattleRow row;
+                Assert.IsFalse(BattleRowRule.TryRowOf(m, out row), c + " 에 열 성향이 생겼다");
+            }
+
+            // 실제 무공으로도 본다 — `환혈참` 은 기만이 맨 앞이지만 열을 정하는 것은 베기(참)다.
+            Assert.AreEqual(BattleRow.Front, MorphemeParser.Parse("환혈참", ArtKind.Attack).PreferredRow);
+        }
+
+        [Test]
+        public void 열_성향이_둘이면_이름에서_앞선_글자가_이긴다()
+        {
+            // ⭐ 글자 순서에 처음으로 의미가 생기는 자리다 (설계 §D3-3-a).
+            Assert.AreEqual(BattleRow.Rear, MorphemeParser.Parse("야참", ArtKind.Attack).PreferredRow, "어둡다가 앞이면 후열");
+            Assert.AreEqual(BattleRow.Front, MorphemeParser.Parse("참야", ArtKind.Attack).PreferredRow, "베기가 앞이면 전열");
+
+            // ⚠ 실제 138종은 대체로 `[수식][무공형태][공격방식]` 순이라 **수식이 이긴다.**
+            //   설계 §D3-3-a 가 예고한 대가이며, 그것이 실제로 그러함을 여기서 못박는다.
+            Assert.AreEqual(BattleRow.Rear, MorphemeParser.Parse("야궤타", ArtKind.Attack).PreferredRow, "근접(때리기)인데 야가 앞이다");
+        }
+
+        [Test]
+        public void 열은_파서에서_무공까지_실려_온다()
+        {
+            // 팩토리가 `parsed.PreferredRow` 를 버리면 여기서 걸린다 — 범위(Scope)가 겪었던 바로 그 누락이다.
+            MartialArt thrown = Create("유독척", Discipline.Dagger, "장강수로채");
+            MartialArt melee = Create("환혈참", Discipline.Blade, "녹림");
+
+            Assert.AreEqual(BattleRow.Rear, thrown.PreferredRow, "던지기 무공이 전열기로 실려 왔다");
+            Assert.AreEqual(BattleRow.Front, melee.PreferredRow);
+        }
+
+        [Test]
+        public void 파서는_이름의_글자_순서를_보존한다()
+        {
+            // ⚠ 이 규칙의 **전제**다. Body 가 순서를 잃으면 열이 무작위로 정해진다.
+            ParsedArtName parsed = MorphemeParser.Parse("궤암척혈", ArtKind.Attack);
+
+            var body = new StringBuilder();
+            for (int i = 0; i < parsed.Body.Count; i++) body.Append(parsed.Body[i].Korean);
+
+            Assert.AreEqual("궤암척혈", body.ToString());
+        }
+
+        private static void AssertRow(string groupChars, BattleRow expected)
+        {
+            foreach (char c in groupChars)
+            {
+                Morpheme m = MorphemeDictionary.Get(c);
+                BattleRow row;
+                Assert.IsTrue(BattleRowRule.TryRowOf(m, out row), c + " 에 열 성향이 없다");
+                Assert.AreEqual(expected, row, c + " 의 열이 다르다");
+            }
+        }
+
+        private static MartialArt Create(string name, Discipline discipline, string school)
+        {
+            return MartialArtFactory.Create(
+                "t_" + name, name, ArtKind.Attack, ArtTier.Minor, discipline, Alignment.Unorthodox, school);
+        }
+
+        // ───────────────────────── 진형 — 타겟팅 (설계 §D3-2 · §D4) ─────────────────────────
+
+        [Test]
+        public void 전열이_살아_있으면_근접은_후열을_못_친다()
+        {
+            var a = Team(Man("A1", Stats(), Learned(Sword())));
+            var b = Line(
+                BattlePlacement.Front(Dummy("전1")), BattlePlacement.Front(Dummy("전2")),
+                BattlePlacement.Rear(Dummy("후1")), BattlePlacement.Rear(Dummy("후2")));
+
+            for (uint seed = 1; seed <= 40; seed++)
+            {
+                TeamCombatResult r = CombatResolver.ResolveTeams(a, b, new XorShiftRandom(seed), maxRounds: 1);
+                foreach (string hit in StruckNames(r, "A1"))
+                {
+                    Assert.IsTrue(hit[0] == '전', "근접 무공이 후열 " + hit + " 을 쳤다 (seed " + seed + ")");
+                }
+            }
+        }
+
+        [Test]
+        public void 던지기는_후열을_먼저_친다()
+        {
+            var a = Team(Man("A1", Stats(), Learned(Thrown())));
+            var b = Line(
+                BattlePlacement.Front(Dummy("전1")), BattlePlacement.Front(Dummy("전2")),
+                BattlePlacement.Rear(Dummy("후1")), BattlePlacement.Rear(Dummy("후2")));
+
+            for (uint seed = 1; seed <= 40; seed++)
+            {
+                TeamCombatResult r = CombatResolver.ResolveTeams(a, b, new XorShiftRandom(seed), maxRounds: 1);
+                foreach (string hit in StruckNames(r, "A1"))
+                {
+                    Assert.IsTrue(hit[0] == '후', "던지기가 전열 " + hit + " 을 쳤다 (seed " + seed + ")");
+                }
+            }
+        }
+
+        [Test]
+        public void 전열이_전멸하면_근접이_후열을_친다()
+        {
+            // 전열을 아예 비운 배치 = "모두 노출". 설계 §D3-1 — 전열이 없으면 후열이 곧 전열이다.
+            var a = Team(Man("A1", Stats(), Learned(Sword())));
+            var b = Line(BattlePlacement.Rear(Dummy("후1")), BattlePlacement.Rear(Dummy("후2")));
+
+            TeamCombatResult r = CombatResolver.ResolveTeams(a, b, new XorShiftRandom(12u), maxRounds: 1);
+
+            List<string> hits = StruckNames(r, "A1");
+            Assert.AreEqual(1, hits.Count, "때릴 상대를 못 찾았다");
+            Assert.AreEqual('후', hits[0][0], "후열이 아닌 것을 쳤다: " + hits[0]);
+        }
+
+        [Test]
+        public void 후열이_전멸하면_던지기가_전열을_친다()
+        {
+            // ⚠ "후열 우선" 은 "후열만" 이 아니다 — 전열 우선의 정확한 대칭이다(설계 §D3-3).
+            var a = Team(Man("A1", Stats(), Learned(Thrown())));
+            var b = Line(BattlePlacement.Front(Dummy("전1")), BattlePlacement.Front(Dummy("전2")));
+
+            TeamCombatResult r = CombatResolver.ResolveTeams(a, b, new XorShiftRandom(12u), maxRounds: 1);
+
+            List<string> hits = StruckNames(r, "A1");
+            Assert.AreEqual(1, hits.Count, "때릴 상대를 못 찾았다");
+            Assert.AreEqual('전', hits[0][0], "전열이 아닌 것을 쳤다: " + hits[0]);
+        }
+
+        [Test]
+        public void 근접_군群은_전열_둘과_후열_하나를_친다()
+        {
+            // 4인 편성(전2/후2)에서 근접 3인 범위기는 **우선 열을 채우고 넘친 만큼만** 반대 열로 간다(설계 §D4).
+            var a = Team(Man("A1", Stats(), Learned(Sword(AttackScope.Three))));
+            var b = Line(
+                BattlePlacement.Front(Dummy("전1")), BattlePlacement.Front(Dummy("전2")),
+                BattlePlacement.Rear(Dummy("후1")), BattlePlacement.Rear(Dummy("후2")));
+
+            for (uint seed = 1; seed <= 40; seed++)
+            {
+                TeamCombatResult r = CombatResolver.ResolveTeams(a, b, new XorShiftRandom(seed), maxRounds: 1);
+                List<string> hits = StruckNames(r, "A1");
+
+                Assert.AreEqual(3, hits.Count, "seed " + seed);
+                int front = 0;
+                for (int i = 0; i < hits.Count; i++)
+                {
+                    if (hits[i][0] == '전') front++;
+                }
+                Assert.AreEqual(2, front, "전열 둘을 채우지 않았다 (seed " + seed + ")");
+            }
+        }
+
+        [Test]
+        public void 전全은_열과_무관하게_전원을_친다()
+        {
+            // ⭐ 특례 코드 없이 성립해야 한다 — 대상 수가 생존자 수를 넘으므로 열을 볼 일이 없다.
+            var a = Team(Man("A1", Stats(), Learned(Sword(AttackScope.All))));
+            var b = Line(
+                BattlePlacement.Front(Dummy("전1")), BattlePlacement.Front(Dummy("전2")),
+                BattlePlacement.Rear(Dummy("후1")), BattlePlacement.Rear(Dummy("후2")));
+
+            TeamCombatResult r = CombatResolver.ResolveTeams(a, b, new XorShiftRandom(12u), maxRounds: 1);
+
+            Assert.AreEqual(4, StruckNames(r, "A1").Count);
+        }
+
+        [Test]
+        public void 후열_던지기도_1대1에서는_상대를_친다()
+        {
+            // 열 개념이 1대1로 새지 않았는지 본다(설계 §D3-8). 1대1은 상대가 하나뿐이라 진형이 없다.
+            Combatant a = Man("검객", Stats(health: 300), Learned(Thrown()));
+            Combatant d = Man("도객", Stats(health: 300), Learned(Sword()));
+
+            CombatResult r = CombatResolver.Resolve(a, d, new XorShiftRandom(8u));
+
+            int struck = 0;
+            foreach (CombatLogEntry e in r.Log)
+            {
+                if (e.Kind == CombatLogKind.Action && e.ActorName == "검객" && e.TargetName == "도객") struck++;
+            }
+            Assert.Greater(struck, 0, "후열 성향 무공이 1대1에서 상대를 못 쳤다");
+        }
+
+        /// <summary><paramref name="actor"/> 가 그 전투에서 실제로 때린 대상 이름들(반격 제외).</summary>
+        private static List<string> StruckNames(TeamCombatResult r, string actor)
+        {
+            var names = new List<string>();
+            foreach (CombatLogEntry e in r.Log)
+            {
+                if (e.Kind != CombatLogKind.Action || e.ActorName != actor || IsCounter(e)) continue;
+                if (!names.Contains(e.TargetName)) names.Add(e.TargetName);
+            }
+            return names;
         }
     }
 }

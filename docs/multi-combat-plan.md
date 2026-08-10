@@ -343,6 +343,9 @@ extraChance = Clamp(advantage × 6, 0, 50)          (CombatResolver.cs:564-570)
 
 - **`BattleRow { Front, Rear }`** — 열거형 하나
 - **`ResolveTeams` 가 팀을 `IReadOnlyList<Combatant>` 가 아니라 `(Combatant, BattleRow)` 쌍의 리스트로 받는다.** 배치가 호출자 결정이기 때문이다(측정 하네스는 전2/후2 고정)
+- ✅⚠ **구현에서 자리가 바뀐 것 하나** (2026-08-09 2차) — 아래 `RowOf` 를 **`CombatResolver` 안의 조회**로 적어 뒀는데, **거기서는 부를 수가 없다.** 엔진이 받는 것은 `MartialArt` 이고 `ParsedArtName` 은 팩토리에서 이미 버려지기 때문이다.
+  → **`Scope` 와 같은 통로로 실어 보냈다**: `BattleRowRule.Of(body)` → `ParsedArtName.PreferredRow` → (팩토리) → `MartialArt.PreferredRow` → 엔진이 읽는다.
+  ⚠ 규칙 자체는 한 곳(`BattleRowRule`)에만 있고 **사전에 새 필드를 넣지 않는다**는 원칙은 그대로다 — 뜻(`Morpheme.Meaning`)으로 무리를 가른다.
 - **`RowOf(ParsedArtName)`** — ⚠⚠ **공격방식 단독 조회가 아니다**(2026-08-09 D3-3-a·b 반영. `verify` 5차가 이 절의 미갱신을 잡았다 — §3-0 서두의 경고를 **또 밟았다**).
   **`Body` 를 앞에서부터 훑어 열 성향을 가진 첫 형태소가 정한다.** 열 성향을 갖는 것은 둘:
   ```
@@ -415,10 +418,12 @@ public static TeamCombatResult ResolveTeams(
 
 ## 4. 순서
 
+⚠⚠ **3과 4의 순서를 실제로는 바꿔서 했다** (2026-08-09 2차 · 인계 §4-11-6 진행표가 기준이다). 이유: Sandbox 하네스는 `ResolveTeams` 에 **배치까지** 넘겨야 하는데, 진형을 나중에 붙이면 방금 만든 하네스의 시그니처를 곧바로 다시 고치게 된다.
+
 1. `Scope` 플러밍 + 테스트 → `dotnet test` 통과 확인 (이 단계까지는 **밸런스 무변화**여야 한다. `--compare` 바뀜 0 을 확인한다)
 2. `ResolveTeams` + `TeamCombatResult` + 회귀 테스트 5종
-3. Sandbox `multi.*` 블록 + 대조군 설계
-4. **진형** — `BattleRow` · 배치 인자 · `AttackMethodRow` · `PickTargets` + 회귀 테스트 7건
+3. Sandbox `multi.*` 블록 + 대조군 설계 ← **실제로는 4번째로 했다**
+4. **진형** — `BattleRow` · 배치 인자 · `AttackMethodRow` · `PickTargets` + 회귀 테스트 7건 ← **실제로는 3번째로 했다**
 5. 범위 4자 **와 공격방식 열 성향**을 함께 **첫 측정** → 판정 보류 해제 여부는 그때 사용자 판단
    ⚠⚠ **비도 승률부터 본다**(D3-4-a — 필수 픽 위험)
 6. Unity 확인 (Core 를 건드리므로 필요하다. 기대값을 미리 적는다)

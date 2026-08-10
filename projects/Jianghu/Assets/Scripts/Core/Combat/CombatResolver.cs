@@ -390,6 +390,12 @@ namespace Jianghu.Core.Combat
             /// </summary>
             public int Team;
 
+            /// <summary>
+            /// 이 전투에서 선 열(진형). ⚠ 1대1은 열이 없으므로 기본값 <see cref="BattleRow.Front"/> 로 남고
+            /// 읽히지도 않는다(설계 §D3-8).
+            /// </summary>
+            public BattleRow Row;
+
             /// <summary>낸 행동 수 — 평타 전락률의 분모.</summary>
             public int Actions;
 
@@ -802,12 +808,13 @@ namespace Jianghu.Core.Combat
         ///   양쪽 동시에 부르는 것을 라운드 단위로 옮긴 것이다. *"각자 자기 차례 직전"* 으로 바꾸면
         ///   기력 압력 축(인계 §4-3)의 캘리브레이션이 **조용히** 달라진다.
         ///
-        /// ⚠ 진형(전열/후열)은 <b>아직 없다</b> — 대상은 살아 있는 적 중 무작위다.
-        ///   설계 §4 의 4단계에서 <c>BattleRow</c>·<c>RowOf</c>·우선 열 규칙이 이 자리에 들어온다.
+        /// ⚠⚠ **진형이 붙어 있다**(2026-08-09 2차). 팀은 <see cref="BattlePlacement"/> 로 받으며,
+        ///   대상은 무공이 먼저 닿는 열(<see cref="MartialArt.PreferredRow"/>)부터 채우고
+        ///   모자라면 반대 열로 넘어간다 — 규칙은 <see cref="PickTargets"/>.
         /// </summary>
         /// <param name="maxRounds">이 경합을 넘기면 무승부. 1대1의 최대 턴과 같은 장치다.</param>
         public static TeamCombatResult ResolveTeams(
-            IReadOnlyList<Combatant> teamA, IReadOnlyList<Combatant> teamB,
+            IReadOnlyList<BattlePlacement> teamA, IReadOnlyList<BattlePlacement> teamB,
             IRandomSource rng, int maxRounds = DefaultMaxTurns)
         {
             if (teamA == null) throw new ArgumentNullException(nameof(teamA));
@@ -862,14 +869,16 @@ namespace Jianghu.Core.Combat
                 ActionsOf(a), BasicStrikesOf(a), ActionsOf(b), BasicStrikesOf(b));
         }
 
-        private static Fighter[] NewTeam(IReadOnlyList<Combatant> team, int side)
+        private static Fighter[] NewTeam(IReadOnlyList<BattlePlacement> team, int side)
         {
             var fighters = new Fighter[team.Count];
             for (int i = 0; i < team.Count; i++)
             {
-                if (team[i] == null) throw new ArgumentNullException(nameof(team), "팀에 비어 있는 자리가 있다.");
-                fighters[i] = NewFighter(team[i]);
+                Combatant who = team[i].Fighter;
+                if (who == null) throw new ArgumentException("팀에 비어 있는 자리가 있다.", nameof(team));
+                fighters[i] = NewFighter(who);
                 fighters[i].Team = side;
+                fighters[i].Row = team[i].Row;
             }
             return fighters;
         }
@@ -985,7 +994,7 @@ namespace Jianghu.Core.Combat
             int qiCost = free ? 0 : EffectiveQiCost(chosen.Art, mastery, actor.Def);
             actor.Qi -= qiCost;
 
-            PickTargets(enemies, TargetCount(chosen.Art.Scope), rng, targets);
+            PickTargets(enemies, chosen.Art, TargetCount(chosen.Art.Scope), rng, targets);
             if (targets.Count == 0) return null;
 
             Fighter primary = targets[0];
@@ -1013,34 +1022,79 @@ namespace Jianghu.Core.Combat
         }
 
         /// <summary>
-        /// 살아 있는 적 중에서 <paramref name="count"/> 명을 <b>중복 없이</b> 고른다.
-        /// 살아 있는 적이 그보다 적으면 있는 만큼만(설계 §D4).
+        /// **진형에 따라** 살아 있는 적 중에서 <paramref name="count"/> 명을 중복 없이 고른다
+        /// (설계 §D3-2 · §D4).
         ///
-        /// ⚠⚠ **진형은 아직 없다.** 지금은 생존자 전체에서 무작위로 고른다 —
-        ///   설계 §4 의 4단계에서 *"우선 열부터 채우고 모자라면 반대 열"* 이 이 함수에 들어온다.
-        ///   그때 바뀌는 것은 **후보의 순서**이지 이 함수의 자리나 호출부가 아니다.
-        /// ⚠ 전원을 때리는 경우에는 난수를 **쓰지 않는다.** 고를 것이 없기 때문이다 —
-        ///   쓸데없이 굴리면 같은 시드의 전개가 대상 수에 따라 흔들려 비교가 어려워진다.
+        /// **규칙 하나로 끝난다 — 무공이 먼저 닿는 열(<see cref="MartialArt.PreferredRow"/>)부터 채우고,
+        /// 모자라면 반대 열로 넘어간다.** 단일기와 범위기가 같은 규칙을 쓰며 예외가 없다.
+        ///
+        /// ⚠ *"근접이면 전열부터"* 라고 읽으면 부정확하다. 우선 열은 <see cref="BattleRowRule"/> 가
+        ///   정한다 — 근접 무공이라도 `어둡다`(야·암·한)가 공격방식보다 앞에 있으면 **후열부터** 친다.
+        /// ⚠ **"전열 우선" 은 "전열만" 이 아니다.** 우선 열이 전멸하면 반대 열을 친다 —
+        ///   그래서 *"전열이 전멸하면 후열이 곧 전열이 된다"*(§D3-1)가 따로 구현할 것 없이 성립한다.
+        /// ⭐ <c>전全</c>·<c>만萬</c> 은 <see cref="AttackScope.All"/> 이라 <paramref name="count"/> 가
+        ///   생존자 수를 넘으므로 **열과 무관하게 전원**을 친다 — 특례 코드가 필요 없다.
+        ///
+        /// ⚠⚠ **열 안에서는 무작위다.** *"어느 열을 치는가"* 는 진형이라는 **게임 규칙**이 정하고,
+        ///   *"그 열의 누구를"* 에는 정책을 넣지 않는다. 최저 체력 우선 같은 것을 넣으면
+        ///   우리가 재는 것이 범위 형태소의 값이 아니라 **우리가 고른 정책의 값**이 된다.
+        /// ⚠ 고를 것이 없으면(전원을 치거나, 우선 열을 통째로 데려갈 때) 난수를 **쓰지 않는다.**
+        ///   쓸데없이 굴리면 같은 시드의 전개가 대상 수에 따라 흔들린다.
         /// </summary>
-        private static void PickTargets(Fighter[] enemies, int count, IRandomSource rng, List<Fighter> into)
+        private static void PickTargets(
+            Fighter[] enemies, MartialArt art, int count, IRandomSource rng, List<Fighter> into)
         {
             into.Clear();
-            for (int i = 0; i < enemies.Length; i++)
+
+            // 우선 열 생존자를 앞에, 반대 열 생존자를 뒤에 담는다.
+            // ⚠ 이 순서가 곧 **때리는 순서**이고, 그래서 `primary`(속공의 속도 비교 상대)가
+            //   언제나 우선 열의 사람이 된다.
+            BattleRow preferred = art.PreferredRow;
+            AddAliveInRow(enemies, preferred, into);
+            int inPreferred = into.Count;
+            AddAliveInRow(enemies, BattleRowRule.Opposite(preferred), into);
+
+            if (count >= into.Count) return;   // 전원 — 고를 것이 없다
+
+            if (count <= inPreferred)
             {
-                if (!enemies[i].IsDown) into.Add(enemies[i]);
+                // 우선 열 안에서만 고른다. 반대 열은 손도 대지 않는다.
+                ShufflePick(into, 0, inPreferred, count, rng);
+            }
+            else
+            {
+                // 우선 열은 전원 데려가고, 모자란 만큼만 반대 열에서 고른다.
+                ShufflePick(into, inPreferred, into.Count, count - inPreferred, rng);
             }
 
-            if (count >= into.Count) return;
-
-            // 부분 피셔-예이츠 — 앞 `count` 자리만 채우고 나머지는 버린다.
-            for (int i = 0; i < count; i++)
-            {
-                int j = i + rng.Range(0, into.Count - i);
-                Fighter swap = into[i];
-                into[i] = into[j];
-                into[j] = swap;
-            }
             into.RemoveRange(count, into.Count - count);
+        }
+
+        private static void AddAliveInRow(Fighter[] team, BattleRow row, List<Fighter> into)
+        {
+            for (int i = 0; i < team.Length; i++)
+            {
+                if (!team[i].IsDown && team[i].Row == row) into.Add(team[i]);
+            }
+        }
+
+        /// <summary>
+        /// <paramref name="list"/> 의 <c>[start, end)</c> 구간에서 <paramref name="pick"/> 개를 뽑아
+        /// 구간 앞쪽으로 모은다(부분 피셔-예이츠).
+        /// ⚠ 구간을 통째로 가져갈 때는 아무것도 하지 않는다 — 고를 것이 없으면 난수도 쓰지 않는다.
+        /// </summary>
+        private static void ShufflePick(List<Fighter> list, int start, int end, int pick, IRandomSource rng)
+        {
+            if (pick >= end - start) return;
+
+            for (int i = 0; i < pick; i++)
+            {
+                int from = start + i;
+                int j = from + rng.Range(0, end - from);
+                Fighter swap = list[from];
+                list[from] = list[j];
+                list[j] = swap;
+            }
         }
 
         private static bool AnyAlive(Fighter[] team)
