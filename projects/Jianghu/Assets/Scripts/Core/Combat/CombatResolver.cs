@@ -27,7 +27,10 @@ namespace Jianghu.Core.Combat
         /// ⚠⚠ 정의서에 없는 환산이다. §1-1 은 명중을 스탯(기본 1)으로, 회피를 확률(5%)로 적어
         /// **둘을 잇는 규칙을 정하지 않았다.** 그래서 여기서 정한다.
         ///
-        /// 5 를 고른 근거 — 수식 '맞히다'(적·확 +2)가 **+10%p** 가 되어 검 숙달(+25%p)보다는 작지만
+        /// 5 를 고른 근거 — 수식 '맞히다'(적·확)가 **+10%p** 가 되어 검 숙달(+25%p)보다는 작지만
+        ///   ⚠ **2026-08-09 정정 — 사전값은 +2 가 아니라 `accuracy: 1.4` 다**(`verify` 가 잡았다).
+        ///     아래 645행 주석도 같은 옛 값을 들고 있었다. 환산 상수 5 를 고른 판단 자체는 그대로 두되,
+        ///     **인용한 사전값이 틀렸다는 사실을 지운 채 두지 않는다.** 지금 값이면 +7%p 다.
         /// 체감되는 크기이고, 무공형태 '정직'의 명중 −2 가 **−10%p** 라 페널티가 실제로 아프다.
         /// 정의서 §2-2 가 무공형태를 필수로 만든 이유("페널티가 열등함이 아니라 성격이 되게")가
         /// 이 환산에서 비로소 성립한다.
@@ -642,7 +645,9 @@ namespace Jianghu.Core.Combat
             int attempts = chosen.Art.HitCount < 1 ? 1 : chosen.Art.HitCount;
             int basePerHit = DamagePerHit(actor.Def, target.Def, chosen, attempts, mastery);
 
-            // ⚠⚠ 2026-07-30 — 명중도 형태소에서 읽는다(수식 '맞히다' 적·확 +2, 무공형태 '정직' −2 등).
+            // ⚠⚠ 2026-07-30 — 명중도 형태소에서 읽는다(수식 '맞히다' 적·확, 무공형태 '정직' 등).
+            //   ⚠ 2026-08-09 정정 — 여기 적혀 있던 "적·확 +2 / 정직 −2" 는 **옛 값**이다.
+            //     지금 사전은 적·확 `1.4` · 정직 `−2` 다. 주석에 수치를 박으면 이렇게 낡는다.
             //   이전에는 형태소 무공의 명중이 통째로 0 이라, **수식 12자가 민감도표에서 전부 승률 0%** 였다.
             //   글자를 넣으면 기력만 4 더 쓰고 효과는 없었으니 당연한 결과였다.
             int artAccuracy = chosen.Art.IsMorphemeDerived
@@ -666,7 +671,15 @@ namespace Jianghu.Core.Combat
             //   곱하면 수련이 확률을 밀어올려 위 `BaseCritMultiplier` 주석의 함정이 확률 쪽으로 되살아난다.
             // ⚠ 레거시 36종에는 치명 필드 자체가 없다 — 기본값 10% / 2.0배로만 굴린다.
             //   위력·명중과 같은 과도기 분기이며, 카탈로그가 138종으로 온전히 넘어가면 함께 사라진다.
-            int critChance = BaseCritChance;
+            // ⚠⚠ **비도 숙달의 치명률이 여기 얹힌다** (2026-08-09 신설).
+            //   비도의 나머지 두 보상은 상태이상 축이라 **상태이상 형태소가 없으면 숙달이 통째로 죽었다**
+            //   (10종 중 3종). 다섯 유형 중 비도만 조건부였고, 이 축이 그 구멍을 메운다 —
+            //   근거는 `DisciplineCurve.DaggerMaxCritChance` 주석.
+            // ⚠⚠ **무공 숙련도로 굴린다**(유형 숙련도가 아니다). 확률축인데 그렇게 한 이유는
+            //   `DisciplineCurve.DaggerMaxCritChance` 주석에 있다 — 유형 숙달은 측정에서 만렙 고정이라
+            //   유형 숙련도로 굴리면 3성부터 보너스가 통째로 들어가 초반이 과해진다.
+            int critChance = BaseCritChance
+                             + DisciplineCurve.CritChanceBonus(chosen.Art.Discipline, chosen.Proficiency);
             double critMultiplier = BaseCritMultiplier;
             if (chosen.Art.IsMorphemeDerived)
             {

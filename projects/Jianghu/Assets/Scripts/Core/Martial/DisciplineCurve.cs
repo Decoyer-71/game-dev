@@ -58,6 +58,34 @@ namespace Jianghu.Core.Martial
         //   그전에는 3성이든 10성이든 +3 이었고, 지금은 3성 +2 · 6성 +4 · 10성 +6 이다.
         //   근거는 아래 <see cref="StatusPotencyBonus"/> 의 "왜 구동자를 바꿨나" 절.
         private const int DaggerMaxStatusPotency = 6;      // 비도 — 그 무공 만숙 시 상태이상 세기 +6
+
+        /// <summary>
+        /// 비도 — **치명률(%p).** 2026-08-09 신설. ⚠⚠ **이 축만 무조건 발동한다.**
+        ///
+        /// ⚠⚠ **왜 필요했나 — 다섯 유형 중 비도만 숙달이 조건부였다.**
+        ///   비도의 보상 둘(<see cref="DaggerMaxStatusChance"/> · <see cref="DaggerMaxStatusPotency"/>)이
+        ///   **전부 상태이상 축**이라, 상태이상 형태소가 없는 비도 무공은 **숙달 보상이 정확히 0** 이었다.
+        ///   실측 3/10 종이 그렇다 — `투유표법`(강호무학) · `황야환투` · `만우쾌사`(둘 다 전승무학).
+        ///   나머지 넷(검 명중 · 도 관통 · 창 선공·속도 · 권 기력)은 **무공 구성과 무관하게 항상** 걸린다.
+        ///   → *"만일검·백일창"* 은 **사람이 무기를 다룬 세월**이지 무공의 조건부 보상이 아니다.
+        ///     조건부로 두면 이름이 성능을 거짓말한다(정의서 §0).
+        ///
+        /// **왜 하필 치명인가** — 근거 셋:
+        ///   1. **어느 유형 숙달도 안 쓰는 빈 축**이다. 명중을 주면 검(만일검), 속도를 주면 창과 겹친다
+        ///   2. *"급소를 노려 던진다"* — 암기의 관용적 심상이고 이름이 성능을 말한다
+        ///   3. ⭐ **죽어 있는 치명 축을 살린다.** 기본 치명률이 10% 뿐이라 치명배율 형태소
+        ///      `어둡다`(야·암·한 +0.3)가 90% 의 타격에 안 닿아 민감도표에서 *"무의미"* 였다.
+        ///      비도 무공 중 `궤암척혈`·`환한투독`·`황야환투` 가 바로 그 글자를 물고 있다
+        ///
+        /// ⚠⚠ **구동자는 무공 숙련도다**(`LearnedArt.Proficiency`). <see cref="StatusPotencyBonus"/> 와 같은 선택이며,
+        ///   ⛔ **정의서 §3-4-b 가 세운 *"확률은 유형 숙련도 · 세기는 무공 숙련도"* 라는 구분을 이 축이 깬다.**
+        ///   확률축인데 무공 숙련도를 탄다 — 알고 택한 것이지 실수가 아니다. 근거는 실측이다:
+        ///   유형 숙련도로 굴리면 측정에서 **유형 숙달이 만렙 고정**이라(§4-10-2) 3성에도 보너스가 통째로
+        ///   들어가 **초반이 과해진다**. 무공 숙련도로 굴리면 3성 +5 · 6성 +9 · 10성 +15 로 기울기가 생긴다.
+        ///   ⚠ 이 선택은 §3-4-b 를 갱신해야 성립한다 — 두 구동자 표를 세 줄로 다시 쓴다.
+        /// ⚠⚠ **미확정 스윕값이다** (2026-08-09). 구동자 선택도 함께 미확정이다.
+        /// </summary>
+        private const int DaggerMaxCritChance = 15;
         /// <summary>
         /// 도 — 상대 방어를 무시하는 비율. **100 이 물리적 상한이다.**
         ///
@@ -165,6 +193,15 @@ namespace Jianghu.Core.Martial
         public static int StatusChanceBonus(Discipline discipline, int proficiency)
         {
             return discipline == Discipline.Dagger ? Scale(DaggerMaxStatusChance, proficiency) : 0;
+        }
+
+        /// <summary>
+        /// 비도 — **치명률 보너스(%p).** 비도 숙달 중 **유일하게 무조건 발동**하는 축이다.
+        /// 왜 이 축이 필요했고 왜 하필 치명인지는 <see cref="DaggerMaxCritChance"/> 주석에 있다.
+        /// </summary>
+        public static int CritChanceBonus(Discipline discipline, int proficiency)
+        {
+            return discipline == Discipline.Dagger ? Scale(DaggerMaxCritChance, proficiency) : 0;
         }
 
         /// <summary>

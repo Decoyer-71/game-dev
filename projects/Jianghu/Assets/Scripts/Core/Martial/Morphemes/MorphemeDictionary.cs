@@ -148,7 +148,17 @@ namespace Jianghu.Core.Martial.Morphemes
             //   ⚠ 이 교정이 계층 내 격차까지 줄이는 것은 **공격방식과 유형이 69/71 로 1:1 결합**돼 있어서다.
             Row("자창", "刺槍", "찌르기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 1.5, speed: 1));
             Row("구타격박", "毆打擊拍", "때리기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 1, speed: 2));
-            Row("투척포사", "投擲拋射", "던지기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 0.5, speed: 3));
+            // ⚠⚠ **명중 −1 은 2026-08-09 신설 — 비도가 얻은 것에 대한 대가다** (사용자 지시).
+            //   비도 숙달에 치명률 축을 더해 *"상태이상이 없으면 숙달이 통째로 죽는"* 결함을 고쳤는데,
+            //   그 이득이 커서 비도가 소문파·대문파 10성에서 **유형 평균 1위로 뒤집혔다**(격차 6.6 → 17.1).
+            //   ⛔ 대가를 **숙달 축에 넣을 수는 없다** — *"수련할수록 나빠진다"* 가 되어 이름이 거짓말한다(§0).
+            //     그래서 **숙련과 무관한 무기의 성질**인 이 자리에 넣는다.
+            //   ⭐ *"던진 것은 빗나간다"* — 검(만일검, 명중 +7)의 **정확한 대칭**이고, 던지기가 이미
+            //     공격 최약(0.5)·속도 최고(3)이므로 **"빠르지만 약하고 잘 안 맞는다"** 로 그림이 완성된다.
+            //   ⚠⚠ **이 축은 두 번 걸린다** — 명중이 낮으면 피해도 줄고 **상태이상 부여도 줄어든다**
+            //     (`ApplyEffects` 는 명중한 타격에만 돈다). 그래서 −1(=−5%p)에서 이미 크기가 나온다.
+            //   ⚠ 값은 미확정이다. 실측은 HANDOFF §4-13.
+            Row("투척포사", "投擲拋射", "던지기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 0.5, speed: 3, accuracy: -1));
 
             // ── §3-2 방어 (11자) · 택 1 · **경공 무공 필수** ──
             Row("방거항어호", "防拒抗禦護", "막기", MorphemeCategory.Defense, ArtStatDelta.Of(defense: 1.2, blockChance: 8));

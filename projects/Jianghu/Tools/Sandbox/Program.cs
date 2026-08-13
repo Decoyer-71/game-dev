@@ -1604,8 +1604,10 @@ namespace Jianghu.Sandbox
         private static void PrintDaggerMasteryCondition(List<MartialArt> all)
         {
             Console.WriteLine();
-            Console.WriteLine("██ 비도(飛刀) 숙달 발동 조건 — 상태이상 형태소가 있어야 값을 한다 ██");
-            Console.WriteLine("     ⚠ 다른 넷은 무조건 발동한다. 비도만 무공 구성에 걸려 있다");
+            Console.WriteLine("██ 비도(飛刀) 숙달 — **상태이상 축**의 발동 조건 ██");
+            Console.WriteLine("     ⚠⚠ 2026-08-09 — 이 표는 이제 **비도 숙달의 절반**만 말한다.");
+            Console.WriteLine("        치명률 축이 신설돼 **상태이상이 없어도 숙달이 값을 한다.**");
+            Console.WriteLine("        그전에는 ❌ 가 곧 *\"숙달이 통째로 죽는다\"* 였고, 그것이 신설의 계기였다.");
 
             int met = 0, total = 0;
             for (int i = 0; i < all.Count; i++)
@@ -1621,12 +1623,13 @@ namespace Jianghu.Sandbox
                 Console.WriteLine("     " + (has ? "✅" : "❌") + "  " + Pad(a.Name, 12)
                                   + Pad(TierName(a.Tier), 12)
                                   + (a.IsWandererArt ? "(강호무학)" : a.School)
-                                  + (has ? "" : "   ⚠ 숙달이 통째로 죽는다"));
+                                  + (has ? "" : "   ⚠ 상태이상 축은 안 걸린다(치명 축은 걸린다)"));
             }
 
             if (total == 0) return;
             double rate = met * 100.0 / total;
-            Console.WriteLine("     → 충족 " + met + "/" + total + " (" + rate.ToString("F1") + "%)");
+            Console.WriteLine("     → 상태이상 축 충족 " + met + "/" + total + " (" + rate.ToString("F1") + "%)"
+                              + "  ·  치명 축은 " + total + "/" + total + " 전부 발동");
             Metrics.Add("discipline.비도.숙달조건충족률", rate);
         }
 
