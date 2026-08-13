@@ -1540,6 +1540,24 @@ namespace Jianghu.Core.Combat
         /// 기력을 쓰지 않는 행동인가(쌍雙의 두 번째). ⚠⚠ 참이면 **기력 게이트를 건너뛴다** —
         /// 비용을 안 내는 행동이 잔고를 이유로 평타로 내려앉으면 규칙이 반쪽이 된다.
         /// </param>
+        /// <summary>
+        /// **범위 대가 배수** — <see cref="ArtStatDelta.AttackPercent"/> 를 곱할 수 있는 배수로 바꾼다.
+        /// 대가가 없으면 1.0 이고, 100% 를 넘게 깎이면 0 에서 멈춘다(음수 피해가 생기면 안 된다).
+        ///
+        /// ⚠⚠ **피해 계산과 무공 선택이 이 함수 하나를 함께 쓴다.** 따로 지으면 갈라진다 —
+        ///   실제로 이 축을 넣은 첫 판에서 갈라졌고 `verify` 가 잡았다.
+        /// ⚠ **직격 피해에만 걸린다.** 지속 피해(출혈·중독·화상)는 <see cref="TickStatuses"/> 에서
+        ///   상수로 나가므로 이 배수를 받지 않는다 — 그래서 *"총 피해가 T배"* 가 아니라
+        ///   **"직격 피해가 T배"** 다. 상태이상을 문 범위 무공이 그만큼 유리해진다(실측 확인).
+        /// </summary>
+        private static double ScopePowerFactor(MartialArt art)
+        {
+            if (!art.IsMorphemeDerived || art.Delta.AttackPercent == 0) return 1.0;
+
+            double percent = 100.0 + art.Delta.AttackPercent;
+            return percent < 0 ? 0 : percent / 100.0;
+        }
+
         private static LearnedArt SelectArt(Fighter actor, bool free = false)
         {
             LearnedArt best = null;
@@ -1572,7 +1590,14 @@ namespace Jianghu.Core.Combat
                 // ⚠ `× HitCount` 는 **뺐다.** `DamagePerHit` 이 `/ attempts` 로 나누므로 타격수는
                 //   총 피해를 바꾸지 않는다 — 곱하면 다타 무공을 근거 없이 우대한다.
                 //   (지금 카탈로그는 전부 `HitCount == 1` 이라 수치 영향은 0 이다.)
-                double score = ArtPower(learned);
+                // ⚠⚠ **범위 대가도 함께 본다** (2026-08-09 · `verify` 가 잡았다).
+                //   `AttackPercent` 를 `DamagePerHit` 에만 넣었더니 **바로 위 주석이 경고한 그 분기**가
+                //   새 축에서 재발했다 — 점수는 옛 위력, 실제 피해는 깎인 위력이었다.
+                //   두 곳이 <see cref="ScopePowerFactor"/> 하나를 함께 쓰도록 묶는다.
+                // ⚠ 여기에 **대상 수를 곱하지는 않는다.** `SelectArt` 는 살아 있는 적이 몇인지 모른다
+                //   (설계 §6 미결 M4). 그래서 이 점수는 *"대상 하나에 넣는 피해"* 이고,
+                //   다대다에서 범위 무공은 **과소평가된다** — M4 를 풀 때 함께 고친다.
+                double score = ArtPower(learned) * ScopePowerFactor(learned.Art);
                 if (score > bestScore)
                 {
                     bestScore = score;
@@ -1692,6 +1717,17 @@ namespace Jianghu.Core.Combat
             //     그래도 사전 값 수정으로는 범위 무공(−2.75)을 못 닫으므로 이쪽을 택했다(정의서 §1-3-e).
             //   ⚠ 하한 처리도 <see cref="ArtPower"/> 안으로 들어갔다.
             double totalPower = (actor.Stats.Attack + artPower) * (100 + actor.PowerBonusPercent) / 100.0;
+
+            // ⚠⚠ **범위 대가 — 총 위력에 곱한다** (2026-08-09 신설).
+            //   ⓐ **`artPower` 안이 아니라 밖에서** 곱하는 것이 요점이다. 옛 감산 방식은 형태소 공격 합에만
+            //     들어가서 **캐릭터 공격(만렙 8)을 건드리지 못했고**, `ArtPower` 의 0 클램프에 걸리면
+            //     아예 무료가 됐다. 그래서 공격 합 −2.75(카탈로그 최저)인 `궤격비전` 이 4대4에서 99.5% 였다.
+            //   ⓑ **성향·경지 배율보다 바깥이다.** 안쪽이면 수련이 대가를 갉아먹어 경지가 오를수록
+            //     범위가 유리해진다 — §4-6-6 에서 기만 형태소가 겪은 것과 같은 병이다.
+            //   ⚠ 곱하는 값은 `MorphemeDictionary.ScopeDamageBudget ÷ 대상 수` 로 유도된다. 근거는 그 자리.
+            //   ⚠ 이 축은 지금 범위 형태소만 쓴다. 다른 글자가 쓰기 시작하면 합산(%p)이 되므로
+            //     그때 상한을 다시 봐야 한다 — 지금은 카테고리당 1자 규칙이 겹침을 막는다.
+            totalPower = totalPower * ScopePowerFactor(art.Art);
 
             // ⚠ 실험(2026-08-02): 쌍(雙) 2회 행동에 위력 −50% — 되돌리거나 확정할 것
             if (actor.ActsTwice) totalPower = totalPower * DoubleActionPowerPercent / 100.0;

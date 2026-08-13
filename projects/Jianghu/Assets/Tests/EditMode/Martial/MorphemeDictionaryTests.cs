@@ -108,10 +108,14 @@ namespace Jianghu.Tests.Martial
         {
             // ⚠⚠ 대가가 이 카테고리의 본체다. 대가 없는 범위 형태소가 하나라도 있으면
             //   다대다 전투가 생기는 순간 **모든 무공이 그 글자를 쓴다.**
-            //   대가는 두 축 중 하나다 — 공격을 깎거나(다·군·전), 기력을 늘리거나(만).
+            //   대가는 두 축 중 하나다 — 위력을 깎거나(다·군·전), 기력을 늘리거나(만).
+            //
+            // ⚠⚠ **2026-08-09 — 위력 쪽 축이 `Attack` 감산에서 `AttackPercent` 배수로 바뀌었다.**
+            //   감산은 대가 구실을 못 했다(캐릭터 공격을 못 건드리고, `ArtPower` 0 클램프에 걸리면
+            //   무료가 되며, 무엇보다 이득이 대상 수 곱셈인데 대가가 뺄셈이었다 — HANDOFF §4-12).
             foreach (Morpheme m in MorphemeDictionary.ByCategory(MorphemeCategory.Scope))
             {
-                bool paysInPower = m.Delta.Attack < 0;
+                bool paysInPower = m.Delta.AttackPercent < 0;
                 bool paysInQi = m.Delta.QiCostPercent > 0;
 
                 Assert.IsTrue(paysInPower || paysInQi,
@@ -131,11 +135,18 @@ namespace Jianghu.Tests.Martial
             Assert.AreEqual(AttackScope.All, jeon.Scope);
             Assert.AreEqual(AttackScope.All, man.Scope);
 
-            Assert.Less(jeon.Delta.Attack, 0, "전(全)은 위력을 팔아야 한다.");
+            Assert.Less(jeon.Delta.AttackPercent, 0, "전(全)은 위력을 팔아야 한다.");
             Assert.AreEqual(0, jeon.Delta.QiCostPercent, 1e-9, "전(全)은 기력이 아니라 위력을 판다.");
 
             Assert.Greater(man.Delta.QiCostPercent, 0, "만(萬)은 기력을 팔아야 한다.");
-            Assert.AreEqual(0, man.Delta.Attack, 1e-9, "만(萬)은 위력을 유지한다.");
+
+            // ⚠⚠ **2026-08-09 — 만(萬)도 위력을 조금은 팔게 됐다.** 그전에는 하나도 안 팔아서,
+            //   전(全)이 배수형 대가를 지게 된 뒤 만이 홀로 4대4를 지배했다(HANDOFF §4-12).
+            //   그래서 판정 기준을 *"만은 위력을 안 판다"* 에서 **"만은 위력을 덜 판다"** 로 바꿨다.
+            //   ⛔ 둘이 같아지면 만은 **완전 하위호환**(위력 대가가 같은데 기력까지 더)이 되어 죽는다.
+            Assert.Greater(man.Delta.AttackPercent, jeon.Delta.AttackPercent,
+                "만(萬)은 전(全)보다 위력을 **덜** 팔아야 한다 — 같거나 더 팔면 하위호환이다.");
+            Assert.LessOrEqual(man.Delta.AttackPercent, 0, "만(萬)의 위력 대가가 순이득이 됐다.");
         }
 
         [Test]

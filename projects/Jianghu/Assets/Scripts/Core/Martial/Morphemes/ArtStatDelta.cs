@@ -53,6 +53,24 @@ namespace Jianghu.Core.Martial.Morphemes
         /// <summary>방어무시(防禦無視) 비율(%). 극한경지 마(魔).</summary>
         public double DefenseIgnore { get; }
 
+        /// <summary>
+        /// **총 위력 증감(%)** — 범위 형태소(다·군·전)의 대가가 여기 들어간다 (2026-08-09 신설).
+        ///
+        /// ⚠⚠ <see cref="Attack"/>(합산 스칼라)과 **다른 축이다.** 저쪽은 형태소 공격 합에 더해지고,
+        ///   이쪽은 <c>(캐릭터 공격 + 형태소 위력)</c> **전체에 곱해진다.** 갈라 둔 이유가 측정으로 나왔다:
+        ///
+        ///   범위의 옛 대가는 공격 합 감산(다 −1 · 군 −2 · 전 −3)이었는데 **대가 구실을 못 했다.**
+        ///   ⓐ 만렙 캐릭터 공격 8 이 형태소 밖에 있어 감산이 닿지 못하고
+        ///   ⓑ <c>CombatResolver.ArtPower</c> 가 음수를 0 으로 잘라 **일정 지점 아래에서는 감산이 무료**이며
+        ///   ⓒ 무엇보다 **이득은 대상 수 곱셈(×2·×3·×4)인데 대가는 뺄셈**이라 애초에 급이 다르다.
+        ///   실측: 4대4에서 범위 5종 평균 **85.6%** vs 대조 35.2%(10성). 공격 합 **−2.75** 로 카탈로그
+        ///   최저인 `궤격비전` 이 **99.5%** 였다(HANDOFF §4-12).
+        ///
+        /// ⚠ 곱셈 축이므로 <see cref="QiCostPercent"/> 와 같은 꼴이다 — 100 을 더해 나눈다.
+        /// ⚠ **성향·경지 배율보다 바깥에서 곱한다.** 안쪽에 넣으면 수련이 대가를 갉아먹는다.
+        /// </summary>
+        public double AttackPercent { get; }
+
         // ── 기력(氣力) ──
 
         /// <summary>최대기력 증감.</summary>
@@ -138,10 +156,11 @@ namespace Jianghu.Core.Martial.Morphemes
             double statusApplyBonus, double statusResist,
             double poisonChance, double bleedChance, double burnChance, double frostbiteChance,
             double qiDrainChance, double staggerChance, double paralysisStack,
-            double attackPenalty)
+            double attackPenalty, double attackPercent)
         {
             Attack = attack;
             AttackPenalty = attackPenalty;
+            AttackPercent = attackPercent;
             Defense = defense;
             Accuracy = accuracy;
             Speed = speed;
@@ -184,7 +203,8 @@ namespace Jianghu.Core.Martial.Morphemes
             double maxQi = 0, double qiRegen = 0, double qiCostPercent = 0,
             double statusApplyBonus = 0, double statusResist = 0,
             double poisonChance = 0, double bleedChance = 0, double burnChance = 0, double frostbiteChance = 0,
-            double qiDrainChance = 0, double staggerChance = 0, double paralysisStack = 0)
+            double qiDrainChance = 0, double staggerChance = 0, double paralysisStack = 0,
+            double attackPercent = 0)
         {
             return new ArtStatDelta(
                 attack, defense, accuracy, speed,
@@ -195,7 +215,8 @@ namespace Jianghu.Core.Martial.Morphemes
                 poisonChance, bleedChance, burnChance, frostbiteChance,
                 qiDrainChance, staggerChance, paralysisStack,
                 // ⚠ 형태소 하나의 페널티는 그 글자의 음수 공격분이다. 합·곱은 아래 연산자가 잇는다.
-                attack < 0 ? attack : 0);
+                attack < 0 ? attack : 0,
+                attackPercent);
         }
 
         /// <summary>
@@ -230,7 +251,8 @@ namespace Jianghu.Core.Martial.Morphemes
                 a.QiDrainChance + b.QiDrainChance,
                 a.StaggerChance + b.StaggerChance,
                 a.ParalysisStack + b.ParalysisStack,
-                a.AttackPenalty + b.AttackPenalty);
+                a.AttackPenalty + b.AttackPenalty,
+                a.AttackPercent + b.AttackPercent);
         }
 
         /// <summary>
@@ -265,7 +287,10 @@ namespace Jianghu.Core.Martial.Morphemes
                 a.QiDrainChance * factor,
                 a.StaggerChance * factor,
                 a.ParalysisStack * factor,
-                a.AttackPenalty * factor);
+                a.AttackPenalty * factor,
+                // ⚠ 종(宗)은 **무공형태**만 2배로 만들고 범위 형태소에는 닿지 않으므로 이 줄은 지금 도달하지 않는다.
+                //   그래도 다른 축과 같이 곱해 둔다 — *"페널티까지 함께 2배"*(정의서 §3-8)의 일관성이다.
+                a.AttackPercent * factor);
         }
 
         /// <summary>아무 축도 만지지 않는가. 부정·무학분류·배경어 판별과 사전 무결성 테스트에 쓴다.</summary>
