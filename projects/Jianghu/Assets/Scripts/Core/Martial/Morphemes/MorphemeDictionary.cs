@@ -30,6 +30,88 @@ namespace Jianghu.Core.Martial.Morphemes
     {
         // ─────────────────────────── 형태소 75자 (정의서 §3) ───────────────────────────
 
+        /// <summary>
+        /// **범위 무공이 단일 대상 무공 대비 내는 직격 피해 배수** — 범위 대가의 **유일한 손잡이**다
+        /// (2026-08-09 신설 · 정의서 §3-12).
+        ///
+        /// 각 글자의 위력 배수는 <c>이 값 ÷ 대상 수</c> 로 유도된다. 그래서 손잡이가 하나이고,
+        /// *"넷을 때리되 직격 피해 합은 단일의 T배"* 라는 **한 문장으로 읽힌다.**
+        ///
+        /// ⚠⚠ **"총 피해" 가 아니라 "직격 피해" 다.** 지속 피해(출혈·중독·화상)는
+        ///   <c>CombatResolver.TickStatuses</c> 에서 상수로 나가 이 배수를 **받지 않는다.**
+        ///   → **상태이상을 문 범위 무공이 그만큼 유리하다.** 실측(T=1.30 · 4대4 10성):
+        ///   출혈을 문 `환벌혈군` 53.1% vs 상태이상이 없는 `정천창군` 27.3%.
+        ///   이름이 성능을 말해야 하므로(정의서 §0) **이 서술을 "총 피해" 로 쓰면 거짓말이 된다.**
+        ///
+        /// ⚠⚠ **1.00 이면 직격 피해 합이 정확히 같다.** 그런데 실측에서 그때 범위가 **−26%p 로 진다**
+        ///   (4대4 10성 31.4 vs 57.6). 피해를 여러 명에게 나눠 넣으면 적의 행동 수가 늦게 줄기 때문이다 —
+        ///   행동경제 손실이 과잉 피해 절감보다 크다. **파단점은 T ≈ 1.22 근처**다.
+        /// ⚠ 이 값은 **아직 확정되지 않았다**(2026-08-09 시점). 스윕 결과와 남은 결정은 HANDOFF §4-12 참조.
+        /// </summary>
+        public const double ScopeDamageBudget = 1.15;
+
+        /// <summary>
+        /// <c>전全</c>·<c>만萬</c> 의 대상 수를 **몇으로 놓고 대가를 매길 것인가.**
+        ///
+        /// ⚠⚠ 전원 타격은 대상 수가 **그 전투의 인원에 따라 변한다.** 대가는 사전에 고정돼야 하므로
+        ///   기준 편성을 하나 정해야 하고, 그 기준이 이 값이다 — **측정 편성(4인)** 을 쓴다(설계 §D1).
+        /// ⚠ 그래서 **인원이 많은 전투일수록 전원기가 강해진다.** 이름 그대로의 성질이라 결함이 아니지만,
+        ///   편성 규모가 4에서 달라지면 **여기서부터 다시 봐야 한다.**
+        /// </summary>
+        public const int ScopeAllTargets = 4;
+
+        /// <summary>
+        /// **만(萬) 전용 직격 피해 배수** — 전(全)과 성격을 가르는 자리다 (2026-08-09 사용자 지시로 스윕 중).
+        ///
+        /// ⚠⚠ **만이 위력 대가를 아예 안 내면 전(全)과 성능만 다르고 성격이 같아진다** — 실제로
+        ///   그렇게 두었더니 `환창혈만` 이 4대4에서 **91.6~96.1%** 로 홀로 지배했다(T 와 무관.
+        ///   기력 축이라 <see cref="ScopeDamageBudget"/> 이 닿지 않는다). HANDOFF §4-12.
+        /// ⚠ 반대로 전(全)과 **같은 값**을 주면 위력 대가가 같은데 기력까지 더 내므로 만이 **완전 하위호환**이 된다.
+        ///   → 그래서 이 값은 반드시 <see cref="ScopeDamageBudget"/> **보다 커야** 한다.
+        ///   *"만은 위력을 덜 팔고 대신 기력을 판다"* — 이것이 두 글자를 가르는 한 문장이다.
+        /// ⚠ <c>4.0</c> 이면 위력 대가가 **0** 이고 그게 스윕 이전의 옛 상태다(기력만 낸다).
+        /// ⚠⚠ **미확정 스윕값이다.** 실전 테스트로 정한다(2026-08-09 사용자 확정).
+        /// </summary>
+        public const double ScopeDamageBudgetLegion = 2.5;
+
+        /// <summary>
+        /// 대상 <paramref name="targets"/> 명을 때리는 범위 형태소의 대가.
+        /// 총 피해가 <see cref="ScopeDamageBudget"/> 배가 되도록 **위력을 곱셈으로** 깎는다.
+        /// </summary>
+        private static ArtStatDelta ScopeCost(int targets)
+        {
+            return ScopeCost(targets, ScopeDamageBudget, false);
+        }
+
+        /// <summary>
+        /// <paramref name="budget"/> 배수로 대가를 유도한다.
+        /// <paramref name="paysElsewhere"/> 는 **다른 축으로도 대가를 내는가** — 만(萬)의 기력 소모가 그것이다.
+        /// </summary>
+        private static ArtStatDelta ScopeCost(int targets, double budget, bool paysElsewhere)
+        {
+            double percent = (budget / targets - 1.0) * 100.0;
+
+            // ⚠⚠ **대가가 양수면 범위가 순이득이 된다.** 배수가 대상 수를 넘으면(예: T 2.0 에 다多 2인)
+            //   이 카테고리의 존재 이유가 사라진다 — 사전 §3-12 가 *"대가가 이 카테고리의 본체다"* 라고
+            //   못박은 그 자리다. 조용히 넘기지 않고 여기서 깬다.
+            if (percent > 0)
+            {
+                throw new InvalidOperationException(
+                    "범위 대가가 순이득이다(대상 " + targets + "인 · +" + percent.ToString("F1")
+                    + "%). 배수(" + budget + ")가 대상 수보다 크면 안 된다.");
+            }
+
+            // ⚠ 위력 대가가 0 이어도 **다른 축으로 내고 있으면** 정상이다(만萬의 기력 +200%).
+            //   둘 다 0 이면 대가가 아예 없는 범위 글자가 되므로 그건 막는다.
+            if (percent == 0 && !paysElsewhere)
+            {
+                throw new InvalidOperationException(
+                    "범위 대가가 0 인데 다른 축으로도 내지 않는다(대상 " + targets + "인).");
+            }
+
+            return ArtStatDelta.Of(attackPercent: percent);
+        }
+
         private static readonly Morpheme[] MorphemeList = BuildMorphemes();
 
         private static Morpheme[] BuildMorphemes()
@@ -41,7 +123,7 @@ namespace Jianghu.Core.Martial.Morphemes
             void Row(
                 string korean, string hanja, string meaning, MorphemeCategory category, ArtStatDelta delta,
                 ArtLineage lineage = ArtLineage.None, bool isNegation = false, bool doublesFormEffect = false,
-                AttackScope scope = AttackScope.Single)
+                AttackScope scope = AttackScope.Single, AbsoluteRule rule = AbsoluteRule.None)
             {
                 if (korean.Length != hanja.Length)
                 {
@@ -52,7 +134,7 @@ namespace Jianghu.Core.Martial.Morphemes
                 for (int i = 0; i < korean.Length; i++)
                 {
                     list.Add(new Morpheme(
-                        korean[i], hanja[i], meaning, category, delta, lineage, isNegation, doublesFormEffect, scope));
+                        korean[i], hanja[i], meaning, category, delta, lineage, isNegation, doublesFormEffect, scope, rule));
                 }
             }
 
@@ -66,7 +148,17 @@ namespace Jianghu.Core.Martial.Morphemes
             //   ⚠ 이 교정이 계층 내 격차까지 줄이는 것은 **공격방식과 유형이 69/71 로 1:1 결합**돼 있어서다.
             Row("자창", "刺槍", "찌르기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 1.5, speed: 1));
             Row("구타격박", "毆打擊拍", "때리기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 1, speed: 2));
-            Row("투척포사", "投擲拋射", "던지기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 0.5, speed: 3));
+            // ⚠⚠ **명중 −1 은 2026-08-09 신설 — 비도가 얻은 것에 대한 대가다** (사용자 지시).
+            //   비도 숙달에 치명률 축을 더해 *"상태이상이 없으면 숙달이 통째로 죽는"* 결함을 고쳤는데,
+            //   그 이득이 커서 비도가 소문파·대문파 10성에서 **유형 평균 1위로 뒤집혔다**(격차 6.6 → 17.1).
+            //   ⛔ 대가를 **숙달 축에 넣을 수는 없다** — *"수련할수록 나빠진다"* 가 되어 이름이 거짓말한다(§0).
+            //     그래서 **숙련과 무관한 무기의 성질**인 이 자리에 넣는다.
+            //   ⭐ *"던진 것은 빗나간다"* — 검(만일검, 명중 +7)의 **정확한 대칭**이고, 던지기가 이미
+            //     공격 최약(0.5)·속도 최고(3)이므로 **"빠르지만 약하고 잘 안 맞는다"** 로 그림이 완성된다.
+            //   ⚠⚠ **이 축은 두 번 걸린다** — 명중이 낮으면 피해도 줄고 **상태이상 부여도 줄어든다**
+            //     (`ApplyEffects` 는 명중한 타격에만 돈다). 그래서 −1(=−5%p)에서 이미 크기가 나온다.
+            //   ⚠ 값은 미확정이다. 실측은 HANDOFF §4-13.
+            Row("투척포사", "投擲拋射", "던지기", MorphemeCategory.AttackMethod, ArtStatDelta.Of(attack: 0.5, speed: 3, accuracy: -1));
 
             // ── §3-2 방어 (11자) · 택 1 · **경공 무공 필수** ──
             Row("방거항어호", "防拒抗禦護", "막기", MorphemeCategory.Defense, ArtStatDelta.Of(defense: 1.2, blockChance: 8));
@@ -164,7 +256,30 @@ namespace Jianghu.Core.Martial.Morphemes
             //   않는가"* 를 물었고 실측으로 닫았다 — 무공형태를 바꿔 가며 재면 종의 승률 격차가
             //   **공격 1 에서 28.0%p · 공격 3 에서 25.5%p** 로 거의 그대로다. 종의 값은 여전히
             //   *어떤 무공형태와 묶느냐*가 정한다.
-            Row("종", "宗", "종주", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 3), doublesFormEffect: true);
+            // ⚠⚠ 2026-08-05 — 공격 **3 → 1** (사용자 확정 · 정의서 §3-8-a).
+            //   `종환화격`(종이 쓰인 **유일한** 무공)이 10성 **83.4%** 로 지배했다.
+            //   극한경지 9자를 나란히 놓으면 종만 이상치였다 — **공격값이 최고(3.0)인데
+            //   부가 효과(무공형태 2배)까지** 갖는다. 이제 제(帝)와 같은 자리(공격 1.0)다.
+            //   ✅ "극단" 정체성은 안 흔들린다 — 무공형태별 격차가 **공격 1 에서 28.0%p ·
+            //     공격 3 에서 25.5%p** 로 거의 같다(2026-08-02 실측). 정체성은 수치가 아니라 2배 메커니즘이다.
+            //   실측: 종환화격 83.4 → **56.9** · 전승 격차(범위제외) 49.7 → **29.7**(목표 이내).
+            //   ⛔ 알고 받아들인 부작용 — 마한중참 63.1 → 67.1 · 패혈중창 60.9 → 66.0 이
+            //     새로 지배 임계(65)를 넘었다. 깎인 승률이 상위권으로 재분배된 것이다.
+            //
+            // ⏸⚠⚠ 2026-08-05 2차 — **종은 나머지 8자와 단위가 다르다. 고치지 않기로 했다**
+            //   (사용자 확정 · 정의서 §3-8-b 에 전문). ⛔ **여기 값을 만지려는 사람은 그 절을 먼저 읽어라.**
+            //   ⓐ 극한경지 측정 블록을 처음 만들어 재 보니 **7자가 +23.8~27.9%p 로 이미 평평**하고,
+            //     벗어난 것은 조건부인 선(仙)과 이 종(宗)뿐이다.
+            //   ⓑ 그래서 **극한경지 축은 균일 배율로 조정할 수 없다** — 7자만 내리면 종이 그 자리를
+            //     채운다. 실측 기각 2건: ×0.8 → 전승 최고 65.1(여전히 지배) · 격차 31.0(목표 초과),
+            //     ×0.6 → 전승 최고 **68.7 = 종환화격**(어제 고친 것이 되살아남) · 격차 34.4 ·
+            //     `dotnet test` **198/1 실패**(마의 방어무시가 유명무실해짐).
+            //     **현행이 격차 기준으로 이미 최적이다.**
+            //   ⓒ ⚠⚠ 아래 `doublesFormEffect` 는 **환·궤에 걸린 레버리지**다. `MorphemeParser.cs:169`
+            //     가 무공형태 델타를 통째로 2배 하고 `ArtStatDelta` 의 `AttackPenalty` 축까지 함께
+            //     곱하므로, §1-3(공격 페널티를 배율 밖으로)의 이득을 **종환화격만 2배로 받았다.**
+            //     → **환·궤를 손대면 종을 반드시 다시 잰다.** 지표에는 안 뜬다.
+            Row("종", "宗", "종주", MorphemeCategory.Pinnacle, ArtStatDelta.Of(attack: 1), doublesFormEffect: true);
 
             // ── §3-9 부정 (5자) · 자체 수치 없음 ──
             Row("낙망멸산소", "落亡滅散消", "부정", MorphemeCategory.Negation, ArtStatDelta.Zero, isNegation: true);
@@ -176,19 +291,53 @@ namespace Jianghu.Core.Martial.Morphemes
             //   그래서 전원 타격 두 글자가 성능이 아니라 **성격**으로 구분된다.
             // ⚠ 최대 공격 합은 공격방식2 + 무공형태2 + 자연1 = 5 다. 전(全)의 −3 이면 2 가 남는다.
             //   즉 전원을 때리되 위력은 40% 수준이 된다.  ⚠ 전부 미검증 초기값이다.
-            Row("다", "多", "여럿", MorphemeCategory.Scope, ArtStatDelta.Of(attack: -1), scope: AttackScope.Two);
-            Row("군", "群", "무리", MorphemeCategory.Scope, ArtStatDelta.Of(attack: -2), scope: AttackScope.Three);
-            Row("전", "全", "전부", MorphemeCategory.Scope, ArtStatDelta.Of(attack: -3), scope: AttackScope.All);
-            // 만(萬) — 위력을 유지하는 대신 기력 소모가 3배가 된다(만인적萬人敵).
+            // ⚠⚠ **2026-08-09 — 감산에서 배수로 바꿨다.** 옛 값(다 −1 · 군 −2 · 전 −3 공격 감산)은
+            //   첫 다대다 측정에서 **대가 구실을 못 했다**(HANDOFF §4-12): 4대4 범위 5종 평균 85.6% ·
+            //   대조 35.2%. 공격 합 −2.75 로 카탈로그 최저인 `궤격비전` 이 99.5% 였다.
+            //   이유는 셋이고 전부 구조다 — ⓐ 캐릭터 공격 8 이 형태소 밖이라 감산이 못 건드리고
+            //   ⓑ `ArtPower` 가 음수를 0 으로 잘라 일정 지점 아래에서는 감산이 무료이며
+            //   ⓒ **이득은 대상 수 곱셈인데 대가는 뺄셈**이라 급이 다르다.
+            //   → 대가를 **곱셈 축**(`AttackPercent`)으로 옮긴다. 손잡이는 아래 하나뿐이다.
+            Row("다", "多", "여럿", MorphemeCategory.Scope, ScopeCost(2), scope: AttackScope.Two);
+            Row("군", "群", "무리", MorphemeCategory.Scope, ScopeCost(3), scope: AttackScope.Three);
+            Row("전", "全", "전부", MorphemeCategory.Scope, ScopeCost(ScopeAllTargets), scope: AttackScope.All);
+            // 만(萬) — **위력을 덜 팔고 기력을 판다**(만인적萬人敵). 기력 소모가 3배다.
             //   ⚠⚠ 2026-08-01 정정 — 상수 4 시절 "16 → 48" 로 적혀 있었으나 상수가 3 이 되어
             //   4자 무공 기준 **12 → 36** 이다(실측: 환창혈만 36 · 만우쾌사 27).
             //   기력 50 이라 여전히 한 번 쓰고 고갈되는 필살기 성격은 유지된다.
-            Row("만", "萬", "만인", MorphemeCategory.Scope, ArtStatDelta.Of(qiCostPercent: 200), scope: AttackScope.All);
+            //   ⚠⚠ **2026-08-09 — 위력 대가를 여기에도 붙였다**(사용자 지시로 스윕 중).
+            //     그전에는 위력을 **하나도** 안 팔아서, 전(全)이 배수형 대가를 지게 된 뒤
+            //     `환창혈만` 이 4대4에서 **91.6~96.1%** 로 홀로 지배했다(HANDOFF §4-12).
+            //     ⚠ 배수는 <see cref="ScopeDamageBudgetLegion"/> 이고 **전(全)보다 커야** 한다 —
+            //       같으면 만이 완전 하위호환(위력 같은데 기력만 더)이 되어 죽은 글자가 된다.
+            Row("만", "萬", "만인", MorphemeCategory.Scope,
+                ScopeCost(ScopeAllTargets, ScopeDamageBudgetLegion, true) + ArtStatDelta.Of(qiCostPercent: 200),
+                scope: AttackScope.All);
 
             // ── §3-10 무학분류 (3자) · 태그일 뿐 자체 수치 없음 ──
             Row("일", "日", "양기무학", MorphemeCategory.Tag, ArtStatDelta.Zero, ArtLineage.Yang);
             Row("월", "月", "음기무학", MorphemeCategory.Tag, ArtStatDelta.Zero, ArtLineage.Yin);
             Row("혼", "混", "혼합무학", MorphemeCategory.Tag, ArtStatDelta.Zero, ArtLineage.Mixed);
+
+            // ── §5-3 절대경지 규칙 (4자) · **절대경지 전용 · 필수 1자** (2026-08-02 신설) ──
+            //
+            // ⚠ 수치가 없다(`Zero`). 정의서 §5-3 이 *"수치로 강하게 만들지 않는다 — 대신 규칙을
+            //   바꾼다"* 고 못박았기 때문이다. 전승무학을 수치로 압도하면 문파 성장 경로가 통째로
+            //   무의미해진다는 것이 그 근거다.
+            //
+            // ⚠⚠ **한글 키 충돌을 사전 84자 + 배경어 6자 전수로 확인했다** (2026-08-02).
+            //   면·쌍·무·통은 어디에도 없다. 중/重·광/光·성/聖·공/功·산/散 이 한글을 선점해
+            //   한자를 못 썼던 전례가 있으므로 새 글자는 반드시 이 확인을 거친다(HANDOFF §0).
+            //
+            // 대형세력 배정은 정의서 §5-5-c 표에 있다.
+            Row("면", "免", "면역", MorphemeCategory.AbsoluteRule, ArtStatDelta.Zero,
+                rule: AbsoluteRule.StatusImmunity);
+            Row("무", "無", "무소모", MorphemeCategory.AbsoluteRule, ArtStatDelta.Zero,
+                rule: AbsoluteRule.NoQiCost);
+            Row("쌍", "雙", "이회행동", MorphemeCategory.AbsoluteRule, ArtStatDelta.Zero,
+                rule: AbsoluteRule.DoubleAction);
+            Row("통", "統", "상성통괄", MorphemeCategory.AbsoluteRule, ArtStatDelta.Zero,
+                rule: AbsoluteRule.CounterSupremacy);
 
             return list.ToArray();
         }

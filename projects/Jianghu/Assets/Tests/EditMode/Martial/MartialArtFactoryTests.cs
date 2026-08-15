@@ -122,5 +122,32 @@ namespace Jianghu.Tests.Martial
             Assert.IsFalse(legacy.IsMorphemeDerived);
             Assert.IsTrue(derived.IsMorphemeDerived);
         }
+
+        /// <summary>
+        /// **범위 형태소가 무공까지 실려 온다** (2026-08-09 신설 · `MartialArt.Scope`).
+        ///
+        /// ⚠⚠ 그전까지 `MartialArtFactory` 가 `parsed.Scope` 를 **그냥 버렸다.** 2026-08-02 의
+        ///   `CounterTargets` 누락과 **똑같은 형태**이고, 그 자리 주석이 *"AttackScope 는 아직
+        ///   같은 상태로 남아 있다"* 고 스스로 적어 두고 있었다. 이 테스트가 그 회귀를 막는다.
+        /// ⚠ 이 단계는 **값을 나르기만** 한다 — 전투 결과는 한 톨도 안 바뀐다(1대1은 상대가
+        ///   하나뿐이라 읽을 곳이 없다). 실제로 쓰는 것은 다대다다(`docs/multi-combat-plan.md`).
+        /// </summary>
+        [Test]
+        public void 범위_형태소가_무공의_Scope_로_실려_온다()
+        {
+            // 군(群) = 3인. 대문파 이상만 범위를 쓸 수 있다(정의서 §3-12 · ArtCompositionRule).
+            MartialArt group = MartialArtFactory.Create(
+                "g", "정천창군", ArtKind.Attack, ArtTier.Major,
+                Discipline.Spear, Alignment.Orthodox, "소림사");
+            Assert.AreEqual(AttackScope.Three, group.Scope,
+                "군(群) 을 문 무공인데 Scope 가 안 왔다 — 팩토리가 parsed.Scope 를 또 버렸는지 볼 것.");
+
+            // 범위 글자가 없으면 단일 대상이다.
+            MartialArt single = MartialArtFactory.Create(
+                "s", "참정검법", ArtKind.Attack, ArtTier.Wanderer,
+                Discipline.Sword, alignment: null);
+            Assert.AreEqual(AttackScope.Single, single.Scope,
+                "범위 형태소가 없는데 Single 이 아니다 — 기본값이 샜다.");
+        }
     }
 }

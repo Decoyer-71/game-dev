@@ -26,6 +26,19 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"D:/GameDev/.claude/hooks/guard_balance.py\"",
+            "timeout": 15,
+            "statusMessage": "밸런스 파일 점검: 기준선 대조 필요 여부"
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [

@@ -27,7 +27,10 @@ namespace Jianghu.Core.Combat
         /// ⚠⚠ 정의서에 없는 환산이다. §1-1 은 명중을 스탯(기본 1)으로, 회피를 확률(5%)로 적어
         /// **둘을 잇는 규칙을 정하지 않았다.** 그래서 여기서 정한다.
         ///
-        /// 5 를 고른 근거 — 수식 '맞히다'(적·확 +2)가 **+10%p** 가 되어 검 숙달(+25%p)보다는 작지만
+        /// 5 를 고른 근거 — 수식 '맞히다'(적·확)가 **+10%p** 가 되어 검 숙달(+25%p)보다는 작지만
+        ///   ⚠ **2026-08-09 정정 — 사전값은 +2 가 아니라 `accuracy: 1.4` 다**(`verify` 가 잡았다).
+        ///     아래 645행 주석도 같은 옛 값을 들고 있었다. 환산 상수 5 를 고른 판단 자체는 그대로 두되,
+        ///     **인용한 사전값이 틀렸다는 사실을 지운 채 두지 않는다.** 지금 값이면 +7%p 다.
         /// 체감되는 크기이고, 무공형태 '정직'의 명중 −2 가 **−10%p** 라 페널티가 실제로 아프다.
         /// 정의서 §2-2 가 무공형태를 필수로 만든 이유("페널티가 열등함이 아니라 성격이 되게")가
         /// 이 환산에서 비로소 성립한다.
@@ -173,6 +176,42 @@ namespace Jianghu.Core.Combat
         ///   그건 다른 어떤 형태소보다 크다. 절반이 *"받아친다"* 의 크기다. ⚠ 미검증 초기값.
         /// </summary>
         public const int CounterDamagePercent = 50;
+
+        /// <summary>
+        /// **상성 1당 주는 피해 증가(%)** — 정의서 §4. ⚠ 미검증 초기값이다.
+        ///
+        /// ⚠ 이름이 <see cref="CounterDamagePercent"/>(반격 위력)와 비슷하지만 **전혀 다른 축**이다.
+        ///   저쪽은 반격(反擊), 이쪽은 상성(相性)이다.
+        /// </summary>
+        public const int CounterDamageBonusPercent = 10;
+
+        /// <summary>
+        /// **상성 1당 받는 피해 감소(%)** — 정의서 §4. ⚠ 미검증 초기값이다.
+        ///
+        /// ⚠ 주는 쪽(10)의 절반인 것은 정의서가 그렇게 정한 값이다. 1:1 전투에서
+        ///   *"받는 피해 −X%"* 가 *"주는 피해 +X%"* 보다 값이 크기 때문이다(내 수명은 늘고
+        ///   상대 수명은 그대로다 — `DamagePerHit` 의 비율 경감 주석과 같은 근거).
+        /// </summary>
+        public const int CounterDamageReductionPercent = 5;
+
+        /// <summary>
+        /// **절대경지 통(統) 이 모든 분류에 갖는 상성 수** — 정의서 §5-3-b (2026-08-02 사용자 확정).
+        ///
+        /// ⚠⚠ **정의서 §5-3 원문은 "+2" 였다.** 실측으로 내렸다 — `SymmetricAdvantage` 로 재면
+        ///   +2 는 상성 상대에게 **+32.00%p(승률 82%)** 이고, 발동률이 **85%** 라 사실상 상시다.
+        ///   같은 방식으로 잰 다른 규칙은 쌍(雙) +11.4(무조건) · 면(免) +4.13(조건부)이라
+        ///   +2 만 홀로 2~3배였다. **+1 이면 +16.00%p(승률 66%)** 로 띠 안에 들어온다.
+        ///
+        /// ⚠ **이름값은 크기가 아니라 구조가 낸다.** 낙월류 상성 무공 4종은 **특정 분류 하나**에만 +1 이고
+        ///   **일방향**인데, 통은 **모든 분류에** +1 이고 **상대 상성까지 무효화**한다.
+        ///   "절대 우위" 는 그 둘이 만든다.
+        ///   ⚠ 그 4종(창천낙월·참천멸월·절해망혼·절지낙월)은 **소문파·대문파·대형세력**급이다 —
+        ///     전승무학이 아니다(`verify` 정정).
+        /// </summary>
+        public const int CounterSupremacyAdvantage = 1;
+
+        /// <summary>⚠ 실험 중 — 쌍(雙) 보유 시 타격 위력(%).</summary>
+        public const int DoubleActionPowerPercent = 55;
 
         // ── 상태이상 규칙 상수. 근거: docs/martial-system-proposal.md §5 ──
         /// <summary>중독 최대 중첩.</summary>
@@ -347,6 +386,19 @@ namespace Jianghu.Core.Combat
             public int StaggerLockTurns;
             public bool IsDown => Health <= 0;
 
+            /// <summary>
+            /// 어느 편인가 — <see cref="TeamSideA"/> 또는 <see cref="TeamSideB"/>.
+            /// ⚠ 1대1 <see cref="Resolve"/> 는 이 값을 쓰지 않는다(양쪽 다 기본값 0 으로 남는다).
+            ///   팀 전투에서 **큐 하나에 양 팀이 섞여 서므로** 자기 적이 누구인지 표시가 필요하다.
+            /// </summary>
+            public int Team;
+
+            /// <summary>
+            /// 이 전투에서 선 열(진형). ⚠ 1대1은 열이 없으므로 기본값 <see cref="BattleRow.Front"/> 로 남고
+            /// 읽히지도 않는다(설계 §D3-8).
+            /// </summary>
+            public BattleRow Row;
+
             /// <summary>낸 행동 수 — 평타 전락률의 분모.</summary>
             public int Actions;
 
@@ -427,13 +479,47 @@ namespace Jianghu.Core.Combat
                 a.Actions, a.BasicStrikes, d.Actions, d.BasicStrikes);
         }
 
+        /// <summary>
+        /// 전투 시작 기력 — 최대기력의 <b>1/4</b>. 이 프로젝트에서 "부분 충전(部分充電)" 이라 부른다.
+        /// ⚠⚠ 이름 주의: 한때 "충전형(0 에서 시작)" 으로 제안됐으나 <b>0 시작은 기각</b>됐다.
+        /// </summary>
+        /// <remarks>
+        /// ⚠⚠ 2026-08-02 사용자 확정. 근거는 docs/concepts/charge-qi-model.md §8 (후보 격자 실측).
+        ///
+        /// <para>왜 만땅이 아닌가 — <b>시작 만땅(50)이 13턴 전투 전체를 완충</b>하고 있었다.
+        /// 그래서 평타 전락률이 전 무공·전 경지 <b>0.0%</b> 였고, 기력에 걸린 것이 전부 죽어 있었다:
+        /// 내공 형태소 4자(양·음·합·식) · 권(拳) 유형 특성(기력소모 −100%) · 극한경지 선(仙) ·
+        /// 절대경지 무(無). 상수를 하나도 안 바꾸고 이 한 줄로 축이 살아난다.</para>
+        ///
+        /// <para>왜 하필 1/4 인가 — 다섯 설정(만땅 · 50% · <b>25%</b> · 0 · 0+per3→2)을 같은 표본
+        /// (민감도 1600전 · 전락률 100전 · 10성)으로 재고 고른 값이다. <b>전락률 목표(10~30%)와
+        /// 계층 역전 없음(3자vs4자 &lt;50%)을 동시에 만족하는 유일한 설정</b>이다 —
+        /// 25%: 전락률 11.8% · 3자vs4자 45.8% / 50%: 전락률 2.8%(부족) / 0: 3자vs4자 51.8%(역전).</para>
+        ///
+        /// <para>⚠ 최대기력에 <b>비례</b>시킨 것이 핵심이다. 고정값이면 최대기력 형태소(양 陽)가
+        /// 죽는다 — 0 시작 실측에서 양(陽)이 +2.44 → <b>+0.00%p</b> 로 완전히 무효가 됐다.
+        /// 비례이므로 25% 에서는 <b>+2.44%p 로 현행과 소수점까지 같다.</b></para>
+        ///
+        /// <para>⚠ 정수 나눗셈이지만 0 이 될 수 없다 — <c>CharacterStats</c> 의 maxQi 는 시작·만렙
+        /// 둘 다 50 고정이고 MaxQi 델타 형태소는 전부 양수다(verify 확인).</para>
+        ///
+        /// <para>⚠⚠ <b>이것은 해가 아니라 교환비다.</b> 기력 압력이 버는 값 = 형태소가 잃는 값이라는
+        /// 항등식은 살아 있다(HANDOFF §4-3-2 #1). 지불한 대가: 계층 내 격차 대문파 56.8 → 59.0%p ·
+        /// 전승 65.7 → 70.0%p · 대문파 vs 소문파 50.1 → 48.1%.</para>
+        ///
+        /// <para>⚠ <b>후속 미결</b>: 절대경지 쌍(雙)은 2회 행동 = 기력 2배 소모다. 시작 기력이
+        /// 낮아지면 쌍을 가진 쪽이 스스로 마를 수 있는데 <b>정량화되지 않았다.</b> 무(無)+쌍(雙)
+        /// 동시 보유의 상호작용도 미검토.</para>
+        /// </remarks>
+        public const int StartingQiDivisor = 4;
+
         private static Fighter NewFighter(Combatant c)
         {
             return new Fighter
             {
                 Def = c,
                 Health = c.Stats.MaxHealth,
-                Qi = c.EffectiveMaxQi,
+                Qi = c.EffectiveMaxQi / StartingQiDivisor,
             };
         }
 
@@ -468,6 +554,29 @@ namespace Jianghu.Core.Combat
             //
             // ⚠ **상대와의 차이**로 굴린다. 절대 속도로 굴리면 양쪽이 같이 빨라져 전투만 짧아진다.
             // ⚠ 상태이상 진행(1)과 마비(2)를 다시 거치지 않는다 — 추가 행동은 '행동'만이다.
+            // ⚠⚠ **절대경지 쌍(雙) — 한 턴에 2회 행동** (2026-08-02 신설). 확정 1회다.
+            //   **속공과 겹치지 않는다** — 확정 추가 행동을 쓴 턴에는 속공 판정을 건너뛴다.
+            //   겹치면 한 턴에 3회가 되어 *"2회 행동"* 이라는 이름이 거짓말이 된다(§5-C 대원칙).
+            // ⚠⚠ **두 번째 행동은 기력을 쓰지 않는다** (2026-08-02 사용자 확정 · 재조정).
+            //   ~~그전에는 `PerformAction` 이 호출마다 `EffectiveQiCost` 를 다시 차감해 **소모가 2배**였다.~~
+            //   그 2배는 **설계된 대가가 아니라 구현 부산물**이었고, 이 자리 옛 주석이 스스로
+            //   *"축이 살아나면 보유자가 스스로 말라붙는다"* 고 예고해 뒀다. 실제로 그렇게 됐다 —
+            //   시작 기력 25% 로 압력이 생기자 **공격 무공이 비쌀수록 쌍이 나빠지고 4자에서
+            //   부호가 뒤집혔다**(2자 +11.41 · 3자 +6.50 · 4자 **−7.66**%p, 10성. 3·6성도 단조).
+            //
+            //   ⚠⚠ **대가가 둘이면 조절할 수 없다.** 설계된 대가는 위력 <see cref="DoubleActionPowerPercent"/>
+            //     하나인데, 기력 2배는 **무공 가격에 따라 크기가 변하는** 대가라 위력%로 상쇄가 안 된다.
+            //     → 대가를 하나로 줄이고 위력%로만 조절한다. 상세는 HANDOFF §4-4.
+            //
+            //   ⚠⚠ **`free` 는 차감과 선택 게이트를 동시에 면제한다. 한쪽만 고치면 반쪽 규칙이 된다** —
+            //     차감만 0 으로 두면 `SelectArt` 가 여전히 비용으로 거르므로 *"공짜인데 잔고가 있어야
+            //     쓸 수 있는"* 상태가 된다. 실제로 그 반쪽을 만들어 재다가 잡았다(HANDOFF §4-3-6 일반화 7).
+            if (actor.Def.ActsTwice)
+            {
+                PerformAction(turn, actor, target, rng, log, extra: true, free: true);
+                return;
+            }
+
             int advantage = actor.Def.Speed - target.Def.Speed;
             if (advantage <= 0) return;
 
@@ -477,12 +586,20 @@ namespace Jianghu.Core.Combat
             PerformAction(turn, actor, target, rng, log, extra: true);
         }
 
-        /// <summary>초식 하나를 실제로 쓴다. 상태이상 진행·마비 판정은 포함하지 않는다.</summary>
+        /// <summary>
+        /// 초식 하나를 실제로 쓴다. 상태이상 진행·마비 판정은 포함하지 않는다.
+        /// </summary>
+        /// <param name="extra">그 턴의 **추가** 행동인가(속공 또는 쌍雙). 로그 표기용.</param>
+        /// <param name="free">
+        /// 기력을 **쓰지 않고** 내는 행동인가. 절대경지 쌍(雙)의 두 번째 행동만 해당한다.
+        /// ⚠⚠ 차감뿐 아니라 <see cref="SelectArt"/> 의 **선택 게이트까지** 면제한다 — 둘은 한 몸이다.
+        /// ⚠ 속공 추가 행동은 <c>free</c> 가 아니다. 그쪽은 기력을 정상으로 낸다.
+        /// </param>
         private static void PerformAction(
             int turn, Fighter actor, Fighter target, IRandomSource rng, List<CombatLogEntry> log,
-            bool extra = false)
+            bool extra = false, bool free = false)
         {
-            LearnedArt chosen = SelectArt(actor);
+            LearnedArt chosen = SelectArt(actor, free);
 
             // ⚠⚠ **평타 전락률 계측** (2026-08-01 신설). 설계안 §5-3 이 목표 10~30% 로 못박고
             //   `MorphemeParser.QiCostPerMorpheme` 주석이 *"이 상수는 전락률로 판정한다"* 고 적었는데
@@ -500,13 +617,37 @@ namespace Jianghu.Core.Combat
 
             int mastery = actor.Def.MasteryOf(chosen.Art.Discipline);
 
-            int qiCost = EffectiveQiCost(chosen.Art, mastery, actor.Def);   // 내공(식息) + 권 숙달 → 소모 감소
+            // ⚠ `free` 면 차감하지 않는다 — 쌍(雙)의 두 번째 행동. 위 `Act` 의 주석 참조.
+            int qiCost = free ? 0 : EffectiveQiCost(chosen.Art, mastery, actor.Def);  // 내공(식息) + 권 숙달 → 소모 감소
             actor.Qi -= qiCost;
 
+            StrikeTarget(turn, actor, target, chosen, mastery, qiCost, extra, rng, log);
+        }
+
+        /// <summary>
+        /// **한 대상에게 실제로 때린다** — 명중·치명·막기·피해·상태이상·반격.
+        ///
+        /// ⚠⚠ **2026-08-09 에 <see cref="PerformAction"/> 에서 갈라냈다. 동작은 한 줄도 안 바꿨다.**
+        ///   가른 선은 **행동 단위 / 대상 단위**다:
+        ///     · 행동 단위(`PerformAction`) — 무공 선택 · 기력 차감 · 행동 계수. **행동당 한 번**
+        ///     · 대상 단위(이 함수)       — 명중부터 반격까지. **맞는 사람마다 한 번**
+        ///   1대1에서는 둘이 붙어 있어도 구분이 없었지만, **범위 무공은 한 행동에 여럿을 때린다.**
+        ///   기력을 대상 수만큼 내면 안 되므로 이 선이 필요하다(`docs/multi-combat-plan.md`).
+        ///
+        /// ⚠ 이 갈라내기 자체는 **밸런스에 영향이 0** 이어야 한다 — `--compare` 바뀜 0 으로 확인했다.
+        /// ⚠ `qiCost` 는 **로그 표기용으로만** 받는다. 차감은 이미 `PerformAction` 이 했다.
+        ///   범위 무공에서 두 번째 대상부터 0 을 넘기면 *"한 번 냈다"* 가 로그에 그대로 보인다.
+        /// </summary>
+        private static void StrikeTarget(
+            int turn, Fighter actor, Fighter target, LearnedArt chosen, int mastery, int qiCost,
+            bool extra, IRandomSource rng, List<CombatLogEntry> log)
+        {
             int attempts = chosen.Art.HitCount < 1 ? 1 : chosen.Art.HitCount;
             int basePerHit = DamagePerHit(actor.Def, target.Def, chosen, attempts, mastery);
 
-            // ⚠⚠ 2026-07-30 — 명중도 형태소에서 읽는다(수식 '맞히다' 적·확 +2, 무공형태 '정직' −2 등).
+            // ⚠⚠ 2026-07-30 — 명중도 형태소에서 읽는다(수식 '맞히다' 적·확, 무공형태 '정직' 등).
+            //   ⚠ 2026-08-09 정정 — 여기 적혀 있던 "적·확 +2 / 정직 −2" 는 **옛 값**이다.
+            //     지금 사전은 적·확 `1.4` · 정직 `−2` 다. 주석에 수치를 박으면 이렇게 낡는다.
             //   이전에는 형태소 무공의 명중이 통째로 0 이라, **수식 12자가 민감도표에서 전부 승률 0%** 였다.
             //   글자를 넣으면 기력만 4 더 쓰고 효과는 없었으니 당연한 결과였다.
             int artAccuracy = chosen.Art.IsMorphemeDerived
@@ -530,7 +671,15 @@ namespace Jianghu.Core.Combat
             //   곱하면 수련이 확률을 밀어올려 위 `BaseCritMultiplier` 주석의 함정이 확률 쪽으로 되살아난다.
             // ⚠ 레거시 36종에는 치명 필드 자체가 없다 — 기본값 10% / 2.0배로만 굴린다.
             //   위력·명중과 같은 과도기 분기이며, 카탈로그가 138종으로 온전히 넘어가면 함께 사라진다.
-            int critChance = BaseCritChance;
+            // ⚠⚠ **비도 숙달의 치명률이 여기 얹힌다** (2026-08-09 신설).
+            //   비도의 나머지 두 보상은 상태이상 축이라 **상태이상 형태소가 없으면 숙달이 통째로 죽었다**
+            //   (10종 중 3종). 다섯 유형 중 비도만 조건부였고, 이 축이 그 구멍을 메운다 —
+            //   근거는 `DisciplineCurve.DaggerMaxCritChance` 주석.
+            // ⚠⚠ **무공 숙련도로 굴린다**(유형 숙련도가 아니다). 확률축인데 그렇게 한 이유는
+            //   `DisciplineCurve.DaggerMaxCritChance` 주석에 있다 — 유형 숙달은 측정에서 만렙 고정이라
+            //   유형 숙련도로 굴리면 3성부터 보너스가 통째로 들어가 초반이 과해진다.
+            int critChance = BaseCritChance
+                             + DisciplineCurve.CritChanceBonus(chosen.Art.Discipline, chosen.Proficiency);
             double critMultiplier = BaseCritMultiplier;
             if (chosen.Art.IsMorphemeDerived)
             {
@@ -595,7 +744,9 @@ namespace Jianghu.Core.Combat
             if (target.Health < 0) target.Health = 0;
 
             // 4) 명중했으면 상태이상 부여를 판정한다.
-            string note = landed > 0 ? ApplyEffects(turn, actor, target, chosen.Art, mastery, rng, log) : null;
+            string note = landed > 0
+                ? ApplyEffects(turn, actor, target, chosen.Art, mastery, chosen.Proficiency, rng, log)
+                : null;
 
             // ⚠ 치명은 로그에 **반드시 보여야 한다.** 안 보이면 "왜 갑자기 크게 맞았지" 가 남고,
             //   그건 설계 §1 의 반증 조건 1("차이를 체감할 수 없다")에 그대로 걸린다.
@@ -622,6 +773,371 @@ namespace Jianghu.Core.Combat
 
             // 5) 맞은 쪽이 받아친다.
             if (landed > 0 && !target.IsDown) Counter(turn, target, actor, rng, log);
+        }
+
+        // ─────────────────────────── 다대다 (팀 전투) ───────────────────────────
+
+        /// <summary>A 팀 표식. <see cref="Fighter.Team"/> 에 들어간다.</summary>
+        private const int TeamSideA = 0;
+        private const int TeamSideB = 1;
+
+        /// <summary>
+        /// 이니셔티브 동률을 가르는 난수의 폭. 값 자체에 의미는 없다 —
+        /// 같은 값이 또 나와도 등록 순서로 갈리므로 결정론은 유지된다.
+        /// </summary>
+        private const int TieBreakRange = 1 << 16;
+
+        /// <summary>큐 한 자리. 정렬을 위해 이니셔티브 외에 동률 난수와 등록 순서를 함께 든다.</summary>
+        private struct QueueSlot
+        {
+            public Fighter Actor;
+            public int Tie;
+            public int Order;
+        }
+
+        /// <summary>
+        /// 정렬 규칙을 델리게이트로 한 번만 만들어 둔다 — 경합마다 새로 만들 이유가 없다.
+        /// </summary>
+        private static readonly Comparison<QueueSlot> QueueOrder = CompareQueueSlots;
+
+        /// <summary>
+        /// **팀 대 팀 전투.** 1대1 <see cref="Resolve"/> 의 <b>형제 메서드</b>다.
+        ///
+        /// ⚠⚠ <see cref="Resolve"/> 를 고치지 않는다. 개체 단위 헬퍼(<see cref="PerformActionOnTeam"/> 가 부르는
+        ///   <see cref="SelectArt"/>·<see cref="StrikeTarget"/>·<see cref="TickStatuses"/>·<see cref="Regenerate"/>)는
+        ///   **전부 공유**하고, 갈라지는 것은 <b>턴 루프와 승패 판정뿐</b>이다.
+        ///   근거와 그 대가는 <c>docs/multi-combat-plan.md</c> §3-2 — *"한 값을 두 곳에서 따로 계산하면 언젠가 갈라진다"*.
+        ///
+        /// **한 경합(round)의 진행** (설계 §D2):
+        ///   1. 살아 있는 전원이 기력을 <b>1회</b> 회복한다
+        ///   2. 살아 있는 전원을 <see cref="Combatant.Initiative"/> 내림차순으로 세운다. 동률은 난수
+        ///   3. 큐 순서대로 각자 1회 행동한다 — 그 사이에 쓰러진 사람은 자기 차례를 건너뛴다
+        ///
+        /// ⚠⚠ 정렬 키는 <b>속도가 아니라 이니셔티브</b>다. 둘은 2026-07-31 에 일부러 갈라 뒀고
+        ///   (<c>Combatant.Initiative</c> 주석), 속도를 순서에 쓰면 창을 든 사람이 추가 행동까지 독식한다.
+        ///   순서 = 이니셔티브 · 추가 행동 = 속도라는 현행 역할 분리를 그대로 옮긴 것이다.
+        ///
+        /// ⚠⚠ 회복이 <b>경합 시작 1회</b>인 것은 1대1이 턴 시작에 <c>Regenerate(a); Regenerate(d);</c> 로
+        ///   양쪽 동시에 부르는 것을 라운드 단위로 옮긴 것이다. *"각자 자기 차례 직전"* 으로 바꾸면
+        ///   기력 압력 축(인계 §4-3)의 캘리브레이션이 **조용히** 달라진다.
+        ///
+        /// ⚠⚠ **진형이 붙어 있다**(2026-08-09 2차). 팀은 <see cref="BattlePlacement"/> 로 받으며,
+        ///   대상은 무공이 먼저 닿는 열(<see cref="MartialArt.PreferredRow"/>)부터 채우고
+        ///   모자라면 반대 열로 넘어간다 — 규칙은 <see cref="PickTargets"/>.
+        /// </summary>
+        /// <param name="maxRounds">이 경합을 넘기면 무승부. 1대1의 최대 턴과 같은 장치다.</param>
+        public static TeamCombatResult ResolveTeams(
+            IReadOnlyList<BattlePlacement> teamA, IReadOnlyList<BattlePlacement> teamB,
+            IRandomSource rng, int maxRounds = DefaultMaxTurns)
+        {
+            if (teamA == null) throw new ArgumentNullException(nameof(teamA));
+            if (teamB == null) throw new ArgumentNullException(nameof(teamB));
+            if (rng == null) throw new ArgumentNullException(nameof(rng));
+            if (teamA.Count < 1) throw new ArgumentException("팀에는 한 명 이상이 있어야 한다.", nameof(teamA));
+            if (teamB.Count < 1) throw new ArgumentException("팀에는 한 명 이상이 있어야 한다.", nameof(teamB));
+            if (maxRounds < 1) throw new ArgumentOutOfRangeException(nameof(maxRounds), "최대 경합은 1 이상이어야 한다.");
+
+            Fighter[] a = NewTeam(teamA, TeamSideA);
+            Fighter[] b = NewTeam(teamB, TeamSideB);
+            var log = new List<CombatLogEntry>();
+            var queue = new List<QueueSlot>(a.Length + b.Length);
+            var targets = new List<Fighter>(a.Length + b.Length);
+
+            int round = 0;
+            while (round < maxRounds && AnyAlive(a) && AnyAlive(b))
+            {
+                round++;
+
+                // 1) 회복 — 생존자 전원 1회. `Regenerate` 가 쓰러진 사람은 스스로 걸러낸다.
+                for (int i = 0; i < a.Length; i++) Regenerate(a[i]);
+                for (int i = 0; i < b.Length; i++) Regenerate(b[i]);
+
+                // 2) 큐를 다시 세운다. **생존자 구성이 경합마다 바뀌기 때문**이고, 그것이 유일한 이유다.
+                BuildQueue(queue, a, b, rng);
+
+                // 3) 순서대로 1회씩.
+                for (int i = 0; i < queue.Count; i++)
+                {
+                    Fighter actor = queue[i].Actor;
+                    if (actor.IsDown) continue;   // 이 경합 안에서 이미 쓰러졌다 — 큐는 경합 시작에 한 번 만들어진다
+
+                    Fighter[] enemies = actor.Team == TeamSideA ? b : a;
+                    if (!AnyAlive(enemies)) break;
+
+                    ActTeam(round, actor, enemies, rng, targets, log);
+                    if (!AnyAlive(a) || !AnyAlive(b)) break;
+                }
+            }
+
+            bool aAlive = AnyAlive(a);
+            bool bAlive = AnyAlive(b);
+
+            TeamOutcome outcome;
+            if (aAlive && !bAlive) outcome = TeamOutcome.TeamAWin;
+            else if (bAlive && !aAlive) outcome = TeamOutcome.TeamBWin;
+            else outcome = TeamOutcome.Draw;   // 최대 경합 도달 또는 동시 전멸(출혈사)
+
+            return new TeamCombatResult(
+                outcome, round, HealthOf(a), HealthOf(b), log,
+                ActionsOf(a), BasicStrikesOf(a), ActionsOf(b), BasicStrikesOf(b));
+        }
+
+        private static Fighter[] NewTeam(IReadOnlyList<BattlePlacement> team, int side)
+        {
+            var fighters = new Fighter[team.Count];
+            for (int i = 0; i < team.Count; i++)
+            {
+                Combatant who = team[i].Fighter;
+                if (who == null) throw new ArgumentException("팀에 비어 있는 자리가 있다.", nameof(team));
+                fighters[i] = NewFighter(who);
+                fighters[i].Team = side;
+                fighters[i].Row = team[i].Row;
+            }
+            return fighters;
+        }
+
+        private static void BuildQueue(List<QueueSlot> queue, Fighter[] a, Fighter[] b, IRandomSource rng)
+        {
+            queue.Clear();
+            AddAliveToQueue(queue, a, rng);
+            AddAliveToQueue(queue, b, rng);
+            queue.Sort(QueueOrder);
+        }
+
+        private static void AddAliveToQueue(List<QueueSlot> queue, Fighter[] team, IRandomSource rng)
+        {
+            for (int i = 0; i < team.Length; i++)
+            {
+                if (team[i].IsDown) continue;
+                queue.Add(new QueueSlot
+                {
+                    Actor = team[i],
+                    Tie = rng.Range(0, TieBreakRange),
+                    Order = queue.Count,
+                });
+            }
+        }
+
+        /// <summary>
+        /// 이니셔티브 내림차순. 동률이면 난수, 그것도 같으면 등록 순서.
+        ///
+        /// ⚠⚠ 동률 난수를 **정렬 중에** 굴리지 않고 미리 뽑아 두는 것이 요점이다.
+        ///   비교 함수 안에서 굴리면 같은 두 항목을 비교할 때마다 답이 달라져
+        ///   <c>List.Sort</c> 가 *"비교자가 일관되지 않다"* 로 던진다.
+        /// </summary>
+        private static int CompareQueueSlots(QueueSlot x, QueueSlot y)
+        {
+            int c = y.Actor.Def.Initiative.CompareTo(x.Actor.Def.Initiative);
+            if (c != 0) return c;
+            c = y.Tie.CompareTo(x.Tie);
+            if (c != 0) return c;
+            return x.Order.CompareTo(y.Order);
+        }
+
+        /// <summary>
+        /// 팀 전투에서의 한 사람 차례. 1대1 <see cref="Act"/> 와 <b>같은 순서</b>를 따른다 —
+        /// 상태이상 진행 → 마비 판정 → 행동 → 추가 행동.
+        ///
+        /// ⚠ 추가 행동의 속도 비교 상대는 **그 행동이 실제로 고른 첫 대상**이다.
+        ///   1대1에서는 상대가 하나뿐이라 물음 자체가 없던 값이고, 여럿을 때리는 행동에서는
+        ///   기준이 하나 필요하다. 첫 대상으로 잡는 이유는 그것이 **그 행동의 주 대상**이기 때문이다
+        ///   (범위 무공에서도 우선 열부터 채운 첫 사람이 된다 — 설계 §D4).
+        /// ⚠ 아무도 못 때렸으면(적이 전멸) 추가 행동도 없다.
+        /// </summary>
+        private static void ActTeam(
+            int round, Fighter actor, Fighter[] enemies, IRandomSource rng,
+            List<Fighter> targets, List<CombatLogEntry> log)
+        {
+            TickStatuses(round, actor, log);
+            if (actor.IsDown) return;
+
+            if (actor.StaggerLockTurns > 0) actor.StaggerLockTurns--;
+
+            if (actor.ParalyzeTurns > 0)
+            {
+                actor.ParalyzeTurns--;
+                log.Add(CombatLogEntry.Incapacitated(round, actor.Def.Name, "마비"));
+                return;
+            }
+
+            Fighter primary = PerformActionOnTeam(round, actor, enemies, rng, targets, log);
+            if (actor.IsDown || primary == null) return;
+            if (!AnyAlive(enemies)) return;
+
+            // 절대경지 쌍(雙) — 확정 1회. 속공 판정을 건너뛰는 것도 1대1과 같다.
+            // ⚠ 두 번째 행동은 **대상을 다시 고른다**(설계 §D5) — `PerformActionOnTeam` 이 매번 새로 고르므로
+            //   따로 할 일이 없다. 같은 대상을 두 번 치게 만들면 그것은 집중 공격 정책을 규칙에 박는 것이다.
+            if (actor.Def.ActsTwice)
+            {
+                PerformActionOnTeam(round, actor, enemies, rng, targets, log, extra: true, free: true);
+                return;
+            }
+
+            int advantage = actor.Def.Speed - primary.Def.Speed;
+            if (advantage <= 0) return;
+
+            int extraChance = Clamp(advantage * ExtraActionPercentPerSpeed, 0, MaxExtraActionChance);
+            if (!rng.Chance(extraChance)) return;
+
+            PerformActionOnTeam(round, actor, enemies, rng, targets, log, extra: true);
+        }
+
+        /// <summary>
+        /// 초식 하나를 **여러 대상에게** 쓴다. 1대1 <see cref="PerformAction"/> 의 팀 판이다.
+        ///
+        /// ⚠⚠ **행동 단위와 대상 단위의 구분이 여기서 실제로 쓰인다**(2026-08-09 갈라낸 선):
+        ///   무공 선택·기력 차감·행동 계수는 **행동당 1회**, <see cref="StrikeTarget"/> 은 **맞는 사람마다 1회**.
+        ///   범위 무공이 기력을 대상 수만큼 내면 안 된다.
+        /// ⚠ 로그의 기력 표기는 **첫 대상에만** 붙인다. 두 번째부터 0 이 보이는 것이
+        ///   *"한 번 냈다"* 를 그대로 드러낸다.
+        /// ⚠ 반격에 맞아 행동자가 쓰러지면 남은 대상은 때리지 못한다 — 죽은 사람이 계속 치면 안 된다.
+        /// </summary>
+        /// <returns>실제로 고른 첫 대상. 때릴 상대가 없었으면 null.</returns>
+        private static Fighter PerformActionOnTeam(
+            int round, Fighter actor, Fighter[] enemies, IRandomSource rng,
+            List<Fighter> targets, List<CombatLogEntry> log,
+            bool extra = false, bool free = false)
+        {
+            LearnedArt chosen = SelectArt(actor, free);
+
+            actor.Actions++;
+            if (ReferenceEquals(chosen, BasicStrike)) actor.BasicStrikes++;
+
+            int mastery = actor.Def.MasteryOf(chosen.Art.Discipline);
+            int qiCost = free ? 0 : EffectiveQiCost(chosen.Art, mastery, actor.Def);
+            actor.Qi -= qiCost;
+
+            PickTargets(enemies, chosen.Art, TargetCount(chosen.Art.Scope), rng, targets);
+            if (targets.Count == 0) return null;
+
+            Fighter primary = targets[0];
+            for (int i = 0; i < targets.Count; i++)
+            {
+                StrikeTarget(round, actor, targets[i], chosen, mastery, i == 0 ? qiCost : 0, extra, rng, log);
+                if (actor.IsDown) break;
+            }
+
+            return primary;
+        }
+
+        /// <summary>
+        /// 범위(<see cref="AttackScope"/>)가 정한 대상 수. <see cref="AttackScope.All"/> 은 살아 있는 전원이다.
+        /// </summary>
+        private static int TargetCount(AttackScope scope)
+        {
+            switch (scope)
+            {
+                case AttackScope.Two: return 2;
+                case AttackScope.Three: return 3;
+                case AttackScope.All: return int.MaxValue;
+                default: return 1;
+            }
+        }
+
+        /// <summary>
+        /// **진형에 따라** 살아 있는 적 중에서 <paramref name="count"/> 명을 중복 없이 고른다
+        /// (설계 §D3-2 · §D4).
+        ///
+        /// **규칙 하나로 끝난다 — 무공이 먼저 닿는 열(<see cref="MartialArt.PreferredRow"/>)부터 채우고,
+        /// 모자라면 반대 열로 넘어간다.** 단일기와 범위기가 같은 규칙을 쓰며 예외가 없다.
+        ///
+        /// ⚠ *"근접이면 전열부터"* 라고 읽으면 부정확하다. 우선 열은 <see cref="BattleRowRule"/> 가
+        ///   정한다 — 근접 무공이라도 `어둡다`(야·암·한)가 공격방식보다 앞에 있으면 **후열부터** 친다.
+        /// ⚠ **"전열 우선" 은 "전열만" 이 아니다.** 우선 열이 전멸하면 반대 열을 친다 —
+        ///   그래서 *"전열이 전멸하면 후열이 곧 전열이 된다"*(§D3-1)가 따로 구현할 것 없이 성립한다.
+        /// ⭐ <c>전全</c>·<c>만萬</c> 은 <see cref="AttackScope.All"/> 이라 <paramref name="count"/> 가
+        ///   생존자 수를 넘으므로 **열과 무관하게 전원**을 친다 — 특례 코드가 필요 없다.
+        ///
+        /// ⚠⚠ **열 안에서는 무작위다.** *"어느 열을 치는가"* 는 진형이라는 **게임 규칙**이 정하고,
+        ///   *"그 열의 누구를"* 에는 정책을 넣지 않는다. 최저 체력 우선 같은 것을 넣으면
+        ///   우리가 재는 것이 범위 형태소의 값이 아니라 **우리가 고른 정책의 값**이 된다.
+        /// ⚠ 고를 것이 없으면(전원을 치거나, 우선 열을 통째로 데려갈 때) 난수를 **쓰지 않는다.**
+        ///   쓸데없이 굴리면 같은 시드의 전개가 대상 수에 따라 흔들린다.
+        /// </summary>
+        private static void PickTargets(
+            Fighter[] enemies, MartialArt art, int count, IRandomSource rng, List<Fighter> into)
+        {
+            into.Clear();
+
+            // 우선 열 생존자를 앞에, 반대 열 생존자를 뒤에 담는다.
+            // ⚠ 이 순서가 곧 **때리는 순서**이고, 그래서 `primary`(속공의 속도 비교 상대)가
+            //   언제나 우선 열의 사람이 된다.
+            BattleRow preferred = art.PreferredRow;
+            AddAliveInRow(enemies, preferred, into);
+            int inPreferred = into.Count;
+            AddAliveInRow(enemies, BattleRowRule.Opposite(preferred), into);
+
+            if (count >= into.Count) return;   // 전원 — 고를 것이 없다
+
+            if (count <= inPreferred)
+            {
+                // 우선 열 안에서만 고른다. 반대 열은 손도 대지 않는다.
+                ShufflePick(into, 0, inPreferred, count, rng);
+            }
+            else
+            {
+                // 우선 열은 전원 데려가고, 모자란 만큼만 반대 열에서 고른다.
+                ShufflePick(into, inPreferred, into.Count, count - inPreferred, rng);
+            }
+
+            into.RemoveRange(count, into.Count - count);
+        }
+
+        private static void AddAliveInRow(Fighter[] team, BattleRow row, List<Fighter> into)
+        {
+            for (int i = 0; i < team.Length; i++)
+            {
+                if (!team[i].IsDown && team[i].Row == row) into.Add(team[i]);
+            }
+        }
+
+        /// <summary>
+        /// <paramref name="list"/> 의 <c>[start, end)</c> 구간에서 <paramref name="pick"/> 개를 뽑아
+        /// 구간 앞쪽으로 모은다(부분 피셔-예이츠).
+        /// ⚠ 구간을 통째로 가져갈 때는 아무것도 하지 않는다 — 고를 것이 없으면 난수도 쓰지 않는다.
+        /// </summary>
+        private static void ShufflePick(List<Fighter> list, int start, int end, int pick, IRandomSource rng)
+        {
+            if (pick >= end - start) return;
+
+            for (int i = 0; i < pick; i++)
+            {
+                int from = start + i;
+                int j = from + rng.Range(0, end - from);
+                Fighter swap = list[from];
+                list[from] = list[j];
+                list[j] = swap;
+            }
+        }
+
+        private static bool AnyAlive(Fighter[] team)
+        {
+            for (int i = 0; i < team.Length; i++)
+            {
+                if (!team[i].IsDown) return true;
+            }
+            return false;
+        }
+
+        private static int[] HealthOf(Fighter[] team)
+        {
+            var health = new int[team.Length];
+            for (int i = 0; i < team.Length; i++) health[i] = team[i].Health;
+            return health;
+        }
+
+        private static int ActionsOf(Fighter[] team)
+        {
+            int n = 0;
+            for (int i = 0; i < team.Length; i++) n += team[i].Actions;
+            return n;
+        }
+
+        private static int BasicStrikesOf(Fighter[] team)
+        {
+            int n = 0;
+            for (int i = 0; i < team.Length; i++) n += team[i].BasicStrikes;
+            return n;
         }
 
         /// <summary>
@@ -750,9 +1266,17 @@ namespace Jianghu.Core.Combat
 
         /// <summary>명중한 초식의 상태이상 부여를 판정한다. 로그에 붙일 설명을 돌려준다.</summary>
         private static string ApplyEffects(
-            int turn, Fighter actor, Fighter target, MartialArt art, int mastery,
+            int turn, Fighter actor, Fighter target, MartialArt art, int mastery, int artProficiency,
             IRandomSource rng, List<CombatLogEntry> log)
         {
+            // ⚠⚠ **절대경지 면(免) — 모든 상태이상 면역** (2026-08-02 신설).
+            //   여기가 **두 경로가 갈라지기 전**이라는 것이 요점이다. 아래에서 형태소 유도 경로
+            //   (`ApplyMorphemeStatus`)와 레거시 경로(`art.Effects`)로 나뉘는데, 한쪽만 막으면
+            //   **레거시 36종이 거는 상태이상에는 면역이 뚫린다.** `verify` 가 잡은 구멍이다.
+            // ⚠ **부여 단계에서 막는다.** 이미 걸린 것을 지우는 것이 아니라 안 걸리게 하는 것이
+            //   "면역" 이다 — 지속피해 틱(`TickStatuses`)을 건드리지 않는 이유가 이것이다.
+            if (target.Def.IsStatusImmune) return null;
+
             // 비도 숙달 → 상태이상이 더 잘 걸린다.
             int chanceBonus = DisciplineCurve.StatusChanceBonus(art.Discipline, mastery);
 
@@ -765,7 +1289,15 @@ namespace Jianghu.Core.Combat
             {
                 // 극한경지 왕(王) — 모든 상태이상 부여확률 +15%p. 여기가 그 축이 붙는 유일한 자리다.
                 chanceBonus += (int)Math.Round(art.Delta.StatusApplyBonus, MidpointRounding.AwayFromZero);
-                return ApplyMorphemeStatus(turn, target, art, chanceBonus, rng, log);
+
+                // 비도 숙달 → 상태이상이 더 **세게** 걸린다 (2026-08-05 신설).
+                // ⚠ 확률 축은 이미 90%(상한 100)로 포화라 크기를 못 준다. **가산**이다 —
+                //   경위는 `DisciplineCurve.StatusPotencyBonus` 주석.
+                // ⚠⚠ 2026-08-08 — 이 축의 구동자가 **유형 숙련도 → 무공 숙련도**로 바뀌었다.
+                //   비도가 후반에만 시들던 원인이 여기였다. 같은 주석에 전문이 있다.
+                //   ⚠ 위 확률 축(`chanceBonus`)은 여전히 `mastery`(유형 숙련도)를 탄다. 둘은 다른 축이다.
+                int potencyBonus = DisciplineCurve.StatusPotencyBonus(art.Discipline, artProficiency);
+                return ApplyMorphemeStatus(turn, target, art, chanceBonus, potencyBonus, rng, log);
             }
 
             if (art.Effects.Count == 0) return null;
@@ -798,9 +1330,14 @@ namespace Jianghu.Core.Combat
         /// ⚠ 세기·지속은 델타에 없다. 정의서 §3-4 가 확률만 적었기 때문이며,
         ///   그래서 상수(<see cref="BleedPotency"/> 등)로 둔다 — **무공별로 다르지 않다.**
         ///   달라지는 것은 "무엇이 걸리는가" 뿐이고, 그게 일곱 글자를 가르는 축이다.
+        ///
+        /// ⚠⚠ 2026-08-05 — `potencyBonus`(%) 가 생겼다. **여전히 무공별로 다르지 않다** —
+        ///   무공이 아니라 **사람의 유형 숙달**이 정하는 값이다(비도만 0 이 아니다).
+        ///   위 문단의 원칙은 그대로다.
         /// </summary>
         private static string ApplyMorphemeStatus(
-            int turn, Fighter target, MartialArt art, int chanceBonus, IRandomSource rng, List<CombatLogEntry> log)
+            int turn, Fighter target, MartialArt art, int chanceBonus, int potencyBonus,
+            IRandomSource rng, List<CombatLogEntry> log)
         {
             ArtStatDelta d = art.Delta;
 
@@ -855,9 +1392,29 @@ namespace Jianghu.Core.Combat
                 return null;   // 상태이상 형태소가 없는 무공. 대다수가 여기로 빠진다
             }
 
+            // ⚠⚠ **상태이상 저항**(극한경지 성 聖, −30%p)을 여기서 뺀다 — 2026-08-02 연결.
+            //   그전까지 `Delta.StatusResist` 를 아무도 읽지 않아 성(聖)의 세 축 중 저항만 죽어 있었다.
+            // ⚠ 곱셈(*"저항 30% 만큼 확률을 줄인다"*)이 아니라 **뺄셈**이다. 정의서 §1-1 이 이 축의
+            //   단위를 `%p` 로 적었고, 부여확률 자체가 `기본 30 + 형태소 10 + …` 인 덧셈 축이라
+            //   같은 단위로 맞춰야 이름이 뜻하는 대로 읽힌다(곱셈 누적 금지 — HANDOFF §5).
             int chance = Clamp(
-                BaseStatusChance + (int)Math.Round(points, MidpointRounding.AwayFromZero) + chanceBonus, 0, 100);
+                BaseStatusChance + (int)Math.Round(points, MidpointRounding.AwayFromZero) + chanceBonus
+                - target.Def.StatusResistPercent, 0, 100);
             if (!rng.Chance(chance)) return null;
+
+            // 비도 숙달 — 세기를 키운다 (2026-08-05). **가산이다. 곱이 아니다.**
+            //
+            // ⚠⚠ 처음에 `세기 × 1.4` 로 만들었다가 되돌렸다(사용자 확정 · `verify` 지적).
+            //   HANDOFF §5 의 *"숙련·성향 배율을 곱하지 않는다"* 에 배수판이 정면으로 걸렸다 —
+            //   숙련도에 정비례해 스케일하는 곱이었기 때문이다. 경위는
+            //   `DisciplineCurve.StatusPotencyBonus` 주석.
+            //   → 가산으로 바꾸면 **직접가산형 축들과 같은 모양**이 된다(검 명중 · 창 선공 · 창 속도 ·
+            //     비도 확률). ⚠ 권·도는 여전히 비율 곱셈형이라 *"유형 숙달에 곱이 없다"* 는 말은
+            //     사실이 아니다 — 상세는 `DisciplineCurve.StatusPotencyBonus` 주석.
+            //
+            // ⚠ 동상은 potency 가 0 이다(스스로는 피해를 주지 않는다). 거기에 더하면 **없던 피해가
+            //   생겨** 동상의 정의가 바뀌므로 `potency > 0` 조건으로 막는다 — 한계는 위 주석 그대로.
+            if (potencyBonus > 0 && potency > 0) potency += potencyBonus;
 
             string applied = Apply(turn, target, kind, potency, duration, stackGain, log);
             return applied == null ? null : "[" + applied + "]";
@@ -992,10 +1549,32 @@ namespace Jianghu.Core.Combat
         /// 난수를 쓰지 않는다 — 선택까지 흔들리면 무엇 때문에 이겼는지 분리할 수 없다.
         /// 동점이면 목록 순서상 앞선 것.
         /// </summary>
-        private static LearnedArt SelectArt(Fighter actor)
+        /// <param name="free">
+        /// 기력을 쓰지 않는 행동인가(쌍雙의 두 번째). ⚠⚠ 참이면 **기력 게이트를 건너뛴다** —
+        /// 비용을 안 내는 행동이 잔고를 이유로 평타로 내려앉으면 규칙이 반쪽이 된다.
+        /// </param>
+        /// <summary>
+        /// **범위 대가 배수** — <see cref="ArtStatDelta.AttackPercent"/> 를 곱할 수 있는 배수로 바꾼다.
+        /// 대가가 없으면 1.0 이고, 100% 를 넘게 깎이면 0 에서 멈춘다(음수 피해가 생기면 안 된다).
+        ///
+        /// ⚠⚠ **피해 계산과 무공 선택이 이 함수 하나를 함께 쓴다.** 따로 지으면 갈라진다 —
+        ///   실제로 이 축을 넣은 첫 판에서 갈라졌고 `verify` 가 잡았다.
+        /// ⚠ **직격 피해에만 걸린다.** 지속 피해(출혈·중독·화상)는 <see cref="TickStatuses"/> 에서
+        ///   상수로 나가므로 이 배수를 받지 않는다 — 그래서 *"총 피해가 T배"* 가 아니라
+        ///   **"직격 피해가 T배"** 다. 상태이상을 문 범위 무공이 그만큼 유리해진다(실측 확인).
+        /// </summary>
+        private static double ScopePowerFactor(MartialArt art)
+        {
+            if (!art.IsMorphemeDerived || art.Delta.AttackPercent == 0) return 1.0;
+
+            double percent = 100.0 + art.Delta.AttackPercent;
+            return percent < 0 ? 0 : percent / 100.0;
+        }
+
+        private static LearnedArt SelectArt(Fighter actor, bool free = false)
         {
             LearnedArt best = null;
-            double bestScore = -1;
+            double bestScore = double.NegativeInfinity;
 
             IReadOnlyList<LearnedArt> arts = actor.Def.Arts;
             for (int i = 0; i < arts.Count; i++)
@@ -1005,9 +1584,33 @@ namespace Jianghu.Core.Combat
 
                 // ⚠ 숙달로 깎인 실제 소모량으로 판단해야 한다. 권 숙달자는 남들이 못 쓰는 상황에서도 초식을 낸다.
                 int mastery = actor.Def.MasteryOf(learned.Art.Discipline);
-                if (EffectiveQiCost(learned.Art, mastery, actor.Def) > actor.Qi) continue;
+                if (!free && EffectiveQiCost(learned.Art, mastery, actor.Def) > actor.Qi) continue;
 
-                double score = learned.Art.BasePower * learned.PowerMultiplier * learned.Art.HitCount;
+                // ⚠⚠ **2026-08-05 — 이 줄이 통째로 고장 나 있었다.**
+                //   ~~`score = BasePower × PowerMultiplier × HitCount`~~ 였는데,
+                //   형태소 무공은 `BasePower` 가 **0** 이다(`MartialArt.FromMorphemes` 가 하드코딩).
+                //   카탈로그 138종이 전부 형태소 경로이므로 **모든 후보의 점수가 0** 이었고,
+                //   비교가 엄격 부등호라 **맨 처음 것만 통과**했다.
+                //   → ⛔ **기력이 충분한 한, 맨 처음 배운 공격 무공만 평생 썼다.**
+                //     실측: 같은 두 무공을 배운 **순서만** 바꾸면 다른 것이 나갔다(`SelectArtTests`).
+                //   ⚠ 얼굴이 둘이었다 — 레거시 무공(`BasePower > 0`)이 섞이면 **순서와 무관하게
+                //     레거시가 항상** 이겼다. 지금 카탈로그엔 레거시가 없어 발현되지 않았을 뿐이다.
+                //
+                //   ⚠⚠ **왜 안 보였나** — Sandbox 표본과 테스트 전부가 공격 무공을 **1개씩만** 준다.
+                //     후보가 하나면 순서 의존이 드러나지 않는다. 축이 아니라 **표본이 가린** 경우다.
+                //
+                //   → **피해 공식과 같은 식(<see cref="ArtPower"/>)을 쓴다.** 따로 지으면 또 갈라진다.
+                // ⚠ `× HitCount` 는 **뺐다.** `DamagePerHit` 이 `/ attempts` 로 나누므로 타격수는
+                //   총 피해를 바꾸지 않는다 — 곱하면 다타 무공을 근거 없이 우대한다.
+                //   (지금 카탈로그는 전부 `HitCount == 1` 이라 수치 영향은 0 이다.)
+                // ⚠⚠ **범위 대가도 함께 본다** (2026-08-09 · `verify` 가 잡았다).
+                //   `AttackPercent` 를 `DamagePerHit` 에만 넣었더니 **바로 위 주석이 경고한 그 분기**가
+                //   새 축에서 재발했다 — 점수는 옛 위력, 실제 피해는 깎인 위력이었다.
+                //   두 곳이 <see cref="ScopePowerFactor"/> 하나를 함께 쓰도록 묶는다.
+                // ⚠ 여기에 **대상 수를 곱하지는 않는다.** `SelectArt` 는 살아 있는 적이 몇인지 모른다
+                //   (설계 §6 미결 M4). 그래서 이 점수는 *"대상 하나에 넣는 피해"* 이고,
+                //   다대다에서 범위 무공은 **과소평가된다** — M4 를 풀 때 함께 고친다.
+                double score = ArtPower(learned) * ScopePowerFactor(learned.Art);
                 if (score > bestScore)
                 {
                     bestScore = score;
@@ -1017,6 +1620,27 @@ namespace Jianghu.Core.Combat
 
             // 쓸 수 있는 초식이 없으면 맨손. 기력이 마르면 전투 양상이 바뀌는 것이 의도다.
             return best ?? BasicStrike;
+        }
+
+        /// <summary>
+        /// **무공이 위력에 더하는 몫.** 어느 초식을 낼지(<see cref="SelectArt"/>)와 얼마나 아픈지
+        /// (<see cref="DamagePerHit"/>)가 **반드시 같은 식을 쓰도록** 여기 하나로 둔다.
+        ///
+        /// ⚠⚠ **갈라져 있던 동안 선택 쪽이 통째로 고장 나 있었다** (2026-08-05 발견).
+        ///   피해는 `Delta.Attack` 을 읽는데 선택은 `BasePower` 를 읽었고, 형태소 무공은 후자가 0 이다.
+        ///   **한 값을 두 곳에서 따로 계산하면 언젠가 갈라진다** — 그래서 함수로 묶는다.
+        ///
+        /// 규칙 셋이 여기 모여 있다(근거는 <see cref="DamagePerHit"/> 안의 주석):
+        ///   ⓐ 형태소 무공은 `Delta.Attack`, 레거시는 `BasePower` — **같은 자리에 들어가지만 스케일이 다르다**
+        ///   ⓑ **이득은 배율 안, 대가(음수 공격)는 배율 밖** (§4-6-8)
+        ///   ⓒ **맨손보다 약해질 수 없다** — 하한 0 (§1-3-e)
+        /// </summary>
+        private static double ArtPower(LearnedArt art)
+        {
+            double basePower = art.Art.IsMorphemeDerived ? art.Art.Delta.Attack : art.Art.BasePower;
+            double penalty = art.Art.IsMorphemeDerived ? art.Art.Delta.AttackPenalty : 0;
+            double power = (basePower - penalty) * art.PowerMultiplier + penalty;
+            return power < 0 ? 0 : power;
         }
 
         /// <summary>
@@ -1066,8 +1690,29 @@ namespace Jianghu.Core.Combat
             // ⚠⚠ **스케일이 완전히 다르다.** 레거시는 `BasePower` 22~28 인데 형태소 공격 합은 최대 5 다.
             //   그래서 캐릭터 기본 능력치도 정의서 §1-1(공격 1)로 맞춰야 하며,
             //   **2026-07-30 이전의 승률표 측정값은 전부 무의미하다**(HANDOFF §5-2).
-            double basePower = art.Art.IsMorphemeDerived ? art.Art.Delta.Attack : art.Art.BasePower;
-            double artPower = basePower * art.PowerMultiplier;
+            // ⚠⚠ 2026-08-05 — 이 계산은 <see cref="ArtPower"/> 로 옮겼다. **선택(`SelectArt`)과
+            //   피해가 같은 식을 쓰게 하려는 것**이며, 갈라져 있던 동안 선택 쪽이 통째로 고장 나
+            //   있었다(아래 `SelectArt` 주석). 아래 주석들은 그 식의 근거로 여기 남긴다.
+
+            // ⚠⚠ **공격 페널티는 배율 밖에 둔다** (2026-08-05 · HANDOFF §4-6-6/§4-6-8).
+            //   ~~`artPower = basePower * PowerMultiplier`~~ 였다.
+            //
+            //   문제 — **배율을 타는 축과 안 타는 축이 갈려 있었다.** 공격은 여기서 배율을 타는데
+            //   명중은 `Clamp(65 + 명중 − 회피, …)` 라 경지와 **완전히 무관**하고, 상태이상도 상수다.
+            //   그래서 *"명중을 사고 공격을 파는"* 기만(幻詭)은 **이득은 고정인데 대가만 자라서**
+            //   3성 60.5 → 10성 51.7 로 혼자 시들었다. 대조군 유변(柔變)은 이득이 똑같이 명중 +2 인데
+            //   대가가 속도(배율 밖)라 52.2 → 50.7 로 거의 평평했다 — **원인이 축의 위치임이 확정된다.**
+            //
+            //   → **이득은 배율 안, 대가는 배율 밖.** 그러면 대가의 크기가 경지와 무관해진다.
+            //
+            // ⚠ 왜 사전 수정이 아니라 여기인가 — 대가를 배율 안 타는 축으로 옮기는 안(치명률·회피)을
+            //   먼저 쟀는데, **치명배율(야·암·한)과 정면 충돌**했다. 두 축을 함께 가진 무공이 **18종**이고
+            //   그건 우연이 아니라 살문·시마궁 같은 문파의 *"어둡고 기만적인"* 정체성 배정이다.
+            //   사전으로는 풀 수 없어 공식으로 옮겼다.
+            //
+            // ⚠ 파급 — 범위 형태소(다 −1 · 군 −2 · 전 −3)도 음수 공격이라 함께 배율에서 빠진다.
+            //   지금 죽어 있는 범위 무공이 후반에 덜 나빠진다. 의도한 방향이지만 측정으로 확인할 것.
+            double artPower = ArtPower(art);
 
             // ⚠⚠ **무공은 아무리 대가가 커도 맨손보다 약해질 수 없다** (2026-08-02 신설 · 사용자 확정).
             //   그전까지 공격 합이 음수인 무공이 **7종** 있었고(궤암포독·궤암척혈·환한투독·궤야척혈·
@@ -1083,14 +1728,39 @@ namespace Jianghu.Core.Combat
             //
             //   ⚠ 대가 — 하한에 걸리는 조합에서는 기만의 *"공격 −0.75"* 가 실제로 실현되지 않는다.
             //     그래도 사전 값 수정으로는 범위 무공(−2.75)을 못 닫으므로 이쪽을 택했다(정의서 §1-3-e).
-            if (artPower < 0) artPower = 0;
+            //   ⚠ 하한 처리도 <see cref="ArtPower"/> 안으로 들어갔다.
             double totalPower = (actor.Stats.Attack + artPower) * (100 + actor.PowerBonusPercent) / 100.0;
+
+            // ⚠⚠ **범위 대가 — 총 위력에 곱한다** (2026-08-09 신설).
+            //   ⓐ **`artPower` 안이 아니라 밖에서** 곱하는 것이 요점이다. 옛 감산 방식은 형태소 공격 합에만
+            //     들어가서 **캐릭터 공격(만렙 8)을 건드리지 못했고**, `ArtPower` 의 0 클램프에 걸리면
+            //     아예 무료가 됐다. 그래서 공격 합 −2.75(카탈로그 최저)인 `궤격비전` 이 4대4에서 99.5% 였다.
+            //   ⓑ **성향·경지 배율보다 바깥이다.** 안쪽이면 수련이 대가를 갉아먹어 경지가 오를수록
+            //     범위가 유리해진다 — §4-6-6 에서 기만 형태소가 겪은 것과 같은 병이다.
+            //   ⚠ 곱하는 값은 `MorphemeDictionary.ScopeDamageBudget ÷ 대상 수` 로 유도된다. 근거는 그 자리.
+            //   ⚠ 이 축은 지금 범위 형태소만 쓴다. 다른 글자가 쓰기 시작하면 합산(%p)이 되므로
+            //     그때 상한을 다시 봐야 한다 — 지금은 카테고리당 1자 규칙이 겹침을 막는다.
+            totalPower = totalPower * ScopePowerFactor(art.Art);
+
+            // ⚠ 실험(2026-08-02): 쌍(雙) 2회 행동에 위력 −50% — 되돌리거나 확정할 것
+            if (actor.ActsTwice) totalPower = totalPower * DoubleActionPowerPercent / 100.0;
 
             // 도 숙달 → 방어 관통. 위력을 올리는 게 아니라 상대 방어를 무시한다 —
             // 그래서 단단한 상대에게만 강하고, 물렁한 상대에겐 이점이 거의 없다.
             // ⚠ 2026-07-31 — `Stats.Defense` 가 아니라 **무공이 더한 방어**를 읽는다.
             //   방어 형태소가 엔진에 닿는 유일한 경로다(`Combatant.EffectiveDefense`).
-            int penetration = DisciplineCurve.DefensePenetrationPercent(art.Art.Discipline, mastery);
+            // ⚠⚠ **방어무시 형태소**(극한경지 마 魔, 25%)를 여기 합류시킨다 — 2026-08-02 연결.
+            //   그전까지 `Delta.DefenseIgnore` 를 아무도 읽지 않아 마(魔)의 두 축 중 방어무시만
+            //   죽어 있었다(공격 +2.5 는 살아 있어 부분 손실). 인계문서 §3-2 의 미연결 축이다.
+            //
+            // ⚠ 도(刀) 숙달의 관통과 **같은 자리에서 더한다.** 둘 다 *"상대 방어를 무시한다"* 는
+            //   같은 뜻이고, 따로 곱하면 곱셈 누적이 새로 생긴다(HANDOFF §5 금지).
+            // ⚠⚠ 상한 100 — 방어를 100% 무시하면 **더 무시할 것이 없다.** 도 숙달 100 에 마 25 를
+            //   더해 125 가 되면 방어가 음수로 뒤집혀 *"피해 증폭"* 이라는 다른 효과가 된다.
+            //   이것이 2026-07-31 에 실제로 밟은 실패다(방어관통 160% — CLAUDE.md §5-C).
+            int penetration = Clamp(
+                DisciplineCurve.DefensePenetrationPercent(art.Art.Discipline, mastery)
+                + (int)Math.Round(art.Art.Delta.DefenseIgnore, MidpointRounding.AwayFromZero), 0, 100);
             double effectiveDefense = target.EffectiveDefense * (100 - penetration) / 100.0;
 
             // ⚠⚠ 2026-07-31 — **뺄셈에서 비율 경감으로 바꿨다** (사용자 확정).
@@ -1101,10 +1771,82 @@ namespace Jianghu.Core.Combat
             //     내 수명은 늘리고 상대 수명은 그대로다. 두 축을 같은 크기로 넣으면 안 된다.
             double afterDefense = totalPower * 100.0 / (100.0 + effectiveDefense * DefenseScale);
 
+            // ⚠⚠ **상성**(정의서 §4) — 2026-08-02 신설. 그전까지 파서가 만든 상성이 팩토리에서
+            //   버려져 **엔진에 한 번도 닿은 적이 없었다**(`MartialArt.CounterTargets` 주석 참조).
+            //
+            //   공격 쪽은 **지금 쓰는 초식**의 상성만 센다 — 상성은 그 초식의 성질이고,
+            //   `Delta.Attack` 이 활성 무공에서만 오는 것과 같은 취급이다.
+            //   방어 쪽은 **익힌 무공 전부**를 합산한다(`Combatant.CounterCountAgainst`) —
+            //   *"받는 피해 −5%"* 는 어느 초식을 쓰는 중인지와 무관한 상시 성질이기 때문이다.
+            //
+            // ⚠⚠ **덧셈으로 합친다.** `(1 + 0.10a) × (1 − 0.05d)` 로 곱하지 않는다 —
+            //   HANDOFF §5 와 정의서가 *"곱셈 누적을 새로 만들지 말 것"* 을 반복해서 못박았고
+            //   (유형 숙달 × 성향이 후반을 독식한 실패), 상성은 그 규칙의 예외가 될 이유가 없다.
+            //
+            // ⚠ 하한 0 — 상성 배수가 음수가 되면 *"때릴수록 상대가 회복한다"* 는 뜻이 되어
+            //   개념적으로 존재할 수 없다. 지금 사전으로는 방어 상성이 20 을 넘을 수 없어
+            //   실제로는 도달하지 않지만, 절대경지 4번(*"모든 분류에 상성"*)이 붙으면
+            //   경로가 생기므로 미리 막는다.
+            // ⚠⚠ **절대경지 통(統) — 모든 분류에 상성 +1, 상대 상성 무효** (2026-08-02 신설 · 2차 조정).
+            //   **양방향이다.** 공격할 때 +1 을 얻고, **피격당할 때 상대의 상성을 0** 으로
+            //   만든다. 한쪽만 걸면 *"상대 상성 무효"* 라는 이름의 절반이 실현되지 않는다 —
+            //   `verify` 가 잡은 지점이다(§5-C 대원칙: 이름과 성능이 일치해야 한다).
+            // ⚠ 양쪽이 다 보유하면 서로 무효화되어 **대칭**이 된다.
+            //   순서가 중요하다 — **"상대 상성 무효" 를 먼저 본다.** 그래야 양쪽이 다 보유했을 때
+            //   둘 다 0 이 되어 대칭이 된다. 반대로 짜면 서로 +2 를 얻어 **둘 다 강해지는** 꼴이 된다.
+            // ⚠⚠ **통(統)의 +2 는 상대가 무학분류를 가질 때만 붙는다** (2026-08-02 2차 · 사용자 확정).
+            //   처음엔 *"'모든 분류에' 이므로 과녁을 가리지 않는다"* 며 무소속 상대에게도 붙였는데,
+            //   실측 **+31.8%p 무조건**이 나왔다. 과녁이 없어도 붙으면 그건 상성이 아니라
+            //   **그냥 주는 피해 +20%** 다 — 상성은 정의상 *"무엇에 강한가"* 이기 때문이다(§3-10-a).
+            //   ⚠ 이것은 **정의서 §5-3-a 를 다시 연 변경**이다. 그 문서의 배선표가 *"공격 시 분류 무관 +2"*
+            //     라고 적고 사용자 승인을 받았었다 — 버그 수정이 아니라 승인된 규칙의 재결정이다.
+            int counterFor;
+            if (target.HasCounterSupremacy) counterFor = 0;                       // 방어자가 절대 → 내 상성 무효
+            else if (actor.HasCounterSupremacy) counterFor = SupremacyAgainst(target.Lineage);
+            else counterFor = CountCounters(art.Art.CounterTargets, target.Lineage);
+
+            int counterAgainst;
+            if (actor.HasCounterSupremacy) counterAgainst = 0;                    // 공격자가 절대 → 상대 상성 무효
+            else if (target.HasCounterSupremacy) counterAgainst = SupremacyAgainst(actor.Lineage);
+            else counterAgainst = target.CounterCountAgainst(actor.Lineage);
+            if (counterFor > 0 || counterAgainst > 0)
+            {
+                double counterPercent = 100
+                                        + counterFor * CounterDamageBonusPercent
+                                        - counterAgainst * CounterDamageReductionPercent;
+                if (counterPercent < 0) counterPercent = 0;
+                afterDefense = afterDefense * counterPercent / 100.0;
+            }
+
             // ⚠ 눈금 배수는 **마지막에** 곱한다. 방어(비율)·성향 배율은 단위가 없으므로
             //   어디서 곱하든 결과가 같고, 여기서 곱해야 위 수치들이 정의서와 같은 단위로 읽힌다.
             int perHit = (int)Math.Round(afterDefense * DamageScale / attempts, MidpointRounding.AwayFromZero);
             return perHit < MinDamagePerHit ? MinDamagePerHit : perHit;   // 교착 방지
+        }
+
+        /// <summary>
+        /// <paramref name="targets"/> 안에 <paramref name="lineage"/> 가 몇 번 들어 있는가.
+        /// 같은 분류가 두 번 있으면 상성 +2 다 — 한 이름에 부정+분류 짝이 둘 들어간 경우다.
+        /// </summary>
+        /// <summary>
+        /// 절대경지 통(統)이 <paramref name="lineage"/> 를 가진 상대에게 갖는 상성 수.
+        /// **무소속(`null`)이면 0** — 과녁이 없으면 상성이 성립하지 않는다(§4 · §3-10-a).
+        /// </summary>
+        private static int SupremacyAgainst(ArtLineage? lineage)
+        {
+            return lineage == null ? 0 : CounterSupremacyAdvantage;
+        }
+
+        private static int CountCounters(IReadOnlyList<ArtLineage> targets, ArtLineage? lineage)
+        {
+            if (lineage == null || targets == null) return 0;
+
+            int count = 0;
+            for (int i = 0; i < targets.Count; i++)
+            {
+                if (targets[i] == lineage.Value) count++;
+            }
+            return count;
         }
 
         /// <summary>
@@ -1134,6 +1876,15 @@ namespace Jianghu.Core.Combat
         /// </summary>
         private static int EffectiveQiCost(MartialArt art, int mastery, Combatant owner)
         {
+            // ⚠⚠ **절대경지 무(無) — 기력 무소모** (2026-08-02 신설).
+            //   기존 감면(보조 무공 소모율 → 유형 숙달) **뒤가 아니라 앞**에서 즉시 끝낸다.
+            //   0 에 무엇을 곱하고 무엇을 빼도 0 이므로 순서 논쟁 자체가 성립하지 않는다.
+            // ⚠⚠ **이 규칙은 지금 효과가 0 이다.** 평타 전락률이 전 무공·전 경지 0.0% 라
+            //   아무도 기력이 마르지 않는다(HANDOFF §4-2-d). 극한경지 선(仙)과 권(拳)의
+            //   기력소모 −100% 가 같은 이유로 죽어 있다. **기력 축 제로섬(§4-2-O)이 풀려야 산다.**
+            //   측정 블록은 그때까지 판정불가로 낸다 — 공허한 통과를 만들지 않는다.
+            if (owner != null && owner.HasNoQiCost) return 0;
+
             double cost = art.QiCost;
 
             if (owner != null)

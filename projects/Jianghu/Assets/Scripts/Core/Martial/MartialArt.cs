@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Jianghu.Core.Martial.Morphemes;
 
@@ -106,6 +106,59 @@ namespace Jianghu.Core.Martial
         public ArtTier Tier { get; }
 
         private static readonly StatusApplication[] NoEffects = new StatusApplication[0];
+        private static readonly ArtLineage[] NoCounters = new ArtLineage[0];
+
+        /// <summary>
+        /// 이 무공이 **상성 우위를 갖는 무학분류**(정의서 §4). 같은 분류가 두 번 들어 있으면 상성 +2 다
+        /// (부정+분류 짝이 한 이름에 둘 들어간 경우 — 지금 카탈로그에는 없다).
+        ///
+        /// 이름에서 유도된다 — 부정 한자(낙·망·멸·산·소) **바로 뒤에** 무학분류(일·월·혼)가 올 때만
+        /// 생긴다. `낙월`(달을 떨어뜨린다) = 음기무학에 상성 +1. 138종 중 **4종**만 갖는다
+        /// (창천낙월 · 참천멸월 · 절해망혼 · 절지낙월 — 전부 검법).
+        ///
+        /// ⚠⚠ **2026-08-02 신설.** 그전까지 `MorphemeParser` 가 만든 `ParsedArtName.CounterTargets` 를
+        ///   <see cref="Morphemes.MartialArtFactory"/> 가 **그냥 버려서** 전투 엔진에 닿지 않았다.
+        ///   `AttackScope`(범위)와 같은 형태의 누락이다 — 인계문서 §3-2 가 미연결 축을 *"정확히 셋"* 이라
+        ///   적었는데 상성을 빠뜨려 실제로는 넷이었다.
+        ///   ⚠ 이 누락에는 대가가 있었다: 정의서 §2-2 예외가 *"상성 무공은 부정·무학분류 2자가 수치 0이라
+        ///   위력을 크게 포기한 구조"* 라며 무공형태 필수를 면제해 줬는데, **포기한 대가로 받기로 한
+        ///   상성이 구현되지 않아 순손실이었다.** 실제로 `창천낙월` 은 소문파 최하위권(43.8%)이었다.
+        /// </summary>
+        public IReadOnlyList<ArtLineage> CounterTargets { get; }
+
+        /// <summary>
+        /// **절대경지 규칙**(§5-3). 규칙 형태소(면·무·쌍·통)에서 유도되며, 없으면 <see cref="Morphemes.AbsoluteRule.None"/>.
+        /// ⚠ 효과는 <see cref="Combat.Combatant"/> 가 익힌 무공 전체에서 <c>any</c> 로 접어 **사람에게 상시** 적용한다 —
+        ///   보조 무공(내공·경공)의 기존 처리와 같다. 합산이 아닌 이유는 <see cref="Morphemes.AbsoluteRule"/> 참조.
+        /// </summary>
+        public AbsoluteRule Rule { get; }
+
+        /// <summary>
+        /// **한 번에 때리는 대상 수**(정의서 §3-12). 범위 형태소(다多·군群·전全·만萬)에서 유도되며
+        /// 없으면 <see cref="Morphemes.AttackScope.Single"/>.
+        ///
+        /// ⚠⚠ **2026-08-09 신설.** 그전까지 `MorphemeParser` 가 만든 `ParsedArtName.Scope` 를
+        ///   <see cref="Morphemes.MartialArtFactory"/> 가 **그냥 버려서** 전투 엔진에 닿지 않았다 —
+        ///   `CounterTargets`(2026-08-02)와 **똑같은 형태의 누락**이고, 그 자리 주석이
+        ///   *"`AttackScope`(범위)는 아직 같은 상태로 남아 있다"* 고 스스로 적어 두고 있었다.
+        ///   그래서 범위 무공 6종은 **대가만 내고 이점이 0** 이었다(공격 −1/−2/−3 · 만萬 기력 +200%).
+        ///
+        /// ⚠ **이 값을 실어 보내는 것만으로는 아무것도 안 바뀐다.** 1대1(<see cref="Combat.CombatResolver.Resolve"/>)은
+        ///   상대가 하나뿐이라 읽을 곳이 없다. 실제로 쓰는 것은 다대다(`ResolveTeams`)이며,
+        ///   설계는 `docs/multi-combat-plan.md` 에 있다.
+        /// </summary>
+        public AttackScope Scope { get; }
+
+        /// <summary>
+        /// **먼저 닿는 열**(진형). 공격방식(던지기만 후열) ∪ 수식 `어둡다` 중 **이름에서 앞선 글자**가 정한다.
+        /// 규칙과 그 선택의 근거는 <see cref="BattleRowRule"/>.
+        ///
+        /// ⚠ <see cref="Scope"/> 와 같은 통로로 실려 온다 — 파서가 <see cref="ParsedArtName.PreferredRow"/> 로
+        ///   정하고 <see cref="Morphemes.MartialArtFactory"/> 가 여기 옮긴다.
+        /// ⚠ 손수 만든 무공(<see cref="Technique"/>)과 평타는 열 성향이 없으므로 **전열**이다.
+        /// ⚠ 1대1에서는 읽히지 않는다 — 열은 다대다에만 있다(설계 §D3-8).
+        /// </summary>
+        public BattleRow PreferredRow { get; }
 
         /// <summary>
         /// **형태소에서 유도해 만든다.** 무공명을 분해한 결과를 그대로 받는다.
@@ -115,7 +168,10 @@ namespace Jianghu.Core.Martial
         /// </summary>
         public static MartialArt FromMorphemes(
             string id, string name, string school, Discipline discipline, Alignment? alignment,
-            ArtStatDelta delta, int qiCost, ArtTier tier, int hitCount = 1, params StatusApplication[] effects)
+            ArtStatDelta delta, int qiCost, ArtTier tier, int hitCount = 1,
+            IReadOnlyList<ArtLineage> counterTargets = null, AbsoluteRule rule = AbsoluteRule.None,
+            AttackScope scope = AttackScope.Single, BattleRow preferredRow = BattleRow.Front,
+            params StatusApplication[] effects)
         {
             if (hitCount < 1) throw new ArgumentOutOfRangeException(nameof(hitCount), "타격 횟수는 1 이상이어야 한다.");
 
@@ -123,7 +179,8 @@ namespace Jianghu.Core.Martial
                 id, name, school, discipline, alignment,
                 basePower: 0, qiCost: qiCost, hitCount: hitCount, accuracyBonus: 0,
                 maxQiBonus: 0, powerBonusPercent: 0, evasionBonus: 0, initiativeBonus: 0,
-                effects: effects, delta: delta, morphemeDerived: true, tier: tier);
+                effects: effects, delta: delta, morphemeDerived: true, tier: tier,
+                counterTargets: counterTargets, rule: rule, scope: scope, preferredRow: preferredRow);
         }
 
         private MartialArt(
@@ -131,11 +188,17 @@ namespace Jianghu.Core.Martial
             int basePower, int qiCost, int hitCount, int accuracyBonus,
             int maxQiBonus, int powerBonusPercent, int evasionBonus, int initiativeBonus,
             StatusApplication[] effects,
-            ArtStatDelta delta = default, bool morphemeDerived = false, ArtTier tier = ArtTier.Wanderer)
+            ArtStatDelta delta = default, bool morphemeDerived = false, ArtTier tier = ArtTier.Wanderer,
+            IReadOnlyList<ArtLineage> counterTargets = null, AbsoluteRule rule = AbsoluteRule.None,
+            AttackScope scope = AttackScope.Single, BattleRow preferredRow = BattleRow.Front)
         {
             Delta = delta;
             IsMorphemeDerived = morphemeDerived;
             Tier = tier;
+            CounterTargets = counterTargets ?? NoCounters;
+            Rule = rule;
+            Scope = scope;
+            PreferredRow = preferredRow;
             if (string.IsNullOrEmpty(id)) throw new ArgumentException("무공 Id 는 비어 있을 수 없다.", nameof(id));
             if (string.IsNullOrEmpty(name)) throw new ArgumentException("무공 이름은 비어 있을 수 없다.", nameof(name));
 
@@ -155,10 +218,18 @@ namespace Jianghu.Core.Martial
             Effects = effects ?? NoEffects;
         }
 
-        /// <summary>공격 초식을 만든다. 유형은 검·도·권 중 하나여야 한다.</summary>
+        /// <summary>
+        /// 공격 초식을 만든다. 유형은 검·도·권 중 하나여야 한다.
+        ///
+        /// ⚠ <paramref name="scope"/> 와 <paramref name="preferredRow"/> 는 2026-08-09 에 붙였다.
+        ///   형태소 무공은 이름이 둘 다 정하지만(<see cref="FromMorphemes"/>), 이 손수 만드는 통로에는
+        ///   그 값을 넣을 자리가 아예 없어 **범위·열을 가진 초식을 테스트에서 만들 수 없었다.**
+        ///   기본값이 단일·전열이라 기존 호출부는 무영향이다.
+        /// </summary>
         public static MartialArt Technique(
             string id, string name, Discipline discipline, Alignment? alignment,
             int basePower, int qiCost, int hitCount = 1, int accuracyBonus = 0, string school = null,
+            AttackScope scope = AttackScope.Single, BattleRow preferredRow = BattleRow.Front,
             params StatusApplication[] effects)
         {
             if (discipline.IsSupport())
@@ -169,7 +240,8 @@ namespace Jianghu.Core.Martial
             if (qiCost < 0) throw new ArgumentOutOfRangeException(nameof(qiCost));
             if (hitCount < 1) throw new ArgumentOutOfRangeException(nameof(hitCount), "타격 횟수는 1 이상이어야 한다.");
 
-            return new MartialArt(id, name, school, discipline, alignment, basePower, qiCost, hitCount, accuracyBonus, 0, 0, 0, 0, effects);
+            return new MartialArt(id, name, school, discipline, alignment, basePower, qiCost, hitCount, accuracyBonus, 0, 0, 0, 0, effects,
+                scope: scope, preferredRow: preferredRow);
         }
 
         /// <summary>보조 무공을 만든다. 유형은 내공·경공 중 하나여야 한다.</summary>

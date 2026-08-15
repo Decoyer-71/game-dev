@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Jianghu.Core.Martial.Morphemes
 {
@@ -61,13 +61,20 @@ namespace Jianghu.Core.Martial.Morphemes
         /// </summary>
         public AttackScope Scope { get; }
 
+        /// <summary>
+        /// 이 글자가 주는 **절대경지 규칙**(§5-3). 규칙 형태소가 아니면 <see cref="Morphemes.AbsoluteRule.None"/> 이다.
+        /// ⚠ <see cref="Scope"/>·<see cref="DoublesFormEffect"/> 와 같은 이유로 <see cref="ArtStatDelta"/> 밖에 둔다 —
+        ///   **수치가 아니라 규칙**이라서 합산 연산이 의미를 갖지 않는다.
+        /// </summary>
+        public AbsoluteRule Rule { get; }
+
         /// <summary>배경어인가(설계안 결정 A). 기력 소모 글자 수와 §2-2 슬롯 계산에서 빠진다.</summary>
         public bool IsBackground => Category == MorphemeCategory.Background;
 
         public Morpheme(
             char korean, char hanja, string meaning, MorphemeCategory category, ArtStatDelta delta,
             ArtLineage lineage = ArtLineage.None, bool isNegation = false, bool doublesFormEffect = false,
-            AttackScope scope = AttackScope.Single)
+            AttackScope scope = AttackScope.Single, AbsoluteRule rule = AbsoluteRule.None)
         {
             if (string.IsNullOrEmpty(meaning))
             {
@@ -83,6 +90,7 @@ namespace Jianghu.Core.Martial.Morphemes
             IsNegation = isNegation;
             DoublesFormEffect = doublesFormEffect;
             Scope = scope;
+            Rule = rule;
         }
 
         /// <summary>`참(斬)` 형태로 찍는다. 역산 리포트(설계안 §5-2)의 출력 단위다.</summary>

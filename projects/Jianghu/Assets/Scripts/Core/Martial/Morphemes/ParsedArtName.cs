@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text;
 
 namespace Jianghu.Core.Martial.Morphemes
@@ -90,6 +90,15 @@ namespace Jianghu.Core.Martial.Morphemes
         public AttackScope Scope { get; }
 
         /// <summary>
+        /// **이 무공이 먼저 닿는 열**(진형). 규칙과 근거는 <see cref="BattleRowRule"/> 에 있다.
+        ///
+        /// ⚠ <see cref="Scope"/>·<see cref="Rule"/> 과 달리 **앞선 글자가 이긴다** — 열 성향은
+        ///   카테고리를 가로질러 둘 이상 나올 수 있고(공격방식 ∪ 수식 어둡다), 그때 이름에서
+        ///   먼저 나오는 글자가 정한다는 것이 규칙 자체이기 때문이다(설계 §D3-3-a).
+        /// </summary>
+        public BattleRow PreferredRow { get; }
+
+        /// <summary>
         /// 이 무공 자신의 무학분류(§3-10). 부정 뒤에 붙지 않은 일·월·혼이 여기 온다.
         ///
         /// ⚠ **추론이다.** 정의서 §3-10 은 일·월·혼을 "태그" 라고만 하고 §4 는 부정 뒤에 올 때만 다룬다.
@@ -103,6 +112,12 @@ namespace Jianghu.Core.Martial.Morphemes
         /// `낙월` = 달을 떨어뜨린다 → 음기무학 하나.
         /// </summary>
         public IReadOnlyList<ArtLineage> CounterTargets { get; }
+
+        /// <summary>
+        /// 이 무공이 갖는 **절대경지 규칙**(§5-3). 규칙 형태소가 없으면 <see cref="Morphemes.AbsoluteRule.None"/>.
+        /// ⚠ 조합 규칙이 절대경지에 **정확히 1자**를 강제하므로 둘 이상이 섞이지 않는다.
+        /// </summary>
+        public AbsoluteRule Rule { get; }
 
         public ParsedArtName(
             string name, ArtSuffix suffix, ArtKind kind, IReadOnlyList<Morpheme> body, ArtStatDelta delta,
@@ -118,6 +133,17 @@ namespace Jianghu.Core.Martial.Morphemes
                 if (body[i].Scope != AttackScope.Single) scope = body[i].Scope;
             }
             Scope = scope;
+
+            AbsoluteRule rule = AbsoluteRule.None;
+            for (int i = 0; i < body.Count; i++)
+            {
+                if (body[i].Rule != AbsoluteRule.None) rule = body[i].Rule;
+            }
+            Rule = rule;
+
+            // ⚠ 위 둘과 달리 **첫 글자**가 이긴다 — 이유는 `PreferredRow` 주석.
+            PreferredRow = BattleRowRule.Of(body);
+
             Body = body;
             Delta = delta;
             BackgroundCount = backgroundCount;

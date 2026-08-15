@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using Jianghu.Core.Characters;
 using Jianghu.Core.Martial;
+using Jianghu.Core.Martial.Morphemes;
 
 namespace Jianghu.Core.Combat
 {
@@ -23,9 +24,31 @@ namespace Jianghu.Core.Combat
         /// <summary>무기 유형별 숙달도(백일창·천일도·만일검). 비워두면 전부 미숙달로 취급한다.</summary>
         public IReadOnlyList<DisciplineMastery> Masteries { get; }
 
+        /// <summary>
+        /// 이 사람의 **무학분류**(양기·음기·혼합) — 상성(정의서 §4)이 겨누는 과녁이다.
+        ///
+        /// 출처는 **소속 문파**다(정의서 §6-4, `SchoolCatalog` 의 `School.Lineage`).
+        /// `null` 이면 무소속으로 취급하고 **상성이 성립하지 않는다** — 어느 분류도 아닌 사람은
+        /// 찌를 곳이 없기 때문이다.
+        ///
+        /// ⚠⚠ **무소속이 생각보다 적다.** 공격 초식 71종 중 분류가 없는 것은 **11종(15.5%)** 뿐이다 —
+        ///   강호무학 5 + **무림맹·사도련·제천성 6**. 대형세력 3곳이 `SchoolCatalog` 에 없어
+        ///   분류가 `null` 로 떨어지기 때문이며(정의서 §6-4 의 빈칸), 천마신교만 문파를 겸해 분류를 갖는다.
+        ///   → 상성·통(統)은 **매치업의 약 85% 에서 발동한다.** 조건부이되 조건이 자주 성립한다.
+        ///
+        /// ⚠⚠ **2026-08-02 신설.** 정의서 §6-4 가 *"상성이 작동하려면 누가 어느 분류인가가 정해져
+        ///   있어야 한다"* 고 못박고 문파 16곳에 분류를 배정해 뒀는데, **`Combatant` 에 그 값을 담을
+        ///   자리가 없어서** 상성이 갈 곳이 없었다. 문파 쪽 데이터는 처음부터 갖춰져 있었다.
+        ///
+        /// ⚠ 기본값이 `null` 인 것은 의도다 — 기존 테스트·측정 도구가 분류를 지정하지 않으므로
+        ///   상성이 저절로 켜지지 않는다. **켜는 쪽이 명시하게** 두어야 원인 분리가 된다.
+        /// </summary>
+        public ArtLineage? Lineage { get; }
+
         public Combatant(
             string name, CharacterStats stats, IReadOnlyList<LearnedArt> arts,
-            IReadOnlyList<DisciplineMastery> masteries = null)
+            IReadOnlyList<DisciplineMastery> masteries = null,
+            ArtLineage? lineage = null)
         {
             if (string.IsNullOrEmpty(name)) throw new ArgumentException("이름은 비어 있을 수 없다.", nameof(name));
             if (stats == null) throw new ArgumentNullException(nameof(stats));
@@ -35,7 +58,79 @@ namespace Jianghu.Core.Combat
             Stats = stats;
             Arts = arts;
             Masteries = masteries ?? NoMastery;
+            Lineage = lineage;
         }
+
+        /// <summary>
+        /// **익힌 무공 전부**를 통틀어 <paramref name="target"/> 분류에 갖는 상성 수(정의서 §4).
+        /// 대상이 무소속(`null`)이면 0 이다.
+        ///
+        /// ⚠ 이것은 **방어 쪽 계산용**이다 — *"받는 피해 −5%"* 는 어느 초식을 쓰는 중인지와
+        ///   무관한 상시 성질이므로, 방어군 4축(<see cref="EffectiveDefense"/> · <see cref="Evasion"/> …)이
+        ///   이미 쓰는 *"익힌 무공 전부 합산"* 규칙을 그대로 따른다.
+        ///   **공격 쪽**(*"주는 피해 +10%"*)은 반대로 **그 순간 쓰는 초식**의 상성만 센다 —
+        ///   `Delta.Attack` 이 활성 무공에서만 오는 것과 같은 이유다. 상성은 그 초식의 성질이다.
+        ///
+        /// ⚠ 숙련 배율을 곱하지 않는다. 상성은 정의서 §4 에서 **개수(정수)** 로 정의된 축이고,
+        ///   수련으로 "상성이 1.7개" 가 되는 것은 이름이 뜻하는 바가 아니다.
+        /// </summary>
+        public int CounterCountAgainst(ArtLineage? target)
+        {
+            if (target == null) return 0;
+
+            int count = 0;
+            for (int i = 0; i < Arts.Count; i++)
+            {
+                IReadOnlyList<ArtLineage> targets = Arts[i].Art.CounterTargets;
+                for (int j = 0; j < targets.Count; j++)
+                {
+                    if (targets[j] == target.Value) count++;
+                }
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// 이 사람이 <paramref name="rule"/> 절대경지 규칙을 갖고 있는가 (정의서 §5-3).
+        ///
+        /// ⚠⚠ **합산이 아니라 `any` 다.** 절대경지 규칙은 불리언이라 <see cref="Martial.Morphemes.ArtStatDelta"/>
+        ///   에 넣을 수 없다 — 델타는 22축이 전부 `double` 이고 무공을 여럿 배우면 더해지므로,
+        ///   불리언을 숫자로 담으면 *"면역이 두 겹"* 이라는 의미 없는 값이 생긴다.
+        ///
+        /// ⚠ **배운 순간부터 상시 적용**된다. 그 무공을 전투에서 "쓸 때만" 이 아니다 —
+        ///   절대경지 4종은 전부 **내공 무공**이고, 내공·경공이 사람에게 상시 붙는 것은
+        ///   <see cref="EffectiveMaxQi"/>·<see cref="QiRegenPerTurn"/>·<see cref="SupportQiCostPercent"/> 가
+        ///   이미 쓰는 규칙이다. 그 관례를 그대로 따른다.
+        ///
+        /// ⚠ 숙련 배율을 곱하지 않는다 — 규칙은 정도(程度)가 없다. 면역이 1.7겹일 수 없다.
+        /// </summary>
+        public bool HasRule(AbsoluteRule rule)
+        {
+            for (int i = 0; i < Arts.Count; i++)
+            {
+                if (Arts[i].Art.Rule == rule) return true;
+            }
+            return false;
+        }
+
+        /// <summary>면(免) — 모든 상태이상 면역. 무림맹 절대경지.</summary>
+        public bool IsStatusImmune => HasRule(AbsoluteRule.StatusImmunity);
+
+        /// <summary>
+        /// 무(無) — 기력 무소모. 천마신교 절대경지.
+        /// ⚠⚠ **엔진은 정상 작동한다**(2026-08-02 `diagnosis` 확인 — 전투 로그에서 보유자만 기력 차감이 사라진다).
+        ///   ~~기력 축이 죽어 있어 현재 효과 0~~ → 축은 §1-1-c 로 살아났다.
+        ///   ✅ **측정도 됐다** (2026-08-02 3차) — 4자 압력에서 **+4.06%p**(10성).
+        ///   대조군 패딩이 스스로 압력을 지우고 있었을 뿐이다(식息 · 수水. HANDOFF §4-5).
+        /// ⚠ **조건부 규칙이다** — 기력 압력이 없는 판(2·3자 무공)에서는 값이 0 이고, 그게 정상이다.
+        /// </summary>
+        public bool HasNoQiCost => HasRule(AbsoluteRule.NoQiCost);
+
+        /// <summary>쌍(雙) — 한 턴에 2회 행동. 사도련 절대경지.</summary>
+        public bool ActsTwice => HasRule(AbsoluteRule.DoubleAction);
+
+        /// <summary>통(統) — 모든 분류에 상성 +1(과녁이 있을 때만), 상대 상성 무효. 제천성 절대경지.</summary>
+        public bool HasCounterSupremacy => HasRule(AbsoluteRule.CounterSupremacy);
 
         /// <summary>해당 무기 유형의 숙련도. 익힌 적이 없으면 0.</summary>
         public int MasteryOf(Discipline discipline)
@@ -177,6 +272,35 @@ namespace Jianghu.Core.Combat
         public const int BaseQiRegen = 10;
 
         /// <summary>
+        /// **상태이상 저항(%p)** — 부여확률에서 그대로 빼는 값이다. 극한경지 성(聖) 하나만 갖는다(30).
+        ///
+        /// ⚠⚠ **2026-08-02 연결.** 그전까지 `ArtStatDelta.StatusResist` 를 **아무도 읽지 않아**
+        ///   성(聖)의 세 축 중 저항만 죽어 있었다(방어 +5 · 막기 +25 는 살아 있어 부분 손실).
+        ///   인계문서 §3-2 가 미연결로 적어 둔 축이고, 같은 목록의 `DefenseIgnore`(마 魔)와 함께 이었다.
+        ///
+        /// ⚠ 방어군 4축과 같은 규칙을 따른다 — **익힌 무공 전부 합산 · 숙련 배율 곱함.**
+        ///   저항은 어느 초식을 쓰는 중인지와 무관한 상시 성질이다.
+        ///
+        /// ⚠ 상한을 여기서 걸지 않는다. 부여확률 쪽에서 `Clamp(0, 100)` 이 이미 걸리고,
+        ///   여기서 미리 자르면 *"저항 몇까지 쌓였는가"* 가 관측에서 사라진다.
+        /// </summary>
+        public int StatusResistPercent
+        {
+            get
+            {
+                double bonus = 0;
+                for (int i = 0; i < Arts.Count; i++)
+                {
+                    LearnedArt learned = Arts[i];
+                    if (!learned.Art.IsMorphemeDerived) continue;
+
+                    bonus += learned.Art.Delta.StatusResist * learned.PowerMultiplier;
+                }
+                return (int)Math.Round(bonus);
+            }
+        }
+
+        /// <summary>
         /// 턴당 기력 회복량. 기본값에 내공 무공의 형태소 회복(음 +2 · 합 +0.5 · 수 +1 · 선 +3)이 더해진다.
         ///
         /// ⚠⚠ **이 값이 전투 성립 여부를 가른다.** 0 이면 4자 무공 기준 3턴 만에 기력이 마르고
@@ -276,6 +400,18 @@ namespace Jianghu.Core.Combat
         public const double EvasionPointToPercent = 0.3;
 
         /// <summary>
+        /// **캐릭터 기본 회피(%p)** — 정의서 §1-1 이 *"시작 5 / 만렙 5"* 로 적어 둔 값이다.
+        ///
+        /// ⚠⚠ **2026-08-02 연결.** 정의서가 이 행에 *"⚠ 아직 엔진 미연결"* 을 스스로 달아 두고 있었다.
+        ///   그전까지 회피의 기반은 `Stats.Agility / 2` 뿐이라 **시작 캐릭터의 회피가 0** 이었다.
+        ///
+        /// ⚠ 신법(<see cref="CharacterStats.Agility"/>)과 **다른 것**이다. 신법은 1 → 4 로 자라고
+        ///   이 값은 시작·만렙이 똑같이 5 다 — 정의서가 성장하지 않는 상수로 적었다.
+        ///   *"누구나 맞기 전에 몸을 튼다"* 는 바닥값이고, 신법은 그 위에 쌓이는 성장분이다.
+        /// </summary>
+        public const int BaseEvasion = 5;
+
+        /// <summary>
         /// 회피 수치. 신법 절반이 기반이고 경공 무공이 얹힌다.
         ///
         /// ⚠⚠ 2026-07-31 — **형태소 회피(피·둔·섬)를 잇었다.** 그전에는 경공 무공의
@@ -304,7 +440,7 @@ namespace Jianghu.Core.Combat
                         bonus += learned.Art.EvasionBonus * learned.PowerMultiplier;
                     }
                 }
-                return Stats.Agility / 2 + (int)Math.Round(bonus);
+                return BaseEvasion + Stats.Agility / 2 + (int)Math.Round(bonus);
             }
         }
 

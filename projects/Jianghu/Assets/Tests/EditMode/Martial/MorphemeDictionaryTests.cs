@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Jianghu.Core.Martial.Morphemes;
 using NUnit.Framework;
 
@@ -20,15 +20,18 @@ namespace Jianghu.Tests.Martial
         // ─────────────────────────── 옮겨 적기 무결성 ───────────────────────────
 
         [Test]
-        public void 형태소_사전은_여든한자다()
+        public void 형태소_사전은_여든여덟자다()
         {
             // ⚠ 정의서 §3 원안은 75자다. 두 번 늘었고 둘 다 정의서에 역반영했다:
             //   · 2026-07-29 상태이상 **탈(奪 기력소실)·경(硬 경직)** 2자 → 77자
             //     (엔진에 있는 상태이상을 형태소가 가리키지 못하던 구멍. `martial-art-naming.md` §4)
             //   · 2026-07-30 범위 **다(多)·군(群)·전(全)·만(萬)** 4자 → 81자
             //     (광역 공격. §3-12 신설. `martial-art-naming.md` §4-C)
-            Assert.AreEqual(84, MorphemeDictionary.Count,
-                "형태소는 84자여야 한다(정의서 75 + 상태이상 2 + 범위 4 + 종교 3). 실제 {0}자 — 옮기다 빠뜨렸거나 더 넣었다.",
+            //   · 2026-08-02 절대경지 규칙 **면(免)·무(無)·쌍(雙)·통(統)** 4자 → 88자
+            //     (§5-3 의 규칙 4종을 이름이 가리키게 만든 것. 극한경지 9자와 같은 위상이며,
+            //      수치가 아니라 **규칙**을 준다 —  는 Zero 다)
+            Assert.AreEqual(88, MorphemeDictionary.Count,
+                "형태소는 88자여야 한다(정의서 75 + 상태이상 2 + 범위 4 + 종교 3 + 절대경지 규칙 4). 실제 {0}자 — 옮기다 빠뜨렸거나 더 넣었다.",
                 MorphemeDictionary.Count);
         }
 
@@ -105,10 +108,14 @@ namespace Jianghu.Tests.Martial
         {
             // ⚠⚠ 대가가 이 카테고리의 본체다. 대가 없는 범위 형태소가 하나라도 있으면
             //   다대다 전투가 생기는 순간 **모든 무공이 그 글자를 쓴다.**
-            //   대가는 두 축 중 하나다 — 공격을 깎거나(다·군·전), 기력을 늘리거나(만).
+            //   대가는 두 축 중 하나다 — 위력을 깎거나(다·군·전), 기력을 늘리거나(만).
+            //
+            // ⚠⚠ **2026-08-09 — 위력 쪽 축이 `Attack` 감산에서 `AttackPercent` 배수로 바뀌었다.**
+            //   감산은 대가 구실을 못 했다(캐릭터 공격을 못 건드리고, `ArtPower` 0 클램프에 걸리면
+            //   무료가 되며, 무엇보다 이득이 대상 수 곱셈인데 대가가 뺄셈이었다 — HANDOFF §4-12).
             foreach (Morpheme m in MorphemeDictionary.ByCategory(MorphemeCategory.Scope))
             {
-                bool paysInPower = m.Delta.Attack < 0;
+                bool paysInPower = m.Delta.AttackPercent < 0;
                 bool paysInQi = m.Delta.QiCostPercent > 0;
 
                 Assert.IsTrue(paysInPower || paysInQi,
@@ -128,11 +135,18 @@ namespace Jianghu.Tests.Martial
             Assert.AreEqual(AttackScope.All, jeon.Scope);
             Assert.AreEqual(AttackScope.All, man.Scope);
 
-            Assert.Less(jeon.Delta.Attack, 0, "전(全)은 위력을 팔아야 한다.");
+            Assert.Less(jeon.Delta.AttackPercent, 0, "전(全)은 위력을 팔아야 한다.");
             Assert.AreEqual(0, jeon.Delta.QiCostPercent, 1e-9, "전(全)은 기력이 아니라 위력을 판다.");
 
             Assert.Greater(man.Delta.QiCostPercent, 0, "만(萬)은 기력을 팔아야 한다.");
-            Assert.AreEqual(0, man.Delta.Attack, 1e-9, "만(萬)은 위력을 유지한다.");
+
+            // ⚠⚠ **2026-08-09 — 만(萬)도 위력을 조금은 팔게 됐다.** 그전에는 하나도 안 팔아서,
+            //   전(全)이 배수형 대가를 지게 된 뒤 만이 홀로 4대4를 지배했다(HANDOFF §4-12).
+            //   그래서 판정 기준을 *"만은 위력을 안 판다"* 에서 **"만은 위력을 덜 판다"** 로 바꿨다.
+            //   ⛔ 둘이 같아지면 만은 **완전 하위호환**(위력 대가가 같은데 기력까지 더)이 되어 죽는다.
+            Assert.Greater(man.Delta.AttackPercent, jeon.Delta.AttackPercent,
+                "만(萬)은 전(全)보다 위력을 **덜** 팔아야 한다 — 같거나 더 팔면 하위호환이다.");
+            Assert.LessOrEqual(man.Delta.AttackPercent, 0, "만(萬)의 위력 대가가 순이득이 됐다.");
         }
 
         [Test]
@@ -266,6 +280,42 @@ namespace Jianghu.Tests.Martial
             Assert.AreEqual(2.5, sum.Speed, 1e-9, "속도가 합산되지 않았다.");
             Assert.AreEqual(3, sum.Defense, 1e-9, "한쪽에만 있는 축이 누락됐다.");
             Assert.AreEqual(10, sum.CritChance, 1e-9, "한쪽에만 있는 축이 누락됐다.");
+        }
+
+        [Test]
+        public void 공격_페널티는_합산과_두배를_따라간다()
+        {
+            // ⚠⚠ 2026-08-05 신설. `AttackPenalty` 는 **공격 축 중 음수 성분만** 따로 합한 값이다.
+            //   `CombatResolver` 가 이걸 배율 밖으로 빼서 *"이득은 수련으로 자라고 대가는 고정"* 을 만든다.
+            //   합산·2배를 못 따라가면 그 분리가 조용히 틀린 값을 낸다 — 그래서 여기서 고정한다.
+            ArtStatDelta gain = ArtStatDelta.Of(attack: 2);          // 베기
+            ArtStatDelta loss = ArtStatDelta.Of(attack: -0.75);      // 기만
+
+            Assert.AreEqual(0, gain.AttackPenalty, 1e-9, "이득만 있는 형태소에 페널티가 잡혔다.");
+            Assert.AreEqual(-0.75, loss.AttackPenalty, 1e-9, "음수 공격이 페널티로 안 잡혔다.");
+
+            // ⚠ 합쳐도 **Attack 안에는 여전히 포함**돼 있다. 빼서 쓰는 쪽이 책임진다.
+            ArtStatDelta sum = gain + loss;
+            Assert.AreEqual(1.25, sum.Attack, 1e-9, "공격 합이 어긋난다.");
+            Assert.AreEqual(-0.75, sum.AttackPenalty, 1e-9, "합산에서 페널티가 사라졌다.");
+
+            // 종(宗)의 *"페널티까지 함께 2배"*(정의서 §3-8)가 여기에 걸린다.
+            ArtStatDelta doubled = loss * 2;
+            Assert.AreEqual(-1.5, doubled.AttackPenalty, 1e-9, "2배에서 페널티가 함께 커지지 않았다.");
+        }
+
+        [Test]
+        public void 순수_이득_형태소는_페널티가_없다()
+        {
+            // 정직(正直)처럼 공격이 **이득**인 무공형태는 이 분리의 영향을 받지 않아야 한다.
+            // ⚠ 받으면 *"대가만 고정"* 이라는 규칙이 이득에도 새어 나간 것이다.
+            foreach (char c in new[] { '정', '중', '참', '자', '타' })
+            {
+                Morpheme m = MorphemeDictionary.Get(c);
+                if (m.Delta.Attack < 0) continue;
+                Assert.AreEqual(0, m.Delta.AttackPenalty, 1e-9,
+                    "{0} 의 공격이 음수가 아닌데 페널티가 잡혔다.", m);
+            }
         }
 
         [Test]
