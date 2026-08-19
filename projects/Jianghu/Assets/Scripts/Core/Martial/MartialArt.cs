@@ -150,6 +150,21 @@ namespace Jianghu.Core.Martial
         public AttackScope Scope { get; }
 
         /// <summary>
+        /// **무공 종류**(공격 · 내공 · 경공). 무공명을 다시 분해할 때 **반드시 필요하다**.
+        ///
+        /// ⚠⚠ **2026-08-09 신설 — 그전까지 이 값이 여기서 버려졌다.**
+        ///   <see cref="Morphemes.MartialArtFactory"/> 가 만들 때 쓰고 보관하지 않았는데,
+        ///   `MorphemeParser.Parse(name)` 의 1인자 오버로드는 **접미사에서 종류를 읽는 강호무학 9종 전용**이라
+        ///   나머지 **129종은 종류를 명시하지 않으면 *"접미사가 없다"* 로 예외**가 난다.
+        ///   즉 이 값 없이는 **카탈로그의 93%를 다시 분해할 수 없었다.**
+        ///   `CounterTargets`(2026-08-02) · `Scope`(2026-08-09)와 **똑같은 형태의 누락**이다.
+        ///
+        /// ⚠ 다시 분해할 때는 직접 파서를 부르지 말고 <see cref="Morphemes.MartialArtFactory.Decompose"/> 를 쓴다 —
+        ///   강호무학이냐 아니냐로 갈리는 규칙이 **한 곳에만** 있어야 갈라지지 않는다.
+        /// </summary>
+        public ArtKind Kind { get; }
+
+        /// <summary>
         /// **먼저 닿는 열**(진형). 공격방식(던지기만 후열) ∪ 수식 `어둡다` 중 **이름에서 앞선 글자**가 정한다.
         /// 규칙과 그 선택의 근거는 <see cref="BattleRowRule"/>.
         ///
@@ -171,6 +186,7 @@ namespace Jianghu.Core.Martial
             ArtStatDelta delta, int qiCost, ArtTier tier, int hitCount = 1,
             IReadOnlyList<ArtLineage> counterTargets = null, AbsoluteRule rule = AbsoluteRule.None,
             AttackScope scope = AttackScope.Single, BattleRow preferredRow = BattleRow.Front,
+            ArtKind kind = ArtKind.Attack,
             params StatusApplication[] effects)
         {
             if (hitCount < 1) throw new ArgumentOutOfRangeException(nameof(hitCount), "타격 횟수는 1 이상이어야 한다.");
@@ -180,7 +196,7 @@ namespace Jianghu.Core.Martial
                 basePower: 0, qiCost: qiCost, hitCount: hitCount, accuracyBonus: 0,
                 maxQiBonus: 0, powerBonusPercent: 0, evasionBonus: 0, initiativeBonus: 0,
                 effects: effects, delta: delta, morphemeDerived: true, tier: tier,
-                counterTargets: counterTargets, rule: rule, scope: scope, preferredRow: preferredRow);
+                counterTargets: counterTargets, rule: rule, scope: scope, preferredRow: preferredRow, kind: kind);
         }
 
         private MartialArt(
@@ -190,8 +206,10 @@ namespace Jianghu.Core.Martial
             StatusApplication[] effects,
             ArtStatDelta delta = default, bool morphemeDerived = false, ArtTier tier = ArtTier.Wanderer,
             IReadOnlyList<ArtLineage> counterTargets = null, AbsoluteRule rule = AbsoluteRule.None,
-            AttackScope scope = AttackScope.Single, BattleRow preferredRow = BattleRow.Front)
+            AttackScope scope = AttackScope.Single, BattleRow preferredRow = BattleRow.Front,
+            ArtKind kind = ArtKind.Attack)
         {
+            Kind = kind;
             Delta = delta;
             IsMorphemeDerived = morphemeDerived;
             Tier = tier;
@@ -241,7 +259,7 @@ namespace Jianghu.Core.Martial
             if (hitCount < 1) throw new ArgumentOutOfRangeException(nameof(hitCount), "타격 횟수는 1 이상이어야 한다.");
 
             return new MartialArt(id, name, school, discipline, alignment, basePower, qiCost, hitCount, accuracyBonus, 0, 0, 0, 0, effects,
-                scope: scope, preferredRow: preferredRow);
+                scope: scope, preferredRow: preferredRow, kind: ArtKind.Attack);
         }
 
         /// <summary>보조 무공을 만든다. 유형은 내공·경공 중 하나여야 한다.</summary>
@@ -255,8 +273,10 @@ namespace Jianghu.Core.Martial
                 throw new ArgumentException("검·도·권은 보조 무공이 될 수 없다. Technique 으로 만들 것.", nameof(discipline));
             }
 
+            // ⚠ 보조 무공의 종류는 유형에서 곧바로 나온다 — 내공이면 내공 무공, 경공이면 경공 무공이다.
             return new MartialArt(id, name, school, discipline, alignment, 0, 0, 0, 0,
-                maxQiBonus, powerBonusPercent, evasionBonus, initiativeBonus, null);
+                maxQiBonus, powerBonusPercent, evasionBonus, initiativeBonus, null,
+                kind: discipline == Discipline.InnerArt ? ArtKind.Internal : ArtKind.Movement);
         }
 
         /// <summary>문파에 속하지 않은 강호무학인가.</summary>
