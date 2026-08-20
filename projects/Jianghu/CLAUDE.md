@@ -101,6 +101,10 @@ D:\Tools\dotnet\dotnet.exe test D:\GameDev\projects\Jianghu\Tools\CoreTests\Core
 - **⚠ 이 템플릿은 URP 다** (Built-in 아님). 인터넷 강좌 상당수가 구형 Built-in 기준이라 렌더링·셰이더·조명 자료를 그대로 따라 하면 안 된다. 새 렌더링 API 를 쓰기 전 `docs-lookup` 으로 URP 17.x 기준 대조
 - **⚠ 에디터 버전을 올리지 말 것.** `6000.0.58f1 LTS` 고정. Hub 가 6.2 설치를 권해도 무시한다. 버전이 섞이면 "어느 버전 문법인지" 가 흐려진다(`../../CLAUDE.md` §4)
 - **⚠ `Library\` `Temp\` `Logs\` 를 직접 읽지 말 것.** 훅이 차단한다. 로그 진단은 `diagnosis` sub-agent 에 위임
+- **⚠⚠ asmdef 는 서로 자동 참조되지 않는다 (2026-08-09 밟음)** — `Jianghu.Unity.asmdef` 에 `UnityEngine.UI` 를 안 적으면 `using UnityEngine.UI;` 가 **통째로 안 잡힌다.** `autoReferenced: true` 는 *"미리 정의된 어셈블리(Assembly-CSharp)가 나를 참조한다"* 는 뜻이지 **내가 남을 참조한다는 뜻이 아니다.**
+  - 참조는 **이름 문자열**로 적어도 된다(GUID 강제 아님 — 공식 매뉴얼 `assembly-definition-file-format` 예시가 `"UnityEngine.UI"` 를 그대로 쓴다)
+  - ⚠ 이 지뢰는 **에디터를 켜야만 드러난다.** Unity 층은 `dotnet test` 로 컴파일 검증이 안 되므로, 새 패키지 API 를 쓸 때는 asmdef 부터 본다
+- **⚠⚠ Unity 층은 1순위 검증(`dotnet test`)이 닿지 않는다 (2026-08-09 명문화)** — `UnityEngine` 을 참조하는 순간 `Tools/CoreTests` 로 못 돈다. 그래서 **순수 로직은 Core 에 두고 Unity 층은 그리기만** 한다(§1-1). 그럼에도 화면 조립 코드 자체의 회귀는 **아무것도 안 잡는다** — 사용자가 Play 를 눌러야 처음 보인다. 넘기기 전에 ⓐ `docs-lookup` 으로 API 대조 ⓑ 중괄호·문자열 리터럴 균형 검사를 거친다
 - **⚠⚠ "Deprecated packages" 경고 (2026-07-28 밟음·해결)** — 프로젝트를 열 때 뜨던 경고의 원인은 템플릿이 기본으로 넣어준 `com.unity.ide.rider 3.0.37` 이었다(에디터 6000.0.58f1 에서 재현되는 알려진 사례). **이 PC 에는 Rider 가 설치돼 있지 않아** 쓸모없는 패키지였으므로 `Packages/manifest.json` 에서 제거했다. 이 PC 의 IDE 는 **Visual Studio 2022 + VS Code** 이고 `com.unity.ide.visualstudio` 는 유지한다.
   - 교훈: 템플릿이 얹어주는 패키지 중 **안 쓰는 것은 제거해도 된다.** 다만 `packages-lock.json` 에서 다른 패키지가 의존하지 않는지 먼저 확인할 것
 

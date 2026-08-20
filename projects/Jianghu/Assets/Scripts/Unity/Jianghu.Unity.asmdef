@@ -2,7 +2,8 @@
     "name": "Jianghu.Unity",
     "rootNamespace": "Jianghu.Unity",
     "references": [
-        "Jianghu.Core"
+        "Jianghu.Core",
+        "UnityEngine.UI"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
