@@ -32,8 +32,34 @@ namespace Jianghu.Core.Martial.Display
 
         public string DisciplineName => KoreanNames.Of(Art.Discipline);
 
-        /// <summary>성향. ⚠ 강호무학은 무공에 성향이 없다 — 익힌 사람을 따른다.</summary>
-        public string AlignmentName => KoreanNames.Of(Art.Alignment, "익힌 사람을 따름");
+        /// <summary>
+        /// 성향.
+        ///
+        /// ⚠⚠ **성향이 없는 이유가 셋이고 서로 다르다** (2026-08-23 화면에서 드러남). 처음엔
+        ///   전부 *"익힌 사람을 따름"* 이라 적었는데, 그건 강호무학의 이유일 뿐이라 **17종 중
+        ///   8종에 대해 거짓말**이었다:
+        ///
+        ///   | 계층 | 종수 | 이유 |
+        ///   |---|---|---|
+        ///   | 강호무학 | 9 | 무공에 성향이 없고 **익힌 사람**을 따른다 |
+        ///   | 대문파·세력(제천성) | 4 | **정·사·마를 다 받는 유일한 세력**이라 성향 배타가 풀려 있다(정의서 §5-5-b) |
+        ///   | 절대경지 | 4 | **기연으로만** 얻고 성향이 없다(§5-3) |
+        ///
+        /// ⚠ 같은 `null` 을 세 뜻으로 쓰는 것이므로 **읽는 쪽이 계층을 봐야** 옳게 말할 수 있다.
+        /// </summary>
+        public string AlignmentName
+        {
+            get
+            {
+                if (Art.Alignment.HasValue) return KoreanNames.Of(Art.Alignment.Value);
+                switch (Art.Tier)
+                {
+                    case ArtTier.Wanderer: return "익힌 사람을 따름";
+                    case ArtTier.Absolute: return "없음 (기연)";
+                    default: return "가리지 않음";
+                }
+            }
+        }
 
         public string KindName => KoreanNames.Of(Art.Kind);
 

@@ -124,7 +124,13 @@ namespace Jianghu.Unity
             RefreshList();
         }
 
-        private const float LeftWidth = 560f;
+        /// <summary>
+        /// 좌측 폭.
+        /// ⚠ 실측으로 잡았다 — 가장 긴 목록 줄이 22자(≈362px)이고 가장 긴 필터 줄(계층)이 ≈482px 다.
+        ///   ⚠⚠ **좁힐수록 우측 기여 칸이 넓어진다.** 560 이었을 때 축이 셋인 글자(성聖)가
+        ///     폭 부족으로 두 줄로 깨졌다.
+        /// </summary>
+        private const float LeftWidth = 520f;
 
         // ─────────────────────────── 필터 ───────────────────────────
 
@@ -171,8 +177,8 @@ namespace Jianghu.Unity
 
             // 글자 폭에 맞춰 좁힌다 — 14pt 한글 한 자를 약 14px 로 잡고 좌우 여백을 더한다.
             // ⚠⚠ **최소폭도 함께 못박히므로**(`Width`) 줄이 넘치면 줄어드는 게 아니라 **패널 밖으로 삐져나온다.**
-            //   가장 긴 계층 줄이 여백 포함 약 494px 이고 좌측 폭이 544px 이라 50px 여유를 뒀다.
-            Width(button.gameObject, 18 + label.Length * 14);
+            //   가장 긴 계층 줄이 여백 포함 약 482px 이고 좌측 가용이 504px 이다.
+            Width(button.gameObject, 16 + label.Length * 14);
             button.GetComponentInChildren<Text>().alignment = TextAnchor.MiddleCenter;
             sink.Add(button);
         }
@@ -307,17 +313,18 @@ namespace Jianghu.Unity
 
             string head = c.IsSuffix ? c.Text : c.Text + "(" + c.Hanja + ")";
             Width(UiFactory.Label(strip.transform, "Char", head, 18,
-                c.IsSuffix ? UiFactory.InkDim : UiFactory.Ink, TextAnchor.MiddleLeft).gameObject, 72);
+                c.IsSuffix ? UiFactory.InkDim : UiFactory.Ink, TextAnchor.MiddleLeft).gameObject, 64);
 
-            // ⚠ 폭은 실측으로 잡았다 — 카테고리는 `공격방식` 4자가 최장이고,
-            //   의미는 접미사의 `공격 무공 · 형태소 아님` 이 최장이다.
+            // ⚠⚠ **머리 세 칸을 좁게 잡는 것이 곧 기여 칸을 넓히는 일이다.** 넉넉히 줬더니
+            //   축이 셋인 글자(성聖 — 방어·막기확률·상태이상 저항)가 두 줄로 깨졌다.
+            //   최장은 카테고리 `절대경지규칙`(6자) · 의미 `기력소실`(4자)이다.
             Width(UiFactory.Label(strip.transform, "Category", c.CategoryName, 14,
-                UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 100);
+                UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 88);
 
             Width(UiFactory.Label(strip.transform, "Meaning", c.Meaning, 15,
-                UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 180);
+                UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 140);
 
-            AddAxisCells(strip.transform, c.Axes);
+            AddAxisCells(strip.transform, c.Axes, c.EmptyNote);
         }
 
         private void AddAxisRow(string head, IReadOnlyList<StatAxisValue> axes)
@@ -325,9 +332,9 @@ namespace Jianghu.Unity
             GameObject strip = UiFactory.HorizontalStrip(detailContent, "Axes", 26f, 8f);
             if (!string.IsNullOrEmpty(head))
             {
-                Width(UiFactory.Label(strip.transform, "Head", head, 15, UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 72);
+                Width(UiFactory.Label(strip.transform, "Head", head, 15, UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 64);
             }
-            AddAxisCells(strip.transform, axes);
+            AddAxisCells(strip.transform, axes, "수치 없음");
         }
 
         /// <summary>
@@ -335,11 +342,11 @@ namespace Jianghu.Unity
         /// ⚠ 한 줄에 몰아넣지 않는 이유는 색이다 — 이득과 대가가 한 글자 안에 섞여 있을 수 있어
         ///   (`환(幻)` 처럼) 통째로 칠하면 둘 중 하나가 거짓이 된다.
         /// </summary>
-        private static void AddAxisCells(Transform parent, IReadOnlyList<StatAxisValue> axes)
+        private static void AddAxisCells(Transform parent, IReadOnlyList<StatAxisValue> axes, string emptyNote)
         {
             if (axes.Count == 0)
             {
-                Text none = UiFactory.Label(parent, "None", "수치 없음", 14, UiFactory.InkDim, TextAnchor.MiddleLeft);
+                Text none = UiFactory.Label(parent, "None", emptyNote, 14, UiFactory.InkDim, TextAnchor.MiddleLeft);
                 Flexible(none.gameObject);
                 return;
             }
@@ -350,12 +357,24 @@ namespace Jianghu.Unity
                 Text cell = UiFactory.Label(parent, "Axis" + i, v.ToString(), 15,
                     v.IsGain ? UiFactory.Gain : UiFactory.Loss, TextAnchor.MiddleLeft);
 
-                // ⚠⚠ 폭을 못박지 않는다. `Text` 가 `ILayoutElement` 라 **제 글자를 재서** 폭을 낸다 —
-                //   처음엔 `글자수 × 12` 로 어림했는데, 한글은 약 15px 이고 ASCII·기호는 약 8px 이라
-                //   `상태이상 저항 +30%p` 같은 혼합 문자열에서 어림이 크게 빗나간다.
-                // ⚠ 남는 폭이 모자라면 uGUI 가 최소폭까지 줄이며 글자를 자른다. 실측으로 축이 가장
-                //   많은 것은 **합계 6축(`환창혈만`)** 이므로 거기서 먼저 드러난다 — 설계 §5 4번 확인 항목.
+                // ⚠⚠ **폭을 `Text` 에게 물어 최소폭까지 못박는다** (2026-08-23 2차 수정).
+                //   ⓐ 처음엔 `글자수 × 12` 로 어림했다 — 한글 15px · ASCII 8px 이라
+                //      `상태이상 저항 +30%p` 같은 혼합 문자열에서 크게 빗나갔다.
+                //   ⓑ 그래서 `Text` 의 `ILayoutElement` 에 맡기고 폭을 안 걸었더니, 이번엔
+                //      **최소폭이 0 이라 공간이 모자랄 때 uGUI 가 셀을 줄여** `방어 +5` 가
+                //      `방어` / `+5` 두 줄로 깨졌다(성뇌후격의 성聖).
+                //   ⓒ `Text.preferredWidth` 는 **한 줄로 그렸을 때의 실측 폭**이다. 그것을
+                //      min·preferred 양쪽에 걸면 줄어들 수도 늘어날 수도 없다.
+                // ⚠ 그래도 넘치면 우측으로 삐져나가는데, 상세도 `ScrollArea`(RectMask2D) 안이라
+                //   **깨끗이 잘린다.** 두 줄로 깨지는 것보다 낫다 — 잘린 것은 눈에 보인다.
+                // ⚠ 동적 OS 폰트는 글리프가 아직 아틀라스에 없으면 폭을 0 근처로 낼 수 있다.
+                //   그때 min·preferred 를 0 으로 못박으면 칸이 통째로 사라지므로 바닥을 깔아 둔다.
+                float width = Mathf.Max(cell.preferredWidth, v.ToString().Length * 9f);
+                cell.horizontalOverflow = HorizontalWrapMode.Overflow;   // 어떤 경우에도 줄바꿈하지 않는다
+
                 LayoutElement element = Element(cell.gameObject);
+                element.preferredWidth = width;
+                element.minWidth = width;
                 element.flexibleWidth = 0;
             }
 

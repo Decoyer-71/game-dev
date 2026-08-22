@@ -73,15 +73,9 @@ namespace Jianghu.Core.Martial.Display
             }
         }
 
-        /// <summary>
-        /// 성향 — **없을 수 있는 쪽**. 강호무학은 무공 자체에 성향이 없다(익힌 사람을 따른다).
-        /// <paramref name="none"/> 로 그 자리에 무엇을 쓸지 부르는 쪽이 정한다 — 표에서는 `-`,
-        /// 상세 화면에서는 문장이 낫기 때문이다.
-        /// </summary>
-        public static string Of(Alignment? alignment, string none)
-        {
-            return alignment.HasValue ? Of(alignment.Value) : none;
-        }
+        // ⚠ `Of(Alignment?, string none)` 오버로드가 있었으나 지웠다 (2026-08-23).
+        //   성향이 없는 이유가 **셋**(강호무학 · 제천성 · 절대경지)이라 부르는 쪽이 문구 하나를
+        //   넘기는 형태로는 옳게 말할 수 없다. 판단은 계층을 아는 `ArtBreakdown.AlignmentName` 에 있다.
 
         /// <summary>성향 1자. 콘솔 표처럼 폭이 빠듯한 곳이 쓴다.</summary>
         public static string Short(Alignment? alignment)

@@ -219,10 +219,11 @@ namespace Jianghu.Tests.EditMode.Martial
             Assert.That(last.Text, Is.EqualTo("공"));
             Assert.That(last.Axes, Is.Empty);
             Assert.That(last.CategoryName, Is.EqualTo("접미사"));
+            Assert.That(last.Meaning, Is.EqualTo("내공 무공"));
 
-            // ⚠ *"형태소 아님"* 은 **의미 칸**에 있다 — 카테고리 칸에 넣었더니 표의 폭을 넘쳤다.
-            Assert.That(last.Meaning, Does.Contain("형태소 아님"));
-            Assert.That(last.Meaning, Does.StartWith("내공 무공"));
+            // ⚠⚠ *"형태소 아님"* 은 **기여 칸**에 있다. 두 번 옮긴 자리다 — 카테고리 칸에서는
+            //   칸을 넘쳤고, 의미 칸에서는 칸을 넓히느라 기여 칸을 좁혀 축이 두 줄로 깨졌다.
+            Assert.That(last.EmptyNote, Does.Contain("형태소 아님"));
         }
 
         /// <summary>
@@ -307,18 +308,55 @@ namespace Jianghu.Tests.EditMode.Martial
             Assert.That(new StatAxisValue("기력소모", -30, "%").Text, Is.EqualTo("-30%"));
         }
 
-        /// <summary>강호무학은 무공 자체에 성향이 없다 — 빈 칸이 아니라 그 사실을 적는다.</summary>
+        /// <summary>
+        /// **성향이 없는 이유가 셋이고, 계층마다 다르게 말해야 한다.**
+        ///
+        /// ⚠⚠ 처음엔 전부 *"익힌 사람을 따름"* 이라 적었는데 그건 강호무학의 이유일 뿐이라
+        ///   **17종 중 8종(제천성 4 · 절대경지 4)에 거짓말**이었다. 화면을 띄워 보고서야 드러났다.
+        /// ⚠ 표본이 있는지 함께 확인한다 — 셋 중 하나라도 0 이면 그 갈래는 검증되지 않는다.
+        /// </summary>
         [Test]
-        public void 강호무학의_성향은_익힌_사람을_따른다고_적는다()
+        public void 성향이_없는_이유를_계층마다_다르게_적는다()
+        {
+            int wanderer = 0, faction = 0, absolute = 0;
+
+            foreach (MartialArt art in All)
+            {
+                if (art.Alignment.HasValue) continue;
+                string said = ArtBreakdown.Of(art).AlignmentName;
+
+                switch (art.Tier)
+                {
+                    case ArtTier.Wanderer:
+                        wanderer++;
+                        Assert.That(said, Is.EqualTo("익힌 사람을 따름"), art.Name);
+                        break;
+                    case ArtTier.Absolute:
+                        absolute++;
+                        Assert.That(said, Is.EqualTo("없음 (기연)"), art.Name);
+                        break;
+                    default:
+                        faction++;
+                        Assert.That(said, Is.EqualTo("가리지 않음"), art.Name + " (" + art.School + ")");
+                        break;
+                }
+            }
+
+            Assert.That(wanderer, Is.GreaterThan(0), "강호무학 표본이 없다");
+            Assert.That(absolute, Is.GreaterThan(0), "절대경지 표본이 없다");
+            Assert.That(faction, Is.GreaterThan(0), "성향을 가리지 않는 세력 표본이 없다 — 제천성이 사라졌나");
+        }
+
+        /// <summary>성향이 있는 무공은 그 이름을 그대로 적는다 — 이유 문구가 새면 안 된다.</summary>
+        [Test]
+        public void 성향이_있으면_정파_사파_마도_로_적는다()
         {
             foreach (MartialArt art in All)
             {
-                if (art.Tier != ArtTier.Wanderer) continue;
-                Assert.That(art.Alignment, Is.Null, art.Name);
-                Assert.That(ArtBreakdown.Of(art).AlignmentName, Is.EqualTo("익힌 사람을 따름"));
-                return;
+                if (!art.Alignment.HasValue) continue;
+                Assert.That(ArtBreakdown.Of(art).AlignmentName,
+                    Is.EqualTo(KoreanNames.Of(art.Alignment.Value)), art.Name);
             }
-            Assert.Fail("강호무학이 카탈로그에 없다 — 이 테스트의 전제가 깨졌다");
         }
 
         // ─────────────────────────── 도우미 ───────────────────────────
