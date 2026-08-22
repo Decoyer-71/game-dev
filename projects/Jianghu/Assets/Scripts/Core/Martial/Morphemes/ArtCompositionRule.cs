@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Jianghu.Core.Martial.Morphemes
@@ -123,7 +123,7 @@ namespace Jianghu.Core.Martial.Morphemes
                 if (count <= 1) continue;
 
                 violations.Add(new ArtRuleViolation(ArtRule.CategoryDuplicate,
-                    Describe(category) + "가 " + count + "자다. 카테고리당 1자여야 한다"
+                    Display.KoreanNames.Of(category) + "가 " + count + "자다. 카테고리당 1자여야 한다"
                     + (category == MorphemeCategory.Background ? " (배경어 규제 R2)" : "")));
             }
 
@@ -262,9 +262,9 @@ namespace Jianghu.Core.Martial.Morphemes
         {
             if (parsed.CountOf(category) > 0) return;
 
-            string label = Describe(category);
+            string label = Display.KoreanNames.Of(category);
             violations.Add(new ArtRuleViolation(ArtRule.RequiredMissing,
-                KindName(parsed.Kind) + " 무공에는 " + label + Subject(label) + " 필요하다"));
+                Display.KoreanNames.Of(parsed.Kind) + " 무공에는 " + label + Subject(label) + " 필요하다"));
         }
 
         /// <summary>
@@ -291,7 +291,7 @@ namespace Jianghu.Core.Martial.Morphemes
             if (optional <= limit) return;
 
             violations.Add(new ArtRuleViolation(ArtRule.OptionalOverflow,
-                KindName(parsed.Kind) + " 무공의 선택 카테고리가 " + optional + "자다. 최대 " + limit + "자다"));
+                Display.KoreanNames.Of(parsed.Kind) + " 무공의 선택 카테고리가 " + optional + "자다. 최대 " + limit + "자다"));
         }
 
         // ─────────────────────────── 표시 ───────────────────────────
@@ -315,37 +315,6 @@ namespace Jianghu.Core.Martial.Morphemes
 
             bool hasFinalConsonant = (last - 0xAC00) % 28 != 0;
             return hasFinalConsonant ? "이" : "가";
-        }
-
-        private static string KindName(ArtKind kind)
-        {
-            switch (kind)
-            {
-                case ArtKind.Attack: return "공격";
-                case ArtKind.Internal: return "내공";
-                case ArtKind.Movement: return "경공";
-                default: return "?";
-            }
-        }
-
-        private static string Describe(MorphemeCategory category)
-        {
-            switch (category)
-            {
-                case MorphemeCategory.AttackMethod: return "공격방식";
-                case MorphemeCategory.Defense: return "방어";
-                case MorphemeCategory.Internal: return "내공";
-                case MorphemeCategory.Status: return "상태이상";
-                case MorphemeCategory.Form: return "무공형태";
-                case MorphemeCategory.Modifier: return "수식";
-                case MorphemeCategory.Element: return "자연속성";
-                case MorphemeCategory.Pinnacle: return "극한경지";
-                case MorphemeCategory.Negation: return "부정";
-                case MorphemeCategory.Tag: return "무학분류";
-                case MorphemeCategory.Background: return "배경어";
-                case MorphemeCategory.Scope: return "범위";
-                default: return "?";
-            }
         }
     }
 }

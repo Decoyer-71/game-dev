@@ -5,6 +5,7 @@ using System.Text;
 using Jianghu.Core.Characters;
 using Jianghu.Core.Combat;
 using Jianghu.Core.Martial;
+using Jianghu.Core.Martial.Display;
 using Jianghu.Core.Martial.Morphemes;
 using Jianghu.Core.Rng;
 
@@ -1642,18 +1643,11 @@ namespace Jianghu.Sandbox
                    || d.ParalysisStack > 0;
         }
 
-        private static string DisciplineName(Discipline d)
-        {
-            switch (d)
-            {
-                case Discipline.Sword: return "검";
-                case Discipline.Blade: return "도";
-                case Discipline.Spear: return "창";
-                case Discipline.Fist: return "권";
-                case Discipline.Dagger: return "비도";
-                default: return d.ToString();
-            }
-        }
+        // ⚠⚠ 이름표는 Core(`KoreanNames`)에 있다. 여기 있던 표는 **같은 파일 안에서만 두 번**
+        //   (`DisciplineName` · `Short(Discipline)`) 중복이었고 `ArtCompositionRule` · `ParsedArtName`
+        //   까지 넷이었다. 지표 키가 이 문자열로 만들어지므로(`tier.전승무학.유형.비도....`)
+        //   갈라지면 `docs/baseline-metrics.txt` 와의 대조가 끊긴다.
+        private static string DisciplineName(Discipline d) => KoreanNames.Of(d);
 
         /// <summary>
         /// 이름에 **범위 형태소**(다多·군群·전全·만萬)가 들어 있는가 — 2026-08-04 신설.
@@ -2155,44 +2149,12 @@ namespace Jianghu.Sandbox
 
         // ─────────────────────────── 표시 도우미 ───────────────────────────
 
-        private static string TierName(ArtTier t)
-        {
-            switch (t)
-            {
-                case ArtTier.Wanderer: return "강호무학";
-                case ArtTier.Minor: return "소문파";
-                case ArtTier.Major: return "대문파·세력";
-                case ArtTier.Legacy: return "전승무학";
-                case ArtTier.Absolute: return "절대경지";
-                default: return "?";
-            }
-        }
+        private static string TierName(ArtTier t) => KoreanNames.Of(t);
 
-        private static string Short(Discipline d)
-        {
-            switch (d)
-            {
-                case Discipline.Sword: return "검";
-                case Discipline.Blade: return "도";
-                case Discipline.Fist: return "권";
-                case Discipline.Spear: return "창";
-                case Discipline.Dagger: return "비도";
-                default: return "?";
-            }
-        }
+        private static string Short(Discipline d) => KoreanNames.Of(d);
 
         /// <summary>⚠ 성향이 null 이면 강호무학이다 — 익힌 사람의 성향을 따르므로 무공 자체에는 성향이 없다.</summary>
-        private static string Short(Alignment? a)
-        {
-            switch (a)
-            {
-                case Alignment.Orthodox: return "정";
-                case Alignment.Unorthodox: return "사";
-                case Alignment.Demonic: return "마";
-                case null: return "-";
-                default: return "?";
-            }
-        }
+        private static string Short(Alignment? a) => KoreanNames.Short(a);
 
         /// <summary>한글이 콘솔에서 2칸을 차지하는 것을 감안해 폭을 맞춘다.</summary>
         private static string Pad(string s, int width)

@@ -3,8 +3,8 @@
 > **🔖 세션을 새로 시작했다면 `../../docs/HANDOFF.md` 를 먼저 읽을 것.**
 > 지금 어디까지 왔고, 무엇이 막혀 있고, 다음에 무엇을 할지가 거기 있다.
 
-> **⚠ 작업 브랜치는 `feat/martial-engine` 이다.** `main` 에 직접 커밋하지 않는다 (`../../CLAUDE.md` §5-B).
-> UI·이미지 에셋 작업은 **별도 브랜치**를 만든다 — 만들기 전에 사용자에게 묻는다.
+> **⚠ 작업 브랜치는 `ui/combat-view` 다** (Phase 4). `main` 에 직접 커밋하지 않는다 (`../../CLAUDE.md` §5-B).
+> 엔진을 다시 손대면 `feat/martial-engine` 에서 이어 간다. 성격이 다른 작업은 **별도 브랜치** — 만들기 전에 사용자에게 묻는다.
 
 작업공간 공통 규율은 `../../CLAUDE.md` 에 있다. **이 파일은 이 프로젝트 고유 규칙만 적는다.**
 설계 근거·범위·단계는 `../../docs/jianghu-design.md`.
@@ -105,6 +105,10 @@ D:\Tools\dotnet\dotnet.exe test D:\GameDev\projects\Jianghu\Tools\CoreTests\Core
   - 참조는 **이름 문자열**로 적어도 된다(GUID 강제 아님 — 공식 매뉴얼 `assembly-definition-file-format` 예시가 `"UnityEngine.UI"` 를 그대로 쓴다)
   - ⚠ 이 지뢰는 **에디터를 켜야만 드러난다.** Unity 층은 `dotnet test` 로 컴파일 검증이 안 되므로, 새 패키지 API 를 쓸 때는 asmdef 부터 본다
 - **⚠⚠ Unity 층은 1순위 검증(`dotnet test`)이 닿지 않는다 (2026-08-09 명문화)** — `UnityEngine` 을 참조하는 순간 `Tools/CoreTests` 로 못 돈다. 그래서 **순수 로직은 Core 에 두고 Unity 층은 그리기만** 한다(§1-1). 그럼에도 화면 조립 코드 자체의 회귀는 **아무것도 안 잡는다** — 사용자가 Play 를 눌러야 처음 보인다. 넘기기 전에 ⓐ `docs-lookup` 으로 API 대조 ⓑ 중괄호·문자열 리터럴 균형 검사를 거친다
+- **⚠⚠ 표시용 수치는 사전 값이 아니라 *엔진이 곱한 뒤의 값*이다 (2026-08-23 밟음)** — `ArtStatDelta` 23축 중 **회피율(×0.3)·명중(×5)** 둘만 엔진이 상수를 곱한다(`Combatant.EvasionPointToPercent` · `CombatResolver.AccuracyPointToPercent`). 사전 값을 그대로 화면에 내면 `피·둔·섬 15` 가 `+15%p` 로 뜨는데 **실제는 +4.5%p** 다 — §1-0 의 방어관통 160% 와 같은 형태의 거짓말이다.
+  - 나머지 21축은 원값 그대로다. **결함 하나를 고치고 나머지를 안 보는 것이 §5-D 의 선택적 관찰**이므로 전수로 대조할 것
+  - ⚠ 상수를 **베끼지 말고 참조**한다. 테스트도 마찬가지 — 테스트에 값을 박으면 상수가 움직였을 때 테스트가 옛 값을 지키며 통과해 **결함을 가려 준다**
+- **⚠⚠ `RectMask2D` 는 자르기만 하고 레이캐스트를 받지 않는다 (2026-08-23 밟음)** — `ScrollRect` 의 `Viewport` 에 마스크만 두면 **항목 사이 틈이나 목록 아래 빈 자리에서 시작한 드래그·휠이 안 먹는다.** 포인터 레이캐스트는 `Graphic` 이 있는 곳에서만 잡히기 때문이다. 알파 0 인 `Image` 를 얹으면 보이지 않으면서 입력만 받는다
 - **⚠⚠ "Deprecated packages" 경고 (2026-07-28 밟음·해결)** — 프로젝트를 열 때 뜨던 경고의 원인은 템플릿이 기본으로 넣어준 `com.unity.ide.rider 3.0.37` 이었다(에디터 6000.0.58f1 에서 재현되는 알려진 사례). **이 PC 에는 Rider 가 설치돼 있지 않아** 쓸모없는 패키지였으므로 `Packages/manifest.json` 에서 제거했다. 이 PC 의 IDE 는 **Visual Studio 2022 + VS Code** 이고 `com.unity.ide.visualstudio` 는 유지한다.
   - 교훈: 템플릿이 얹어주는 패키지 중 **안 쓰는 것은 제거해도 된다.** 다만 `packages-lock.json` 에서 다른 패키지가 의존하지 않는지 먼저 확인할 것
 
@@ -120,7 +124,7 @@ D:\Tools\dotnet\dotnet.exe test D:\GameDev\projects\Jianghu\Tools\CoreTests\Core
 | **1** | 성향 성장곡선 · 유형 · 초식 모델 · **전투 해결기** | **✅⚠⚠ 완료 (2026-07-28)** — dotnet 46/46 · Unity 컴파일 에러 0 · Unity Test Runner 46/46 |
 | **2** | 무공·문파·상태이상 체계 | **⚠⚠ 진행 중 (2026-08-05)** — 개별 수치 → **한자 형태소 조합 자동 유도**로 전환 완료. 사전 **88자** + 배경어 6자 · 파서 · 조합 규칙 · **무공 138종 작명 완료** · 카탈로그 수치 0줄. **치명 · 상태이상 · 방어군 4축 · 피해 눈금 · 속도 · 유형 숙달 · 절대경지 규칙 4종 · 기력 축 전부 연결 완료.** **✅ Unity 11차 확인 통과** — dotnet **202/202** · 컴파일 에러 0 · Test Runner 202/202(`Combat` **78** · `Martial` 115 · `Rng` 9). 남은 것은 **인계문서 §4-9-5**. 정의서 `../../docs/martial-resource-spec.md` |
 | **3** | 전수 고리 — 주인공 무공 → 제자 → 비무 | 미착수. ⚠ **다대다 전투**가 여기 붙는다 — 범위 형태소 4자와 절대경지 "2회 행동" 은 그전엔 측정 불가 |
-| **4** | Unity UI 바인딩 (텍스트/도형만, 2~3화면) | **⚙ 진행 중 (2026-08-09)** — 브랜치 `ui/combat-view`. 설계 [`../../docs/ui-martial-list-plan.md`](../../docs/ui-martial-list-plan.md). **✅ 0번(Core `Kind`+`Decompose`, 회귀 4건) · 1번(한글 스모크) 사용자 확인 통과.** ⏭ 다음은 **2-a Core 표시 계층**(글자별 전체 기여·접미사 항목·enum 한글 이름) → 2-b 목록 → 2-c 상세. `dotnet test` **239/0/0** |
+| **4** | Unity UI 바인딩 (텍스트/도형만, 2~3화면) | **⚙ 진행 중 (2026-08-23)** — 브랜치 `ui/combat-view`. 설계 [`../../docs/ui-martial-list-plan.md`](../../docs/ui-martial-list-plan.md) · 경위 [`HANDOFF §4-16`](../../docs/HANDOFF.md). **✅ 0번(Core `Kind`+`Decompose`) · 1번(한글 스모크) 사용자 확인 통과 · 2-a(Core 표시 계층) · 2-b·2-c(목록·상세) 구현 완료.** `dotnet test` **254/0/0** · 기준선 791건 동일. ⏭ **다음은 사용자가 Play 를 눌러 확인** — 기대값·위험은 설계 §5 3번에 미리 적어 뒀다 |
 | *(후순위)* | 아트 투입 — higgsfield | **로직 확정 전엔 뽑지 않는다** (생성 1회마다 비용) |
 
 **⚠⚠ Phase 0 검증 완료 (2026-07-27)**: `dotnet test` 9/9 · Unity 컴파일 에러 0 · Unity Test Runner(EditMode) 9/9.

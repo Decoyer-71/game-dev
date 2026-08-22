@@ -1,6 +1,3 @@
-using System.Text;
-using Jianghu.Core.Martial;
-using Jianghu.Core.Martial.Morphemes;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -45,7 +42,7 @@ namespace Jianghu.Unity
 
             EnsureEventSystem();
             Canvas canvas = CreateCanvas(root);
-            SmokeScreen.Build(canvas.transform);
+            MartialListScreen.Build(canvas.transform);
         }
 
         /// <summary>
@@ -83,91 +80,6 @@ namespace Jianghu.Unity
             scaler.matchWidthOrHeight = 0.5f;
 
             return canvas;
-        }
-    }
-
-    /// <summary>
-    /// **1단계 스모크 화면** — 설계 §5 의 1번.
-    ///
-    /// ⚠⚠ **여기서 막히면 나머지가 전부 무의미하므로 가장 먼저 뚫는다.** 그래서 한 화면에 셋을 다 태웠다:
-    ///   ⓐ **한글이 나오는가**(폰트) ⓑ **Core 를 읽는가**(카탈로그) ⓒ **다시 분해되는가**(`Decompose`).
-    /// ⚠ 목록·필터·상세는 아직 없다. 2·3번에서 붙인다.
-    /// </summary>
-    internal static class SmokeScreen
-    {
-        public static void Build(Transform parent)
-        {
-            Font font = KoreanFont.Get();
-
-            var go = new GameObject("SmokeText", typeof(Text));
-            go.transform.SetParent(parent, false);
-
-            var rect = go.GetComponent<RectTransform>();
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = new Vector2(24, 24);
-            rect.offsetMax = new Vector2(-24, -24);
-
-            var text = go.GetComponent<Text>();
-            text.font = font;
-            text.fontSize = 20;
-            text.lineSpacing = 1.2f;
-            text.alignment = TextAnchor.UpperLeft;
-            text.color = Color.white;
-            text.text = BuildReport();
-        }
-
-        private static string BuildReport()
-        {
-            var sb = new StringBuilder();
-            sb.Append("무공 목록 — 스모크 테스트\n");
-            sb.Append("한글 · 漢字 · ABC · 0123456789\n\n");
-
-            // ⓑ Core 를 읽는가
-            System.Collections.Generic.IReadOnlyList<MartialArt> all = MartialArtCatalog.All;
-            sb.Append("카탈로그 ").Append(all.Count).Append("종\n");
-
-            // ⓒ 다시 분해되는가 — ⚠⚠ **접미사 없는 공격 초식**을 고른다.
-            //   목록 앞쪽(강호무학)은 접미사가 있어 옛 경로로도 분해되므로, 그것만 보면
-            //   §4-0 이 고친 버그를 그냥 지나친다(설계 §5 의 경고).
-            MartialArt sample = PickSuffixless(all);
-            if (sample == null)
-            {
-                sb.Append("\n⚠ 접미사 없는 무공을 못 찾았다 — 표본 전제가 깨졌다");
-                return sb.ToString();
-            }
-
-            ParsedArtName parsed = MartialArtFactory.Decompose(sample);
-            sb.Append('\n').Append(sample.Name)
-              .Append("  (").Append(sample.School).Append(" · ").Append(sample.Discipline).Append(")\n");
-            sb.Append("이름이 푸는 수치\n");
-
-            for (int i = 0; i < parsed.Body.Count; i++)
-            {
-                Morpheme m = parsed.Body[i];
-                sb.Append("  ").Append(m.Korean).Append('(').Append(m.Hanja).Append(")  ")
-                  .Append(m.Meaning).Append("  공격 ").Append(m.Delta.Attack.ToString("+0.##;-0.##;0"))
-                  .Append('\n');
-            }
-
-            sb.Append("  ─────────────────────\n");
-            sb.Append("  합계  공격 ").Append(parsed.Delta.Attack.ToString("0.##"))
-              .Append(" · 기력 ").Append(parsed.QiCost)
-              .Append(" · 범위 ").Append(parsed.Scope)
-              .Append(" · 열 ").Append(parsed.PreferredRow)
-              .Append('\n');
-
-            return sb.ToString();
-        }
-
-        /// <summary>접미사가 없는 무공 하나 — 그것이 §4-0 버그가 걸리던 자리다.</summary>
-        private static MartialArt PickSuffixless(System.Collections.Generic.IReadOnlyList<MartialArt> all)
-        {
-            for (int i = 0; i < all.Count; i++)
-            {
-                if (all[i].Tier == ArtTier.Legacy) return all[i];   // 전승무학은 접미사가 없다
-            }
-            return all.Count > 0 ? all[0] : null;
         }
     }
 }
