@@ -108,6 +108,9 @@ D:\Tools\dotnet\dotnet.exe test D:\GameDev\projects\Jianghu\Tools\CoreTests\Core
 - **⚠⚠ 표시용 수치는 사전 값이 아니라 *엔진이 곱한 뒤의 값*이다 (2026-08-23 밟음)** — `ArtStatDelta` 23축 중 **회피율(×0.3)·명중(×5)** 둘만 엔진이 상수를 곱한다(`Combatant.EvasionPointToPercent` · `CombatResolver.AccuracyPointToPercent`). 사전 값을 그대로 화면에 내면 `피·둔·섬 15` 가 `+15%p` 로 뜨는데 **실제는 +4.5%p** 다 — §1-0 의 방어관통 160% 와 같은 형태의 거짓말이다.
   - 나머지 21축은 원값 그대로다. **결함 하나를 고치고 나머지를 안 보는 것이 §5-D 의 선택적 관찰**이므로 전수로 대조할 것
   - ⚠ 상수를 **베끼지 말고 참조**한다. 테스트도 마찬가지 — 테스트에 값을 박으면 상수가 움직였을 때 테스트가 옛 값을 지키며 통과해 **결함을 가려 준다**
+- **⚠⚠ `childForceExpandHeight/Width` 는 *안쪽 정렬*이 아니라 *바깥쪽 협상*까지 바꾼다 (2026-08-23 밟음)** — 레이아웃 그룹에 이 값을 켜면 uGUI 가 **자식들의 flexible 을 최소 1 로 올려 합산한 뒤 그 그룹 자신의 `flexibleHeight`(`Width`)로 부모에게 보고한다.** 그래서 줄 하나가 형제들의 공간을 나눠 먹는다 — 필터 3줄이 목록 높이를 가져가 **138종이 8줄만 보였다.**
+  - ⚠ **`LayoutElement` 로 높이를 못박아도 안 막힌다.** 거기 적는 것은 `preferredHeight`·`minHeight` 뿐이고 `flexibleHeight` 는 **미설정(−1)** 으로 남아 그룹 계산값이 이긴다. **`flexibleHeight = 0` 을 명시로 잠근다**
+  - ⚠ `Width()` 처럼 **최소폭까지 못박으면** 줄이 넘칠 때 줄어드는 게 아니라 **패널 밖으로 삐져나온다.** 폭은 어림이라도 미리 계산해 여유를 둘 것
 - **⚠⚠ `RectMask2D` 는 자르기만 하고 레이캐스트를 받지 않는다 (2026-08-23 밟음)** — `ScrollRect` 의 `Viewport` 에 마스크만 두면 **항목 사이 틈이나 목록 아래 빈 자리에서 시작한 드래그·휠이 안 먹는다.** 포인터 레이캐스트는 `Graphic` 이 있는 곳에서만 잡히기 때문이다. 알파 0 인 `Image` 를 얹으면 보이지 않으면서 입력만 받는다
 - **⚠⚠ "Deprecated packages" 경고 (2026-07-28 밟음·해결)** — 프로젝트를 열 때 뜨던 경고의 원인은 템플릿이 기본으로 넣어준 `com.unity.ide.rider 3.0.37` 이었다(에디터 6000.0.58f1 에서 재현되는 알려진 사례). **이 PC 에는 Rider 가 설치돼 있지 않아** 쓸모없는 패키지였으므로 `Packages/manifest.json` 에서 제거했다. 이 PC 의 IDE 는 **Visual Studio 2022 + VS Code** 이고 `com.unity.ide.visualstudio` 는 유지한다.
   - 교훈: 템플릿이 얹어주는 패키지 중 **안 쓰는 것은 제거해도 된다.** 다만 `packages-lock.json` 에서 다른 패키지가 의존하지 않는지 먼저 확인할 것

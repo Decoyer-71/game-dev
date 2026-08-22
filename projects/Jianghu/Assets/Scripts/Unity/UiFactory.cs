@@ -99,7 +99,20 @@ namespace Jianghu.Unity
             return button;
         }
 
-        /// <summary>가로로 늘어놓는 줄. 필터 버튼 묶음이 쓴다.</summary>
+        /// <summary>
+        /// 가로로 늘어놓는 줄. 필터 버튼 묶음과 상세 표의 한 줄이 쓴다.
+        ///
+        /// ⚠⚠ **`flexibleHeight = 0` 을 반드시 잠근다** (2026-08-23 밟음). 안 잠그면
+        ///   **줄이 세로로 부풀어 형제를 짓눌렀다** — 필터 3줄이 목록의 높이를 나눠 먹어
+        ///   138종이 8줄만 보였다.
+        ///   원인은 <c>childForceExpandHeight = true</c> 다. 이 값은 *"자식을 줄 높이에
+        ///   맞춰 늘린다"* 로만 읽히지만, uGUI 는 그때 **자식들의 flexible 을 최소 1 로 올려
+        ///   합산한 뒤 그 그룹 자신의 flexibleHeight 로 부모에게 보고한다.**
+        ///   즉 안쪽 정렬 지시가 **바깥쪽 크기 협상까지 바꾼다.**
+        ///   ⚠ <see cref="LayoutElement"/> 로 높이를 못박아도 소용없다 — 거기 적은 것은
+        ///     `preferredHeight`·`minHeight` 뿐이고 `flexibleHeight` 는 **미설정(−1)로 남아**
+        ///     그룹이 계산한 값이 그대로 쓰인다.
+        /// </summary>
         public static GameObject HorizontalStrip(Transform parent, string name, float height, float spacing = 4f)
         {
             var go = new GameObject(name, typeof(RectTransform));
@@ -115,6 +128,7 @@ namespace Jianghu.Unity
             var element = go.AddComponent<LayoutElement>();
             element.preferredHeight = height;
             element.minHeight = height;
+            element.flexibleHeight = 0;   // ⚠⚠ 위 주석. 이 한 줄이 없으면 줄이 부푼다
             return go;
         }
 

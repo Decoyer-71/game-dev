@@ -8,7 +8,11 @@ namespace Jianghu.Core.Martial.Display
     ///
     /// ⚠⚠ **접미사도 항목으로 낸다.** 안 그러면 `신풍양공` 의 `공` 이 목록에서 사라져
     ///   *"이름에서 수치가 풀린다"*(정의서 §0)를 보여주려는 화면이 **이름의 일부를 숨긴 채**
-    ///   설명하게 된다. 대신 <see cref="IsSuffix"/> 로 갈라 두고 카테고리에 *"형태소 아님"* 을 적는다.
+    ///   설명하게 된다. 대신 <see cref="IsSuffix"/> 로 갈라 두고 *"형태소 아님"* 을 적는다.
+    ///
+    /// ⚠ 그 문구를 **카테고리가 아니라 <see cref="Meaning"/> 에 둔다** (2026-08-23). 처음엔
+    ///   카테고리에 `접미사(형태소 아님)` 로 넣었는데 **표의 카테고리 칸을 넘쳐** 줄이 어긋났다.
+    ///   카테고리 칸은 `공격방식`·`무공형태` 같은 4자를 담는 자리다.
     /// </summary>
     public sealed class MorphemeContribution
     {
@@ -27,10 +31,10 @@ namespace Jianghu.Core.Martial.Display
         /// <summary>한자. 접미사는 한자를 들고 있지 않으므로 빈 문자열이다.</summary>
         public string Hanja { get; }
 
-        /// <summary>개념어(정의서 §3 표의 '의미' 열). 접미사는 그것이 밝히는 무공 종류를 적는다.</summary>
+        /// <summary>개념어(정의서 §3 표의 '의미' 열). 접미사는 밝히는 무공 종류와 **형태소가 아니라는 사실**을 적는다.</summary>
         public string Meaning { get; }
 
-        /// <summary>카테고리 이름. 접미사는 `접미사(형태소 아님)`.</summary>
+        /// <summary>카테고리 이름. 접미사는 그냥 `접미사`.</summary>
         public string CategoryName { get; }
 
         /// <summary>
@@ -80,8 +84,8 @@ namespace Jianghu.Core.Martial.Display
 
             return new MorphemeContribution(
                 suffix.Text, null, suffix,
-                string.Empty, KoreanNames.Of(suffix.Kind) + " 무공",
-                "접미사(형태소 아님)",
+                string.Empty, KoreanNames.Of(suffix.Kind) + " 무공 · 형태소 아님",
+                "접미사",
                 new StatAxisValue[0],
                 false);
         }

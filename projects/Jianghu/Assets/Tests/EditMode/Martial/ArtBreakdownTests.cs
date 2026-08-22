@@ -218,7 +218,11 @@ namespace Jianghu.Tests.EditMode.Martial
             Assert.That(last.IsSuffix, Is.True);
             Assert.That(last.Text, Is.EqualTo("공"));
             Assert.That(last.Axes, Is.Empty);
-            Assert.That(last.CategoryName, Does.Contain("형태소 아님"));
+            Assert.That(last.CategoryName, Is.EqualTo("접미사"));
+
+            // ⚠ *"형태소 아님"* 은 **의미 칸**에 있다 — 카테고리 칸에 넣었더니 표의 폭을 넘쳤다.
+            Assert.That(last.Meaning, Does.Contain("형태소 아님"));
+            Assert.That(last.Meaning, Does.StartWith("내공 무공"));
         }
 
         /// <summary>

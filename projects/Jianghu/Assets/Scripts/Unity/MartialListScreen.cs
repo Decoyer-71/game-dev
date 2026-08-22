@@ -154,7 +154,7 @@ namespace Jianghu.Unity
             GameObject strip = UiFactory.HorizontalStrip(parent, title + "Filter", 30f);
 
             Text label = UiFactory.Label(strip.transform, "Label", title, 15, UiFactory.InkDim, TextAnchor.MiddleLeft);
-            Width(label.gameObject, 44);
+            Width(label.gameObject, 40);
 
             AddFilterButton(strip.transform, "전체", sink, () => onPick(All));
             for (int i = 0; i < count; i++)
@@ -169,8 +169,10 @@ namespace Jianghu.Unity
             Button button = UiFactory.Row(parent, "F_" + label, label, 14,
                 UiFactory.RowFill, UiFactory.Ink, () => onClick(), 30f);
 
-            // 글자 폭에 맞춰 좁힌다 — 한글 한 자를 약 15px 로 잡고 좌우 여백을 더한다.
-            Width(button.gameObject, 22 + label.Length * 15);
+            // 글자 폭에 맞춰 좁힌다 — 14pt 한글 한 자를 약 14px 로 잡고 좌우 여백을 더한다.
+            // ⚠⚠ **최소폭도 함께 못박히므로**(`Width`) 줄이 넘치면 줄어드는 게 아니라 **패널 밖으로 삐져나온다.**
+            //   가장 긴 계층 줄이 여백 포함 약 494px 이고 좌측 폭이 544px 이라 50px 여유를 뒀다.
+            Width(button.gameObject, 18 + label.Length * 14);
             button.GetComponentInChildren<Text>().alignment = TextAnchor.MiddleCenter;
             sink.Add(button);
         }
@@ -307,11 +309,13 @@ namespace Jianghu.Unity
             Width(UiFactory.Label(strip.transform, "Char", head, 18,
                 c.IsSuffix ? UiFactory.InkDim : UiFactory.Ink, TextAnchor.MiddleLeft).gameObject, 72);
 
+            // ⚠ 폭은 실측으로 잡았다 — 카테고리는 `공격방식` 4자가 최장이고,
+            //   의미는 접미사의 `공격 무공 · 형태소 아님` 이 최장이다.
             Width(UiFactory.Label(strip.transform, "Category", c.CategoryName, 14,
-                UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 130);
+                UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 100);
 
             Width(UiFactory.Label(strip.transform, "Meaning", c.Meaning, 15,
-                UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 110);
+                UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 180);
 
             AddAxisCells(strip.transform, c.Axes);
         }
