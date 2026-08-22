@@ -346,7 +346,12 @@ namespace Jianghu.Unity
         {
             if (axes.Count == 0)
             {
+                // ⚠⚠ 축 셀과 **같은 잠금**을 건다. 처음엔 `Flexible` 만 줬는데, 창을 작게 쓰면
+                //   `형태소 아님 · 수치 없음` 이 다음 줄로 밀렸다 — 머리 칸들이 최소폭까지 못박혀
+                //   있어 **줄어들 수 있는 것이 이 칸뿐**이라 여기로 부족분이 몰린다.
+                //   ⚠ 짧은 `수치 없음` 은 안 깨져서 절대경지 화면만 봤을 때는 멀쩡해 보였다.
                 Text none = UiFactory.Label(parent, "None", emptyNote, 14, UiFactory.InkDim, TextAnchor.MiddleLeft);
+                LockWidth(none, emptyNote);
                 Flexible(none.gameObject);
                 return;
             }
@@ -367,15 +372,8 @@ namespace Jianghu.Unity
                 //      min·preferred 양쪽에 걸면 줄어들 수도 늘어날 수도 없다.
                 // ⚠ 그래도 넘치면 우측으로 삐져나가는데, 상세도 `ScrollArea`(RectMask2D) 안이라
                 //   **깨끗이 잘린다.** 두 줄로 깨지는 것보다 낫다 — 잘린 것은 눈에 보인다.
-                // ⚠ 동적 OS 폰트는 글리프가 아직 아틀라스에 없으면 폭을 0 근처로 낼 수 있다.
-                //   그때 min·preferred 를 0 으로 못박으면 칸이 통째로 사라지므로 바닥을 깔아 둔다.
-                float width = Mathf.Max(cell.preferredWidth, v.ToString().Length * 9f);
-                cell.horizontalOverflow = HorizontalWrapMode.Overflow;   // 어떤 경우에도 줄바꿈하지 않는다
-
-                LayoutElement element = Element(cell.gameObject);
-                element.preferredWidth = width;
-                element.minWidth = width;
-                element.flexibleWidth = 0;
+                LockWidth(cell, v.ToString());
+                Element(cell.gameObject).flexibleWidth = 0;
             }
 
             // 남는 폭을 먹는 빈 칸 — 없으면 축이 줄 가운데로 밀린다.
@@ -388,8 +386,34 @@ namespace Jianghu.Unity
         {
             GameObject strip = UiFactory.HorizontalStrip(detailContent, "M_" + name, 24f, 8f);
             Width(UiFactory.Label(strip.transform, "Name", name, 15, UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 130);
+
+            // ⚠ 상성 우위처럼 값이 길어질 수 있다(`양기 · 음기`). 위와 같은 이유로 줄바꿈을 막는다.
             Text v = UiFactory.Label(strip.transform, "Value", value, 15, UiFactory.Ink, TextAnchor.MiddleLeft);
+            LockWidth(v, value);
             Flexible(v.gameObject);
+        }
+
+        /// <summary>
+        /// **글자가 줄바꿈으로 깨지지 않도록 폭을 못박는다.**
+        ///
+        /// ⚠⚠ 레이아웃 그룹 안의 <see cref="Text"/> 는 `minWidth` 가 0 이라, 줄에 자리가 모자라면
+        ///   uGUI 가 이 칸을 최소폭까지 줄이고 **줄어든 칸 안에서 글자가 wrap 된다.**
+        ///   `방어 +5` 가 `방어`/`+5` 로 갈라진 것이 그 증상이었다.
+        /// ⚠ <see cref="Text.preferredWidth"/> 는 **한 줄로 그렸을 때의 실측 폭**이다. 그것을
+        ///   min·preferred 양쪽에 걸면 줄어들 수도 늘어날 수도 없다.
+        /// ⚠ 동적 OS 폰트는 글리프가 아직 아틀라스에 없으면 폭을 0 근처로 낼 수 있다. 그때
+        ///   0 으로 못박으면 칸이 통째로 사라지므로 글자 수로 바닥을 깔아 둔다.
+        /// ⚠ 그래도 넘치면 우측으로 삐져나가는데, 상세도 `ScrollArea`(RectMask2D) 안이라 **깨끗이
+        ///   잘린다.** 두 줄로 깨지는 것보다 낫다 — 잘린 것은 눈에 보이지만 깨진 것은 오해된다.
+        /// </summary>
+        private static void LockWidth(Text text, string content)
+        {
+            text.horizontalOverflow = HorizontalWrapMode.Overflow;
+
+            float width = Mathf.Max(text.preferredWidth, content.Length * 9f);
+            LayoutElement element = Element(text.gameObject);
+            element.preferredWidth = width;
+            element.minWidth = width;
         }
 
         private void Gap(float height)
