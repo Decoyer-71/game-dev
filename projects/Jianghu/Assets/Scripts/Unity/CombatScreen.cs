@@ -61,6 +61,14 @@ namespace Jianghu.Unity
         private Transform rosterContent;
         private Transform outputContent;
 
+        /// <summary>
+        /// 위쪽 띠의 알림 자리.
+        /// ⚠⚠ **알림을 결과 패널에 쓰지 않는다** (2026-08-23 사용자가 밟음). 처음엔 거기에 썼는데,
+        ///   그러면 *"이미 들고 있다"* 같은 사소한 알림 하나가 **방금 1000회 돌린 결과를 지운다.**
+        ///   결과는 편성을 바꿔 가며 비교하는 물건이라 함부로 지우면 안 된다.
+        /// </summary>
+        private Text statusLabel;
+
         // ─────────────────────────── 조립 ───────────────────────────
 
         public static CombatScreen Build(Transform parent)
@@ -122,7 +130,8 @@ namespace Jianghu.Unity
             new MartialPicker(left, AddToSelectedSlot, highlightSelection: false);
 
             RefreshRoster();
-            ShowMessage("편성을 고르고 [1회] 나 [" + ManyFights + "회] 를 누른다.");
+            ShowMessage("슬롯을 누르고 왼쪽에서 무공을 고른다.");
+            AddLine("편성을 고르고 [1회] 나 [" + ManyFights + "회] 를 누른다.", UiFactory.InkDim, 16);
         }
 
         /// <summary>
@@ -186,6 +195,13 @@ namespace Jianghu.Unity
 
             AddRunButton(bar.transform, "1회", () => RunOnce());
             AddRunButton(bar.transform, ManyFights + "회", () => RunMany());
+
+            statusLabel = UiFactory.Label(bar.transform, "Status", "", 14,
+                UiFactory.InkDim, TextAnchor.MiddleLeft);
+
+            // ⚠ 띠 높이가 36px 라 두 줄이 되면 넘친다. 줄바꿈을 끄고 남는 폭을 먹게 둔다.
+            statusLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
+            LayoutHelp.Flexible(statusLabel.gameObject);
         }
 
         private void AddRunButton(Transform parent, string label, UnityEngine.Events.UnityAction onClick)
@@ -304,11 +320,12 @@ namespace Jianghu.Unity
             Slot slot = slots[selectedSlot];
             if (slot.Arts.Count >= MaxArtsPerSlot)
             {
-                ShowMessage(SlotId(selectedSlot) + " 는 이미 " + MaxArtsPerSlot + "개다. 하나를 눌러 빼고 넣는다.");
+                ShowMessage(SlotId(selectedSlot) + " 는 이미 " + MaxArtsPerSlot + "개다 — 하나를 눌러 뺀다.");
                 return;
             }
             if (slot.Arts.Contains(art))
             {
+                // ⚠ 같은 무공을 두 번 배울 수는 없다. **막는 것이 맞다** — 다만 무엇을 하면 되는지까지 말한다.
                 ShowMessage(SlotId(selectedSlot) + " 는 이미 " + art.Name + " 을(를) 들고 있다.");
                 return;
             }
@@ -346,7 +363,11 @@ namespace Jianghu.Unity
 
             if (a.Count == 0 || b.Count == 0)
             {
-                ShowMessage("양쪽 모두 한 명 이상이어야 싸운다. (A " + a.Count + "명 · B " + b.Count + "명)");
+                // ⚠ 이것은 알림이 아니라 **돌리지 못한 결과**다. 결과 패널에도 남긴다.
+                string why = "양쪽 모두 한 명 이상이어야 싸운다. (A " + a.Count + "명 · B " + b.Count + "명)";
+                ShowMessage(why);
+                UiFactory.Clear(outputContent);
+                AddLine(why, UiFactory.Loss, 16);
                 return false;
             }
             return true;
@@ -357,6 +378,7 @@ namespace Jianghu.Unity
             List<BattlePlacement> a, b;
             if (!TryBuildTeams(out a, out b)) return;
 
+            ShowMessage("");   // ⚠ 위와 같은 이유.
             TeamCombatResult r = TeamBattleRunner.RunOnce(a, b);
 
             UiFactory.Clear(outputContent);
@@ -374,6 +396,8 @@ namespace Jianghu.Unity
         {
             List<BattlePlacement> a, b;
             if (!TryBuildTeams(out a, out b)) return;
+
+            ShowMessage("");   // ⚠ 지난 알림을 지운다. 새 결과 옆에 남아 있으면 거짓말이 된다.
 
             var watch = Stopwatch.StartNew();
             TeamBattleSummary s = TeamBattleRunner.Run(a, b, ManyFights);
@@ -447,10 +471,12 @@ namespace Jianghu.Unity
 
         // ─────────────────────────── 출력 ───────────────────────────
 
+        /// <summary>
+        /// 위쪽 띠에 한 줄 알린다. ⚠ **결과 패널은 건드리지 않는다** — 위 <see cref="statusLabel"/> 주석.
+        /// </summary>
         private void ShowMessage(string text)
         {
-            UiFactory.Clear(outputContent);
-            AddLine(text, UiFactory.InkDim, 16);
+            if (statusLabel != null) statusLabel.text = text;
         }
 
         private void AddHeading(string text)
