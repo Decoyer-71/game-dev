@@ -34,7 +34,9 @@ namespace Jianghu.Unity
 
         /// <summary>
         /// 반복 판수. ⚠⚠ **100 이 아니라 1000 이다.** 실측으로 100판의 1σ 가 약 ±5%p 라
-        /// `41% vs 43%` 를 못 가른다(설계 §6-1). 1000판은 약 250ms 이고 1σ 가 약 ±1.6%p 다.
+        /// `41% vs 43%` 를 못 가른다(설계 §6-1). 1000판의 1σ 는 약 ±1.6%p 다.
+        /// ⚠ 실행 시간은 **Unity 안에서 약 600ms** 다(2026-08-23 Play 실측). dotnet 에서 잰
+        ///   250ms 의 2.4배인데, 런타임이 다르기 때문이다 — **다른 런타임의 측정치를 그대로 옮기지 않는다.**
         /// </summary>
         private const int ManyFights = 1000;
 
@@ -256,6 +258,12 @@ namespace Jianghu.Unity
 
             // ── 무공 줄 : 누르면 빠진다 ──
             GameObject artsRow = UiFactory.HorizontalStrip(rosterContent, "A_" + id, 26f, 4f);
+
+            // ⚠ 들여쓴다. 안 그러면 무공 줄이 **위 슬롯 것인지 아래 것인지** 안 보인다 —
+            //   1차 Play 에서 `A1 / 제화정참 / A2 / 제화정참` 이 세로로 붙어 그렇게 읽혔다.
+            var indent = new GameObject("Indent", typeof(RectTransform));
+            indent.transform.SetParent(artsRow.transform, false);
+            LayoutHelp.Width(indent, 22);
 
             if (slot.Arts.Count == 0)
             {
