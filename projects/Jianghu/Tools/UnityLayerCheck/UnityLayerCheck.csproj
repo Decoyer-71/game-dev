@@ -1,0 +1,86 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ══════════════════════════════════════════════════════════════════════════════
+      Unity 층을 Unity 없이 컴파일해 본다.
+    ══════════════════════════════════════════════════════════════════════════════
+
+    ⚠⚠ 왜 만들었나 — 프로젝트 §4 가 지뢰로 등재한 것이 이것이다:
+        "Unity 층은 1순위 검증(dotnet test)이 닿지 않는다. 화면 조립 코드의 회귀는
+         아무것도 안 잡는다 — 사용자가 Play 를 눌러야 처음 보인다."
+
+        실제로 무공 목록 화면에서 결함 5건이 나왔고 그중 넷이 Unity 층이었다.
+        Play 왕복이 사용자 시간을 먹는 유일한 비용이므로, 그 왕복을 줄이는 것이 값을 한다.
+
+    ⚠⚠ 무엇을 잡고 무엇을 못 잡는가 — 이것을 정확히 알아야 이 도구를 잘못 믿지 않는다.
+
+        ✅ 잡는다 : 없는 멤버 · 틀린 시그니처 · 오타 · 잘못된 enum 이름 · 빠진 using ·
+                    C# 문법 · netstandard2.1/C#9 를 넘는 문법
+        ⛔ 못 잡는다 :
+           · **asmdef 참조 누락** — 여기서는 Core 와 Unity 를 **한 어셈블리로** 컴파일하므로
+             `Jianghu.Unity.asmdef` 에 `UnityEngine.UI` 를 안 적어도 통과한다.
+             그 지뢰는 §4 에 따로 등재돼 있고 **에디터를 켜야만 드러난다.**
+           · 런타임 동작 — 레이아웃이 깨지는 것, 널 참조, 순서 문제
+           · TMP·다른 패키지 API
+           · Unity 의 스크립팅 define(UNITY_EDITOR 등)에 따라 갈리는 코드
+
+        즉 **"컴파일은 된다"까지만** 말해 주는 도구다. 그래도 그게 Play 왕복 한 번이다.
+
+    ⚠ 환경 의존 — Unity 에디터 설치 경로를 참조한다. 새 PC 에서는 `UnityEditorPath` 를 맞춰야 한다
+      (`docs/SETUP.md`). 경로가 틀리면 빌드가 **참조를 못 찾는다**고 분명히 말하므로 조용히 틀리지는 않는다.
+
+    쓰는 법:
+      D:\Tools\dotnet\dotnet.exe build D:\GameDev\projects\Jianghu\Tools\UnityLayerCheck\UnityLayerCheck.csproj
+  -->
+
+  <PropertyGroup>
+    <!-- ⚠ Unity 6 의 API 프로파일이 .NET Standard 2.1 · C# 9 다. `JianghuCore.csproj` 와 같은 이유로 못박는다. -->
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>Jianghu.UnityLayerCheck</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <IsPackable>false</IsPackable>
+
+    <!-- ⚠ uGUI 소스가 제 AssemblyInfo 를 들고 있어 SDK 가 만드는 것과 부딪힌다. -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+
+    <!--
+      ⚠ uGUI 원본 소스의 경고를 우리 코드의 경고와 섞지 않기 위해 끈다.
+        우리 코드의 **오류**는 그대로 뜬다 — 끄는 것은 경고뿐이다.
+    -->
+    <NoWarn>$(NoWarn);CS0108;CS0114;CS0169;CS0414;CS0649;CS0618;CS0672;CS1591;CS0067;CS0162;CS0219</NoWarn>
+
+    <UnityEditorPath Condition="'$(UnityEditorPath)' == ''">C:\Program Files\Unity\Hub\Editor\6000.0.58f1</UnityEditorPath>
+    <UnityManaged>$(UnityEditorPath)\Editor\Data\Managed\UnityEngine</UnityManaged>
+    <UguiSource>$(UnityEditorPath)\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.ugui\Runtime\UGUI</UguiSource>
+    <ScriptsRoot>$(MSBuildThisFileDirectory)..\..\Assets\Scripts</ScriptsRoot>
+  </PropertyGroup>
+
+  <!--
+    ⚠ 소스를 **복사하지 않고 링크로** 끌어다 쓴다. 원본은 언제나 Assets 아래다(프로젝트 §2).
+    ⚠⚠ uGUI 는 DLL 이 아니라 **소스**로 컴파일한다 — 빌드된 `UnityEngine.UI.dll` 은 `Library/`
+       안에 있고 거기는 훅이 열람을 막는 생성물 폴더다. 에디터 설치본의 소스가 유일하게 안정된 통로다.
+  -->
+  <ItemGroup>
+    <Compile Include="$(UguiSource)\**\*.cs" />
+    <Compile Include="$(ScriptsRoot)\Core\**\*.cs" />
+    <Compile Include="$(ScriptsRoot)\Unity\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(UnityManaged)\UnityEngine.CoreModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(UnityManaged)\UnityEngine.IMGUIModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(UnityManaged)\UnityEngine.TextRenderingModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(UnityManaged)\UnityEngine.UIModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UIElementsModule"><HintPath>$(UnityManaged)\UnityEngine.UIElementsModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(UnityManaged)\UnityEngine.InputLegacyModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.AnimationModule"><HintPath>$(UnityManaged)\UnityEngine.AnimationModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(UnityManaged)\UnityEngine.PhysicsModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.Physics2DModule"><HintPath>$(UnityManaged)\UnityEngine.Physics2DModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.TilemapModule"><HintPath>$(UnityManaged)\UnityEngine.TilemapModule.dll</HintPath></Reference>
+  </ItemGroup>
+
+</Project>

@@ -1,16 +1,15 @@
 using System.Collections.Generic;
 using Jianghu.Core.Martial;
 using Jianghu.Core.Martial.Display;
-using Jianghu.Core.Martial.Morphemes;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace Jianghu.Unity
 {
     /// <summary>
-    /// **무공 목록 화면** — 설계 `docs/ui-martial-list-plan.md` §5 의 2-b · 2-c.
+    /// **무공 목록 화면** — 설계 `docs/ui-martial-list-plan.md`.
     ///
-    /// 왼쪽에 138종을 계층·유형·성향으로 걸러 늘어놓고, 하나를 고르면 오른쪽에
+    /// 왼쪽에서 138종을 걸러 고르고(<see cref="MartialPicker"/>), 오른쪽에
     /// **이름의 글자 하나하나가 무엇을 넣었는지** 편다.
     ///
     /// ⚠⚠ **이 파일은 계산을 하지 않는다.** 무엇을 보여줄지는 전부 Core 의
@@ -20,52 +19,12 @@ namespace Jianghu.Unity
     ///   그 결함이 테스트로 잡히지 않았다.** 계산이 Core 에 있으면 잡힌다
     ///   (`Assets/Tests/EditMode/Martial/ArtBreakdownTests.cs`).
     ///
-    /// ⚠ 프리팹 없이 코드로 조립한다(<see cref="UiFactory"/>). 프로토타입 스캐폴딩이며 설계 §6 이
-    ///   버려질 것으로 미리 등재해 뒀다.
+    /// ⚠ 필터·목록은 전투 화면과 **같은 부품**을 쓴다(<see cref="MartialPicker"/>) — 두 벌로
+    ///   두면 갈라진다.
     /// </summary>
     internal sealed class MartialListScreen : MonoBehaviour
     {
-        // ─────────────────────────── 필터 선택지 ───────────────────────────
-
-        /// <summary>⚠ 목록 순서는 세기 순이다. 선언 순서를 바꾸면 화면 순서가 바뀐다.</summary>
-        private static readonly ArtTier[] TierOptions =
-        {
-            ArtTier.Wanderer, ArtTier.Minor, ArtTier.Major, ArtTier.Legacy, ArtTier.Absolute,
-        };
-
-        private static readonly Discipline[] DisciplineOptions =
-        {
-            Discipline.Sword, Discipline.Blade, Discipline.Spear, Discipline.Fist,
-            Discipline.Dagger, Discipline.InnerArt, Discipline.Movement,
-        };
-
-        private static readonly Alignment[] AlignmentOptions =
-        {
-            Alignment.Orthodox, Alignment.Unorthodox, Alignment.Demonic,
-        };
-
-        /// <summary>필터 '전체'. ⚠ <c>Alignment?</c> 의 null 은 **강호무학**이라는 뜻으로 이미 쓰이므로 null 을 '전체'로 쓸 수 없다.</summary>
-        private const int All = -1;
-
-        private int tierFilter = All;
-        private int disciplineFilter = All;
-        private int alignmentFilter = All;
-
-        private MartialArt selected;
-
-        // ─────────────────────────── 화면 조각 ───────────────────────────
-
-        private Transform listContent;
         private Transform detailContent;
-        private Text countLabel;
-        private readonly List<Button> tierButtons = new List<Button>();
-        private readonly List<Button> disciplineButtons = new List<Button>();
-        private readonly List<Button> alignmentButtons = new List<Button>();
-
-        /// <summary>선택된 목록 항목의 배경을 되돌리기 위해 무공별 버튼을 들고 있는다.</summary>
-        private readonly Dictionary<MartialArt, Image> listRows = new Dictionary<MartialArt, Image>();
-
-        // ─────────────────────────── 조립 ───────────────────────────
 
         public static MartialListScreen Build(Transform parent)
         {
@@ -79,7 +38,6 @@ namespace Jianghu.Unity
 
         private void Compose(Transform root)
         {
-            // ── 머리말 ──
             Text title = UiFactory.Label(root, "Title",
                 "무공 " + MartialArtCatalog.All.Count + "종 — 이름이 수치를 푼다",
                 24, UiFactory.Ink, TextAnchor.MiddleLeft, FontStyle.Bold);
@@ -90,178 +48,39 @@ namespace Jianghu.Unity
             titleRect.offsetMin = new Vector2(20, -52);
             titleRect.offsetMax = new Vector2(-20, -16);
 
-            // ── 좌: 필터 + 목록 ──
-            GameObject left = UiFactory.Panel(root, "Left", UiFactory.PanelFill);
-            var leftRect = left.GetComponent<RectTransform>();
-            leftRect.anchorMin = new Vector2(0, 0);
-            leftRect.anchorMax = new Vector2(0, 1);
-            leftRect.pivot = new Vector2(0, 0.5f);
-            leftRect.offsetMin = new Vector2(16, 16);
-            leftRect.offsetMax = new Vector2(16 + LeftWidth, -56);
-
-            UiFactory.VerticalStack(left, 8, 6f);
-            BuildFilters(left.transform);
-
-            countLabel = UiFactory.Label(left.transform, "Count", "", 15, UiFactory.InkDim);
-            AddHeight(countLabel.gameObject, 20);
-
-            ScrollRect listScroll;
-            listContent = UiFactory.ScrollArea(left.transform, "List", out listScroll);
-            Flexible(listScroll.gameObject);
-
             // ── 우: 상세 ──
+            // ⚠ **먼저 만든다.** 좌측 부품이 생성 즉시 첫 무공을 골라 `OnPick` 을 부르고,
+            //   그때 `detailContent` 가 없으면 널 참조가 난다.
             GameObject right = UiFactory.Panel(root, "Right", UiFactory.PanelFill);
             var rightRect = right.GetComponent<RectTransform>();
             rightRect.anchorMin = Vector2.zero;
             rightRect.anchorMax = Vector2.one;
-            rightRect.offsetMin = new Vector2(16 + LeftWidth + 12, 16);
+            rightRect.offsetMin = new Vector2(16 + MartialPicker.PreferredWidth + 12, 16);
             rightRect.offsetMax = new Vector2(-16, -56);
 
             ScrollRect detailScroll;
             detailContent = UiFactory.ScrollArea(right.transform, "Detail", out detailScroll);
             UiFactory.Stretch(detailScroll.gameObject, 4f);
 
-            RefreshList();
+            // ── 좌: 무공 고르기 ──
+            GameObject left = UiFactory.Panel(root, "Left", UiFactory.PanelFill);
+            var leftRect = left.GetComponent<RectTransform>();
+            leftRect.anchorMin = new Vector2(0, 0);
+            leftRect.anchorMax = new Vector2(0, 1);
+            leftRect.pivot = new Vector2(0, 0.5f);
+            leftRect.offsetMin = new Vector2(16, 16);
+            leftRect.offsetMax = new Vector2(16 + MartialPicker.PreferredWidth, -56);
+
+            new MartialPicker(left, OnPick);
         }
 
-        /// <summary>
-        /// 좌측 폭.
-        /// ⚠ 실측으로 잡았다 — 가장 긴 목록 줄이 22자(≈362px)이고 가장 긴 필터 줄(계층)이 ≈482px 다.
-        ///   ⚠⚠ **좁힐수록 우측 기여 칸이 넓어진다.** 560 이었을 때 축이 셋인 글자(성聖)가
-        ///     폭 부족으로 두 줄로 깨졌다.
-        /// </summary>
-        private const float LeftWidth = 520f;
-
-        // ─────────────────────────── 필터 ───────────────────────────
-
-        private void BuildFilters(Transform parent)
+        private void OnPick(MartialArt art)
         {
-            BuildFilterRow(parent, "계층", TierOptions.Length, tierButtons,
-                i => KoreanNames.Of(TierOptions[i]),
-                i => { tierFilter = i; RefreshList(); });
-
-            BuildFilterRow(parent, "유형", DisciplineOptions.Length, disciplineButtons,
-                i => KoreanNames.Of(DisciplineOptions[i]),
-                i => { disciplineFilter = i; RefreshList(); });
-
-            BuildFilterRow(parent, "성향", AlignmentOptions.Length, alignmentButtons,
-                i => KoreanNames.Of(AlignmentOptions[i]),
-                i => { alignmentFilter = i; RefreshList(); });
-        }
-
-        /// <summary>
-        /// 필터 한 줄. 맨 앞은 항상 **전체**다.
-        /// ⚠ 버튼을 리스트에 담아 두는 것은 **선택 표시를 다시 칠하기 위해서**다. 안 그러면 무엇이
-        ///   켜져 있는지 화면에 안 보이고, 필터가 걸린 줄 모른 채 *"무공이 왜 9종뿐이지"* 를 묻게 된다.
-        /// </summary>
-        private void BuildFilterRow(Transform parent, string title, int count, List<Button> sink,
-                                    System.Func<int, string> nameOf, System.Action<int> onPick)
-        {
-            GameObject strip = UiFactory.HorizontalStrip(parent, title + "Filter", 30f);
-
-            Text label = UiFactory.Label(strip.transform, "Label", title, 15, UiFactory.InkDim, TextAnchor.MiddleLeft);
-            Width(label.gameObject, 40);
-
-            AddFilterButton(strip.transform, "전체", sink, () => onPick(All));
-            for (int i = 0; i < count; i++)
-            {
-                int index = i;   // ⚠ 클로저가 루프 변수를 잡지 않도록 복사한다.
-                AddFilterButton(strip.transform, nameOf(index), sink, () => onPick(index));
-            }
-        }
-
-        private void AddFilterButton(Transform parent, string label, List<Button> sink, System.Action onClick)
-        {
-            Button button = UiFactory.Row(parent, "F_" + label, label, 14,
-                UiFactory.RowFill, UiFactory.Ink, () => onClick(), 30f);
-
-            // 글자 폭에 맞춰 좁힌다 — 14pt 한글 한 자를 약 14px 로 잡고 좌우 여백을 더한다.
-            // ⚠⚠ **최소폭도 함께 못박히므로**(`Width`) 줄이 넘치면 줄어드는 게 아니라 **패널 밖으로 삐져나온다.**
-            //   가장 긴 계층 줄이 여백 포함 약 482px 이고 좌측 가용이 504px 이다.
-            Width(button.gameObject, 16 + label.Length * 14);
-            button.GetComponentInChildren<Text>().alignment = TextAnchor.MiddleCenter;
-            sink.Add(button);
-        }
-
-        /// <summary>켜진 필터에 색을 준다. 인덱스 0 이 '전체' 라 실제 값은 하나씩 밀려 있다.</summary>
-        private static void PaintFilter(List<Button> buttons, int selectedIndex)
-        {
-            for (int i = 0; i < buttons.Count; i++)
-            {
-                bool on = (i - 1) == selectedIndex;
-                buttons[i].GetComponent<Image>().color = on ? UiFactory.RowSelected : UiFactory.RowFill;
-            }
-        }
-
-        // ─────────────────────────── 목록 ───────────────────────────
-
-        private void RefreshList()
-        {
-            PaintFilter(tierButtons, tierFilter);
-            PaintFilter(disciplineButtons, disciplineFilter);
-            PaintFilter(alignmentButtons, alignmentFilter);
-
-            UiFactory.Clear(listContent);
-            listRows.Clear();
-
-            var shown = new List<MartialArt>();
-            foreach (MartialArt art in MartialArtCatalog.All)
-            {
-                if (Passes(art)) shown.Add(art);
-            }
-
-            countLabel.text = shown.Count + "종" + (shown.Count == MartialArtCatalog.All.Count ? "" : " (걸러짐)");
-
-            foreach (MartialArt art in shown)
-            {
-                MartialArt captured = art;
-                Button row = UiFactory.Row(listContent, "A_" + art.Id, RowLabel(art), 16,
-                    UiFactory.RowFill, UiFactory.Ink, () => Select(captured), 30f);
-                listRows[art] = row.GetComponent<Image>();
-            }
-
-            // ⚠ 걸러져서 사라진 무공이 선택돼 있으면 상세를 비운다 — 목록에 없는 것을 계속 보여주면
-            //   *"이게 왜 여기 있지"* 가 된다.
-            if (selected != null && !listRows.ContainsKey(selected)) selected = null;
-
-            if (selected == null && shown.Count > 0) Select(shown[0]);
-            else if (selected != null) Select(selected);
-            else ShowEmptyDetail();
-        }
-
-        private bool Passes(MartialArt art)
-        {
-            if (tierFilter != All && art.Tier != TierOptions[tierFilter]) return false;
-            if (disciplineFilter != All && art.Discipline != DisciplineOptions[disciplineFilter]) return false;
-
-            // ⚠ 강호무학은 무공 자체에 성향이 없다(익힌 사람을 따른다). 성향 필터를 걸면 빠지는 것이 맞다.
-            if (alignmentFilter != All)
-            {
-                if (!art.Alignment.HasValue) return false;
-                if (art.Alignment.Value != AlignmentOptions[alignmentFilter]) return false;
-            }
-            return true;
-        }
-
-        private static string RowLabel(MartialArt art)
-        {
-            return art.Name + "   " + KoreanNames.Of(art.Tier)
-                   + " · " + KoreanNames.Of(art.Discipline)
-                   + " · " + KoreanNames.Short(art.Alignment);
+            if (art == null) ShowEmptyDetail();
+            else ShowDetail(ArtBreakdown.Of(art));
         }
 
         // ─────────────────────────── 상세 ───────────────────────────
-
-        private void Select(MartialArt art)
-        {
-            foreach (KeyValuePair<MartialArt, Image> kv in listRows)
-            {
-                kv.Value.color = kv.Key == art ? UiFactory.RowSelected : UiFactory.RowFill;
-            }
-
-            selected = art;
-            ShowDetail(ArtBreakdown.Of(art));
-        }
 
         private void ShowEmptyDetail()
         {
@@ -273,18 +92,18 @@ namespace Jianghu.Unity
         {
             UiFactory.Clear(detailContent);
 
-            AddHeight(UiFactory.Label(detailContent, "Name", b.Name, 30, UiFactory.Ink,
+            LayoutHelp.Height(UiFactory.Label(detailContent, "Name", b.Name, 30, UiFactory.Ink,
                 TextAnchor.UpperLeft, FontStyle.Bold).gameObject, 40);
-            AddHeight(UiFactory.Label(detailContent, "Head", b.HeadLine(), 16, UiFactory.InkDim).gameObject, 24);
+            LayoutHelp.Height(UiFactory.Label(detailContent, "Head", b.HeadLine(), 16, UiFactory.InkDim).gameObject, 24);
 
             Gap(10);
-            AddHeight(UiFactory.Label(detailContent, "Caption", "이름이 푸는 수치", 18, UiFactory.Ink,
+            LayoutHelp.Height(UiFactory.Label(detailContent, "Caption", "이름이 푸는 수치", 18, UiFactory.Ink,
                 TextAnchor.UpperLeft, FontStyle.Bold).gameObject, 26);
 
             foreach (MorphemeContribution c in b.Characters) AddCharacterRow(c);
 
             Gap(10);
-            AddHeight(UiFactory.Label(detailContent, "TotalCaption", "합계", 18, UiFactory.Ink,
+            LayoutHelp.Height(UiFactory.Label(detailContent, "TotalCaption", "합계", 18, UiFactory.Ink,
                 TextAnchor.UpperLeft, FontStyle.Bold).gameObject, 26);
             AddAxisRow("", b.Total);
 
@@ -292,7 +111,7 @@ namespace Jianghu.Unity
             //   *"사전 값과 다르다"* 로 읽는다.
             if (b.FormEffectDoubled)
             {
-                AddHeight(UiFactory.Label(detailContent, "Doubled",
+                LayoutHelp.Height(UiFactory.Label(detailContent, "Doubled",
                     "종(宗) — 무공형태의 효과가 페널티까지 함께 2배다", 15, UiFactory.InkDim).gameObject, 22);
             }
 
@@ -312,16 +131,16 @@ namespace Jianghu.Unity
             GameObject strip = UiFactory.HorizontalStrip(detailContent, "C_" + c.Text, 26f, 8f);
 
             string head = c.IsSuffix ? c.Text : c.Text + "(" + c.Hanja + ")";
-            Width(UiFactory.Label(strip.transform, "Char", head, 18,
+            LayoutHelp.Width(UiFactory.Label(strip.transform, "Char", head, 18,
                 c.IsSuffix ? UiFactory.InkDim : UiFactory.Ink, TextAnchor.MiddleLeft).gameObject, 64);
 
             // ⚠⚠ **머리 세 칸을 좁게 잡는 것이 곧 기여 칸을 넓히는 일이다.** 넉넉히 줬더니
             //   축이 셋인 글자(성聖 — 방어·막기확률·상태이상 저항)가 두 줄로 깨졌다.
             //   최장은 카테고리 `절대경지규칙`(6자) · 의미 `기력소실`(4자)이다.
-            Width(UiFactory.Label(strip.transform, "Category", c.CategoryName, 14,
+            LayoutHelp.Width(UiFactory.Label(strip.transform, "Category", c.CategoryName, 14,
                 UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 88);
 
-            Width(UiFactory.Label(strip.transform, "Meaning", c.Meaning, 15,
+            LayoutHelp.Width(UiFactory.Label(strip.transform, "Meaning", c.Meaning, 15,
                 UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 140);
 
             AddAxisCells(strip.transform, c.Axes, c.EmptyNote);
@@ -332,7 +151,8 @@ namespace Jianghu.Unity
             GameObject strip = UiFactory.HorizontalStrip(detailContent, "Axes", 26f, 8f);
             if (!string.IsNullOrEmpty(head))
             {
-                Width(UiFactory.Label(strip.transform, "Head", head, 15, UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 64);
+                LayoutHelp.Width(UiFactory.Label(strip.transform, "Head", head, 15,
+                    UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 64);
             }
             AddAxisCells(strip.transform, axes, "수치 없음");
         }
@@ -349,10 +169,9 @@ namespace Jianghu.Unity
                 // ⚠⚠ 축 셀과 **같은 잠금**을 건다. 처음엔 `Flexible` 만 줬는데, 창을 작게 쓰면
                 //   `형태소 아님 · 수치 없음` 이 다음 줄로 밀렸다 — 머리 칸들이 최소폭까지 못박혀
                 //   있어 **줄어들 수 있는 것이 이 칸뿐**이라 여기로 부족분이 몰린다.
-                //   ⚠ 짧은 `수치 없음` 은 안 깨져서 절대경지 화면만 봤을 때는 멀쩡해 보였다.
                 Text none = UiFactory.Label(parent, "None", emptyNote, 14, UiFactory.InkDim, TextAnchor.MiddleLeft);
-                LockWidth(none, emptyNote);
-                Flexible(none.gameObject);
+                LayoutHelp.LockWidth(none, emptyNote);
+                LayoutHelp.Flexible(none.gameObject);
                 return;
             }
 
@@ -361,97 +180,33 @@ namespace Jianghu.Unity
                 StatAxisValue v = axes[i];
                 Text cell = UiFactory.Label(parent, "Axis" + i, v.ToString(), 15,
                     v.IsGain ? UiFactory.Gain : UiFactory.Loss, TextAnchor.MiddleLeft);
-
-                // ⚠⚠ **폭을 `Text` 에게 물어 최소폭까지 못박는다** (2026-08-23 2차 수정).
-                //   ⓐ 처음엔 `글자수 × 12` 로 어림했다 — 한글 15px · ASCII 8px 이라
-                //      `상태이상 저항 +30%p` 같은 혼합 문자열에서 크게 빗나갔다.
-                //   ⓑ 그래서 `Text` 의 `ILayoutElement` 에 맡기고 폭을 안 걸었더니, 이번엔
-                //      **최소폭이 0 이라 공간이 모자랄 때 uGUI 가 셀을 줄여** `방어 +5` 가
-                //      `방어` / `+5` 두 줄로 깨졌다(성뇌후격의 성聖).
-                //   ⓒ `Text.preferredWidth` 는 **한 줄로 그렸을 때의 실측 폭**이다. 그것을
-                //      min·preferred 양쪽에 걸면 줄어들 수도 늘어날 수도 없다.
-                // ⚠ 그래도 넘치면 우측으로 삐져나가는데, 상세도 `ScrollArea`(RectMask2D) 안이라
-                //   **깨끗이 잘린다.** 두 줄로 깨지는 것보다 낫다 — 잘린 것은 눈에 보인다.
-                LockWidth(cell, v.ToString());
-                Element(cell.gameObject).flexibleWidth = 0;
+                LayoutHelp.LockWidth(cell, v.ToString());
+                LayoutHelp.Element(cell.gameObject).flexibleWidth = 0;
             }
 
             // 남는 폭을 먹는 빈 칸 — 없으면 축이 줄 가운데로 밀린다.
             var spacer = new GameObject("Spacer", typeof(RectTransform));
             spacer.transform.SetParent(parent, false);
-            Flexible(spacer);
+            LayoutHelp.Flexible(spacer);
         }
 
         private void AddMeta(string name, string value)
         {
             GameObject strip = UiFactory.HorizontalStrip(detailContent, "M_" + name, 24f, 8f);
-            Width(UiFactory.Label(strip.transform, "Name", name, 15, UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 130);
+            LayoutHelp.Width(UiFactory.Label(strip.transform, "Name", name, 15,
+                UiFactory.InkDim, TextAnchor.MiddleLeft).gameObject, 130);
 
             // ⚠ 상성 우위처럼 값이 길어질 수 있다(`양기 · 음기`). 위와 같은 이유로 줄바꿈을 막는다.
             Text v = UiFactory.Label(strip.transform, "Value", value, 15, UiFactory.Ink, TextAnchor.MiddleLeft);
-            LockWidth(v, value);
-            Flexible(v.gameObject);
-        }
-
-        /// <summary>
-        /// **글자가 줄바꿈으로 깨지지 않도록 폭을 못박는다.**
-        ///
-        /// ⚠⚠ 레이아웃 그룹 안의 <see cref="Text"/> 는 `minWidth` 가 0 이라, 줄에 자리가 모자라면
-        ///   uGUI 가 이 칸을 최소폭까지 줄이고 **줄어든 칸 안에서 글자가 wrap 된다.**
-        ///   `방어 +5` 가 `방어`/`+5` 로 갈라진 것이 그 증상이었다.
-        /// ⚠ <see cref="Text.preferredWidth"/> 는 **한 줄로 그렸을 때의 실측 폭**이다. 그것을
-        ///   min·preferred 양쪽에 걸면 줄어들 수도 늘어날 수도 없다.
-        /// ⚠ 동적 OS 폰트는 글리프가 아직 아틀라스에 없으면 폭을 0 근처로 낼 수 있다. 그때
-        ///   0 으로 못박으면 칸이 통째로 사라지므로 글자 수로 바닥을 깔아 둔다.
-        /// ⚠ 그래도 넘치면 우측으로 삐져나가는데, 상세도 `ScrollArea`(RectMask2D) 안이라 **깨끗이
-        ///   잘린다.** 두 줄로 깨지는 것보다 낫다 — 잘린 것은 눈에 보이지만 깨진 것은 오해된다.
-        /// </summary>
-        private static void LockWidth(Text text, string content)
-        {
-            text.horizontalOverflow = HorizontalWrapMode.Overflow;
-
-            float width = Mathf.Max(text.preferredWidth, content.Length * 9f);
-            LayoutElement element = Element(text.gameObject);
-            element.preferredWidth = width;
-            element.minWidth = width;
+            LayoutHelp.LockWidth(v, value);
+            LayoutHelp.Flexible(v.gameObject);
         }
 
         private void Gap(float height)
         {
             var go = new GameObject("Gap", typeof(RectTransform));
             go.transform.SetParent(detailContent, false);
-            AddHeight(go, height);
+            LayoutHelp.Height(go, height);
         }
-
-        // ─────────────────────────── 레이아웃 도우미 ───────────────────────────
-
-        private static LayoutElement Element(GameObject go)
-        {
-            LayoutElement element = go.GetComponent<LayoutElement>();
-            return element != null ? element : go.AddComponent<LayoutElement>();
-        }
-
-        private static void Width(GameObject go, float width)
-        {
-            LayoutElement element = Element(go);
-            element.preferredWidth = width;
-            element.minWidth = width;
-            element.flexibleWidth = 0;
-        }
-
-        private static void AddHeight(GameObject go, float height)
-        {
-            LayoutElement element = Element(go);
-            element.preferredHeight = height;
-            element.minHeight = height;
-        }
-
-        private static void Flexible(GameObject go)
-        {
-            LayoutElement element = Element(go);
-            element.flexibleWidth = 1;
-            element.flexibleHeight = 1;
-        }
-
     }
 }

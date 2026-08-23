@@ -77,7 +77,8 @@ Jianghu\
 
 | 순위 | 수단 | 누가 | 비용 |
 |---|---|---|---|
-| 1 | **`dotnet test`** | **Claude 단독, 사용자 개입 0** | 수 초 |
+| 1 | **`dotnet test`** — Core 로직 | **Claude 단독, 사용자 개입 0** | 수 초 |
+| **1.5** | **`UnityLayerCheck` 빌드** — **Unity 층 컴파일** | **Claude 단독, 사용자 개입 0** | **약 1초** |
 | 2 | Unity C# 컴파일 | 에디터 자동 (창 포커스 시) | 수십 초 |
 | 3 | Unity Test Runner (EditMode) | 사용자 | 분 단위 |
 | 4 | 플레이 테스트 (감각·밸런스) | 사용자 | 분~시간 |
@@ -90,6 +91,25 @@ D:\Tools\dotnet\dotnet.exe test D:\GameDev\projects\Jianghu\Tools\CoreTests\Core
 ```
 
 **⚠ 1순위 통과가 Unity 통과를 보장하지는 않는다.** netstandard2.1 + C# 9 로 좁혀 두어 위험을 크게 줄였을 뿐이다. Core 를 손댄 뒤에는 2순위(에디터 창에 포커스 → 자동 재컴파일 → Console 확인)를 건너뛰지 말 것.
+
+### 3-1. ⚠⚠ 1.5순위 — Unity 층을 Unity 없이 컴파일한다 (2026-08-23 신설)
+
+```
+D:\Tools\dotnet\dotnet.exe build D:\GameDev\projects\Jianghu\Tools\UnityLayerCheck\UnityLayerCheck.csproj
+```
+
+**Unity 에디터 설치본의 `UnityEngine.*` 모듈 DLL 과 uGUI 소스**를 끌어와 `Assets/Scripts/{Core,Unity}` 를 함께 컴파일한다. **약 1초**이고 사용자 개입이 0 이다.
+
+| | |
+|---|---|
+| ✅ **잡는다** | 없는 멤버 · 틀린 시그니처 · 오타 · 잘못된 enum 이름 · 빠진 using · C# 문법 · C#9/netstandard2.1 초과 |
+| ⛔ **못 잡는다** | **asmdef 참조 누락**(한 어셈블리로 컴파일하므로) · 런타임 동작 · 레이아웃 · 널 참조 · TMP·타 패키지 |
+
+⚠⚠ **"컴파일은 된다" 까지만 말해 주는 도구다.** 실제로 이 도구가 오류 0 을 낸 코드에서 **필터를 누를 때마다 슬롯에 무공이 담기는** 실행시 결함이 남아 있었다(읽다가 찾았다). 통과했다고 Play 를 건너뛰지 않는다.
+
+⚠ **도구가 진짜 잡는지 확인했다** — 없는 멤버·없는 메서드·없는 enum 값 셋을 일부러 심었더니 **줄·열까지 짚어 잡았다**(2026-08-23).
+
+⚠ 환경 의존 — Unity 에디터 설치 경로를 참조한다. 다른 경로면 `UnityEditorPath` 를 고친다(`../../docs/SETUP.md` §7).
 
 ---
 
@@ -104,7 +124,10 @@ D:\Tools\dotnet\dotnet.exe test D:\GameDev\projects\Jianghu\Tools\CoreTests\Core
 - **⚠⚠ asmdef 는 서로 자동 참조되지 않는다 (2026-08-09 밟음)** — `Jianghu.Unity.asmdef` 에 `UnityEngine.UI` 를 안 적으면 `using UnityEngine.UI;` 가 **통째로 안 잡힌다.** `autoReferenced: true` 는 *"미리 정의된 어셈블리(Assembly-CSharp)가 나를 참조한다"* 는 뜻이지 **내가 남을 참조한다는 뜻이 아니다.**
   - 참조는 **이름 문자열**로 적어도 된다(GUID 강제 아님 — 공식 매뉴얼 `assembly-definition-file-format` 예시가 `"UnityEngine.UI"` 를 그대로 쓴다)
   - ⚠ 이 지뢰는 **에디터를 켜야만 드러난다.** Unity 층은 `dotnet test` 로 컴파일 검증이 안 되므로, 새 패키지 API 를 쓸 때는 asmdef 부터 본다
-- **⚠⚠ Unity 층은 1순위 검증(`dotnet test`)이 닿지 않는다 (2026-08-09 명문화)** — `UnityEngine` 을 참조하는 순간 `Tools/CoreTests` 로 못 돈다. 그래서 **순수 로직은 Core 에 두고 Unity 층은 그리기만** 한다(§1-1). 그럼에도 화면 조립 코드 자체의 회귀는 **아무것도 안 잡는다** — 사용자가 Play 를 눌러야 처음 보인다. 넘기기 전에 ⓐ `docs-lookup` 으로 API 대조 ⓑ 중괄호·문자열 리터럴 균형 검사를 거친다
+- **⚠⚠ Unity 층은 1순위 검증(`dotnet test`)이 닿지 않는다 (2026-08-09 명문화 · 2026-08-23 일부 해소)** — `UnityEngine` 을 참조하는 순간 `Tools/CoreTests` 로 못 돈다. 그래서 **순수 로직은 Core 에 두고 Unity 층은 그리기만** 한다(§1-1).
+  - ✅ **컴파일 오류는 이제 `UnityLayerCheck`(1.5순위, §3-1)가 잡는다.** 넘기기 전에 반드시 돌린다
+  - ⛔ **그래도 실행시 결함은 여전히 Play 로만 보인다.** 무공 목록 화면에서 나온 결함 5건 중 넷이 Unity 층이었는데, 그중 **컴파일로 잡혔을 것은 하나도 없다**(전부 레이아웃·표시 논리였다)
+  - 넘기기 전에 ⓐ `UnityLayerCheck` 빌드 ⓑ `docs-lookup` 으로 새 API 대조 ⓒ 중괄호·리터럴 균형 검사
 - **⚠⚠ 표시용 수치는 사전 값이 아니라 *엔진이 곱한 뒤의 값*이다 (2026-08-23 밟음)** — `ArtStatDelta` 23축 중 **회피율(×0.3)·명중(×5)** 둘만 엔진이 상수를 곱한다(`Combatant.EvasionPointToPercent` · `CombatResolver.AccuracyPointToPercent`). 사전 값을 그대로 화면에 내면 `피·둔·섬 15` 가 `+15%p` 로 뜨는데 **실제는 +4.5%p** 다 — §1-0 의 방어관통 160% 와 같은 형태의 거짓말이다.
   - 나머지 21축은 원값 그대로다. **결함 하나를 고치고 나머지를 안 보는 것이 §5-D 의 선택적 관찰**이므로 전수로 대조할 것
   - ⚠ 상수를 **베끼지 말고 참조**한다. 테스트도 마찬가지 — 테스트에 값을 박으면 상수가 움직였을 때 테스트가 옛 값을 지키며 통과해 **결함을 가려 준다**

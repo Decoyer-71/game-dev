@@ -42,7 +42,7 @@ namespace Jianghu.Unity
 
             EnsureEventSystem();
             Canvas canvas = CreateCanvas(root);
-            MartialListScreen.Build(canvas.transform);
+            ScreenRouter.Build(canvas.transform);
         }
 
         /// <summary>

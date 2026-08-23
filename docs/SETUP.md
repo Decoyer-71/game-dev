@@ -81,6 +81,14 @@ D:/Tools/dotnet/dotnet.exe test D:/GameDev/projects/Jianghu/Tools/CoreTests/Core
 
 **159/159 통과가 나오면 로직 쪽 셋업은 완료다.** (2026-08-01 기준 — 그 뒤 테스트가 늘었다면 `HANDOFF.md` §0 의 숫자를 본다)
 
+**Unity 층 컴파일 검사**도 돌려 둔다(2026-08-23 신설). ⚠ **Unity 에디터 설치 경로를 참조**하므로 셋업이 제대로 됐는지 여기서 드러난다:
+
+```bash
+D:/Tools/dotnet/dotnet.exe build D:/GameDev/projects/Jianghu/Tools/UnityLayerCheck/UnityLayerCheck.csproj
+```
+
+⚠ 에디터 경로가 다르면 `UnityEditorPath` 를 고친다(§7). 틀리면 **참조를 못 찾는다고 분명히 말하므로** 조용히 넘어가지는 않는다.
+
 밸런싱 판정 도구도 같이 확인해 둔다:
 
 ```bash
@@ -103,13 +111,14 @@ D:/Tools/dotnet/dotnet.exe run --project D:/GameDev/projects/Jianghu/Tools/Sandb
 
 ---
 
-## 7. 다른 경로를 쓰려면 — 고칠 3곳
+## 7. 다른 경로를 쓰려면 — 고칠 4곳
 
-§1 표의 세 파일을 고친다. **훅과 테스트가 도는지 반드시 §5 로 확인한 뒤 작업을 시작한다.**
+아래 네 곳을 고친다. **훅과 테스트가 도는지 반드시 §5 로 확인한 뒤 작업을 시작한다.**
 
 1. `.claude/settings.json` — `hooks[].command` 의 경로 2개 + `permissions.allow` 의 dotnet 경로 4개
 2. `projects/Jianghu/Tools/nuget.config` — `globalPackagesFolder`
 3. `CLAUDE.md` §1·§2 와 `docs/HANDOFF.md` §2·§8 의 경로 기재
+4. **`projects/Jianghu/Tools/UnityLayerCheck/UnityLayerCheck.csproj` — `UnityEditorPath`** (Unity 에디터 설치 경로. 기본값 `C:\Program Files\Unity\Hub\Editor\6000.0.58f1`)
 
 ⚠ 이 변경은 **모든 PC 에 영향을 준다.** 저장소를 공유하는 다른 PC 가 있다면 경로를 통일하는 편이 낫다.
 
