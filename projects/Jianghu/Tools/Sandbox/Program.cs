@@ -45,21 +45,6 @@ namespace Jianghu.Sandbox
         /// </summary>
         private const int SensitivityFights = 1600;
 
-        /// <summary>
-        /// ⚠⚠ **측정에서 움직이는 변수는 무공 경지 하나뿐이다** (2026-07-31 사용자 교정).
-        ///
-        /// 그전에는 `sessions` 하나로 **무공 숙련과 유형 숙달을 동시에** 올리고 있었다.
-        /// 둘은 다른 축이다 — 무공 경지는 무공마다 따로 쌓고(1~10성), 유형 숙달(백일창·천일도·
-        /// 만일검)은 **사람이 그 무기를 얼마나 다뤘는가**로 캐릭터 쪽에 가깝다.
-        /// 뭉쳐서 재면 *"무공이 세진 것인지 사람이 세진 것인지"* 를 분리할 수 없다.
-        ///
-        /// → **유형 숙달은 만렙(숙련 100)으로 고정**한다. 캐릭터 능력치를 만렙으로 고정한 것과 같은 이유다.
-        /// </summary>
-        private static int MasteredSessions(Discipline discipline)
-        {
-            return DisciplineCurve.SessionsToMaster(discipline);
-        }
-
         private const double DominantThreshold = 0.65;
         private const double DeadThreshold = 0.35;
 
@@ -1153,39 +1138,11 @@ namespace Jianghu.Sandbox
         /// </summary>
         private static Combatant ToCombatant(MartialArt art, int stage, CharacterStats stats)
         {
-            // ⚠ 강호무학은 성향이 없어 익힌 사람의 성향이 필요하다. 측정에서는 정파로 고정한다 —
-            //   성향별 비교는 문파 무공으로 하고, 강호무학은 계층 비교용 표본일 뿐이다.
-            Alignment owner = art.Alignment ?? Alignment.Orthodox;
-
-            int sessions = AlignmentCurve.SessionsToReach(owner, MartialStage.ProficiencyForStage(stage));
-            var arts = new List<LearnedArt> { new LearnedArt(art, sessions, owner) };
-
-            // ⚠ 유형 숙달은 **만렙 고정**이다(위 `MasteredSessions` 주석). 무공 경지와 같이 움직이면
-            //   두 축이 섞여, 형태소 민감도가 무공 때문인지 무기 숙달 때문인지 갈리지 않는다.
-            var masteries = new List<DisciplineMastery>
-            {
-                new DisciplineMastery(art.Discipline, MasteredSessions(art.Discipline)),
-            };
-            return new Combatant(art.Name, stats, arts, masteries, LineageOf(art));
-        }
-
-        /// <summary>
-        /// 무공의 **소속 문파에서 무학분류를 읽는다**(정의서 §6-4). 상성(§4)이 겨누는 과녁이다.
-        ///
-        /// ⚠⚠ 2026-08-02 신설. 그전에는 `Combatant` 에 분류를 담을 자리 자체가 없어서
-        ///   상성 무공 4종(창천낙월·참천멸월·절해망혼·절지낙월)이 **대가만 치르고 보상을 못 받았다.**
-        ///
-        /// ⚠ **대형세력(무림맹·사도련·제천성·천마신교 연맹)은 `SchoolCatalog` 에 없어 `null` 이 된다.**
-        ///   정의서 §6-4 의 분류표도 문파 16곳만 배정하고 대형세력은 비워 뒀다. 데이터가 없는 것을
-        ///   여기서 지어내지 않는다 — 그래서 **`절지낙월`(무림맹)은 방어 상성만 얻고 공격 상성은
-        ///   상대가 문파 소속일 때만 발동한다.** 이건 구현 누락이 아니라 **정의서의 빈칸**이다.
-        /// </summary>
-        private static ArtLineage? LineageOf(MartialArt art)
-        {
-            if (string.IsNullOrEmpty(art.School)) return null;
-
-            School school = SchoolCatalog.ByName(art.School);
-            return school == null ? (ArtLineage?)null : school.Lineage;
+            // ⚠⚠ 규칙 본체는 **Core 의 `CombatantBuilder`** 로 옮겼다 (2026-08-23). 전투 화면이
+            //   같은 대전자를 만들어야 하는데, 여기 private 로 두면 그쪽이 규칙을 다시 쓰게 되고
+            //   **언젠가 갈라진다** — 이 저장소가 다섯 번 겪은 형태다(그쪽 주석에 목록이 있다).
+            //   옮기면서 동작은 한 톨도 바꾸지 않았고, 기준선 `--compare` 로 확인했다.
+            return CombatantBuilder.Build(art, stage, stats);
         }
 
         // ─────────────────────────── 측정 ───────────────────────────
@@ -2025,19 +1982,8 @@ namespace Jianghu.Sandbox
         /// <summary>공격 초식 + 보조 무공 하나를 함께 익힌 대전자. <see cref="ToCombatant"/> 와 같은 규칙이다.</summary>
         private static Combatant ToCombatantWith(MartialArt art, MartialArt support, int stage)
         {
-            Alignment owner = art.Alignment ?? Alignment.Orthodox;
-            int sessions = AlignmentCurve.SessionsToReach(owner, MartialStage.ProficiencyForStage(stage));
-
-            var arts = new List<LearnedArt>
-            {
-                new LearnedArt(art, sessions, owner),
-                new LearnedArt(support, sessions, owner),
-            };
-            var masteries = new List<DisciplineMastery>
-            {
-                new DisciplineMastery(art.Discipline, MasteredSessions(art.Discipline)),
-            };
-            return new Combatant(art.Name, Stats(), arts, masteries, LineageOf(art));
+            // ⚠ 첫 번째가 주(主) 무공이다 — 성향·유형 숙달·무학분류를 그것에서 읽는다.
+            return CombatantBuilder.Build(art.Name, new[] { art, support }, stage, Stats());
         }
 
         private static double TeamWinRate(
