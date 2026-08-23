@@ -1986,15 +1986,18 @@ namespace Jianghu.Sandbox
             return CombatantBuilder.Build(art.Name, new[] { art, support }, stage, Stats());
         }
 
+        /// <summary>
+        /// ⚠⚠ 승률 공식(무승부 0.5점 · 시드 1부터)은 **Core 의 `TeamBattleRunner`** 에 있다
+        ///   (2026-08-23 이관). 전투 화면도 같은 것을 쓴다 — 두 곳에 두면 갈라지고, 그러면
+        ///   **화면과 측정표가 서로 다른 승률을 말하면서 둘 다 "승률" 이라고 부르게** 된다.
+        /// ⚠ 여기 남은 것은 요약에 없는 집계(반격 횟수)뿐이고, `onEach` 갈고리로 얹는다.
+        /// </summary>
         private static double TeamWinRate(
             List<BattlePlacement> a, List<BattlePlacement> b, MultiTally tally)
         {
-            double score = 0;
-            for (uint seed = 1; seed <= MultiFights; seed++)
+            TeamBattleSummary summary = TeamBattleRunner.Run(a, b, MultiFights, onEach: r =>
             {
-                TeamCombatResult r = CombatResolver.ResolveTeams(a, b, new XorShiftRandom(seed));
-                if (r.Outcome == TeamOutcome.TeamAWin) score += 1.0;
-                else if (r.Outcome == TeamOutcome.Draw) { score += 0.5; tally.Draws++; }
+                if (r.Outcome == TeamOutcome.Draw) tally.Draws++;
 
                 tally.Fights++;
                 tally.Rounds += r.Rounds;
@@ -2007,8 +2010,8 @@ namespace Jianghu.Sandbox
                         tally.Counters++;
                     }
                 }
-            }
-            return score / MultiFights;
+            });
+            return summary.TeamAWinRate;
         }
 
         private static bool HasCounterMorpheme(MartialArt art)
