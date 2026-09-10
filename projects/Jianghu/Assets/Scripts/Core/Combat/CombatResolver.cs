@@ -1573,53 +1573,35 @@ namespace Jianghu.Core.Combat
 
         private static LearnedArt SelectArt(Fighter actor, bool free = false)
         {
-            LearnedArt best = null;
-            double bestScore = double.NegativeInfinity;
+            // ⚠⚠ **여기엔 "고르는" 일이 없다** (2026-09-10 · 정의서 §0-1 장착 규정).
+            //   전투에 나가는 공격 무공은 **플레이어가 전투 전에 정한 하나**뿐이다.
+            //   남은 판단은 *"그것을 지금 낼 기력이 있는가"* 하나이고, 없으면 맨손으로 내려앉는다.
+            //
+            // ⚠⚠ **그전에는 여기에 점수식이 있었고, 그 주석은 거짓말이었다.**
+            //   *"지금 쓸 수 있는 초식 중 기대 피해가 가장 큰 것을 고른다"* 고 적혀 있었지만
+            //   `ArtPower` 는 **공격축 하나만** 봤다 — 명중·속도·치명·상태이상·방어가 전부 빠져 있었다.
+            //   실측(2026-08-23, 4대4 10성 500판): 공격이 더 센 `중혈창`을 3,477회 전부 골랐는데
+            //   승률은 **47.0% → 42.2%** 로 떨어졌다. `환몽자혈`의 명중 +10%p 와 속도 +1 을 잃어서다.
+            //   ⛔ 그리고 범위 무공은 **4,510회 중 0회** 골랐다 — 대상 수를 곱하는 곳이 없어
+            //     같은 짝의 비범위보다 점수가 구조적으로 항상 낮았다.
+            //   → **둘 다 "엔진이 고른다"는 전제 위의 결함이었고, 그 전제가 틀렸다.** 점수식을 고치는
+            //     대신 없앴다. 경위는 `concepts/select-art-multi-candidate.md`(판정: 1·3 기각).
+            //
+            // ⚠ 그전 결함 기록도 남긴다 — 2026-08-05 에는 이 자리가 `BasePower × …` 였는데
+            //   형태소 무공은 `BasePower` 가 0 이라 **모든 후보의 점수가 0**, 비교가 엄격 부등호라
+            //   **맨 처음 배운 것만 평생** 나갔다. 그 결함은 이제 **도달 불가**다(후보가 하나뿐이다).
+            //   구조적 보장은 `LoadoutTests.공격_무공을_둘_넘기면_거부한다` 가 지킨다.
+            //
+            // ⚠ `IsSupport()` 로 거르지 않는다 — <see cref="Loadout.Attack"/> 슬롯에는 정의상
+            //   공격 무공만 들어간다(`Discipline.KindOf()`). 거를 것이 없다.
+            LearnedArt equipped = actor.Def.Loadout.Attack;
+            if (equipped == null) return BasicStrike;      // 공격 슬롯이 비었다 — 게임 초반의 정상 상태
 
-            IReadOnlyList<LearnedArt> arts = actor.Def.Arts;
-            for (int i = 0; i < arts.Count; i++)
-            {
-                LearnedArt learned = arts[i];
-                if (learned.Art.Discipline.IsSupport()) continue;      // 내공·경공은 스스로 공격하지 않는다
+            // ⚠ 숙달로 깎인 실제 소모량으로 판단해야 한다. 권 숙달자는 남들이 못 쓰는 상황에서도 초식을 낸다.
+            int mastery = actor.Def.MasteryOf(equipped.Art.Discipline);
+            if (!free && EffectiveQiCost(equipped.Art, mastery, actor.Def) > actor.Qi) return BasicStrike;
 
-                // ⚠ 숙달로 깎인 실제 소모량으로 판단해야 한다. 권 숙달자는 남들이 못 쓰는 상황에서도 초식을 낸다.
-                int mastery = actor.Def.MasteryOf(learned.Art.Discipline);
-                if (!free && EffectiveQiCost(learned.Art, mastery, actor.Def) > actor.Qi) continue;
-
-                // ⚠⚠ **2026-08-05 — 이 줄이 통째로 고장 나 있었다.**
-                //   ~~`score = BasePower × PowerMultiplier × HitCount`~~ 였는데,
-                //   형태소 무공은 `BasePower` 가 **0** 이다(`MartialArt.FromMorphemes` 가 하드코딩).
-                //   카탈로그 138종이 전부 형태소 경로이므로 **모든 후보의 점수가 0** 이었고,
-                //   비교가 엄격 부등호라 **맨 처음 것만 통과**했다.
-                //   → ⛔ **기력이 충분한 한, 맨 처음 배운 공격 무공만 평생 썼다.**
-                //     실측: 같은 두 무공을 배운 **순서만** 바꾸면 다른 것이 나갔다(`SelectArtTests`).
-                //   ⚠ 얼굴이 둘이었다 — 레거시 무공(`BasePower > 0`)이 섞이면 **순서와 무관하게
-                //     레거시가 항상** 이겼다. 지금 카탈로그엔 레거시가 없어 발현되지 않았을 뿐이다.
-                //
-                //   ⚠⚠ **왜 안 보였나** — Sandbox 표본과 테스트 전부가 공격 무공을 **1개씩만** 준다.
-                //     후보가 하나면 순서 의존이 드러나지 않는다. 축이 아니라 **표본이 가린** 경우다.
-                //
-                //   → **피해 공식과 같은 식(<see cref="ArtPower"/>)을 쓴다.** 따로 지으면 또 갈라진다.
-                // ⚠ `× HitCount` 는 **뺐다.** `DamagePerHit` 이 `/ attempts` 로 나누므로 타격수는
-                //   총 피해를 바꾸지 않는다 — 곱하면 다타 무공을 근거 없이 우대한다.
-                //   (지금 카탈로그는 전부 `HitCount == 1` 이라 수치 영향은 0 이다.)
-                // ⚠⚠ **범위 대가도 함께 본다** (2026-08-09 · `verify` 가 잡았다).
-                //   `AttackPercent` 를 `DamagePerHit` 에만 넣었더니 **바로 위 주석이 경고한 그 분기**가
-                //   새 축에서 재발했다 — 점수는 옛 위력, 실제 피해는 깎인 위력이었다.
-                //   두 곳이 <see cref="ScopePowerFactor"/> 하나를 함께 쓰도록 묶는다.
-                // ⚠ 여기에 **대상 수를 곱하지는 않는다.** `SelectArt` 는 살아 있는 적이 몇인지 모른다
-                //   (설계 §6 미결 M4). 그래서 이 점수는 *"대상 하나에 넣는 피해"* 이고,
-                //   다대다에서 범위 무공은 **과소평가된다** — M4 를 풀 때 함께 고친다.
-                double score = ArtPower(learned) * ScopePowerFactor(learned.Art);
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    best = learned;
-                }
-            }
-
-            // 쓸 수 있는 초식이 없으면 맨손. 기력이 마르면 전투 양상이 바뀌는 것이 의도다.
-            return best ?? BasicStrike;
+            return equipped;
         }
 
         /// <summary>

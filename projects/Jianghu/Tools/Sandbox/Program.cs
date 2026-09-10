@@ -865,7 +865,7 @@ namespace Jianghu.Sandbox
             {
                 new DisciplineMastery(attack.Discipline, DisciplineCurve.SessionsToMaster(attack.Discipline)),
             };
-            return new Combatant("내공표본", CharacterStats.MaxLevel(), arts, masteries, lineage);
+            return new Combatant("내공표본", CharacterStats.MaxLevel(), new Loadout(arts.ToArray()), masteries, lineage);
         }
 
         /// <summary>
@@ -1165,7 +1165,7 @@ namespace Jianghu.Sandbox
             {
                 new DisciplineMastery(art.Discipline, MasteredSessions(art.Discipline)),
             };
-            return new Combatant(art.Name, stats, arts, masteries, LineageOf(art));
+            return new Combatant(art.Name, stats, new Loadout(arts.ToArray()), masteries, LineageOf(art));
         }
 
         /// <summary>
@@ -2043,7 +2043,7 @@ namespace Jianghu.Sandbox
             {
                 new DisciplineMastery(art.Discipline, MasteredSessions(art.Discipline)),
             };
-            return new Combatant(art.Name, Stats(), arts, masteries, LineageOf(art));
+            return new Combatant(art.Name, Stats(), new Loadout(arts.ToArray()), masteries, LineageOf(art));
         }
 
         private static double TeamWinRate(

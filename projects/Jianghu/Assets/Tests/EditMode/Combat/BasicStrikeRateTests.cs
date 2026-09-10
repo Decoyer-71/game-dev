@@ -39,7 +39,7 @@ namespace Jianghu.Tests.Combat
                 Alignment.Orthodox, MartialStage.ProficiencyForStage(Stage));
 
             return new Combatant(artName, CharacterStats.MaxLevel(),
-                new List<LearnedArt> { new LearnedArt(art, sessions, Alignment.Orthodox) },
+                new Loadout(new LearnedArt(art, sessions, Alignment.Orthodox)),
                 new List<DisciplineMastery>
                 {
                     new DisciplineMastery(Discipline.Sword, DisciplineCurve.SessionsToMaster(Discipline.Sword)),
@@ -166,7 +166,7 @@ namespace Jianghu.Tests.Combat
                 Alignment.Orthodox, MartialStage.ProficiencyForStage(Stage));
 
             return new Combatant(artName, CharacterStats.MaxLevel(),
-                new List<LearnedArt> { new LearnedArt(art, sessions, Alignment.Orthodox) },
+                new Loadout(new LearnedArt(art, sessions, Alignment.Orthodox)),
                 new List<DisciplineMastery>
                 {
                     new DisciplineMastery(Discipline.Fist, DisciplineCurve.SessionsToMaster(Discipline.Fist)),

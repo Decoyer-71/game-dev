@@ -39,7 +39,7 @@ namespace Jianghu.Tests.Combat
             => new CharacterStats(health, qi, attack, defense, agility);
 
         private static Combatant Fighter(string name, CharacterStats stats, params LearnedArt[] arts)
-            => new Combatant(name, stats, arts.ToList());
+            => new Combatant(name, stats, new Loadout(arts));
 
         private static LearnedArt Learned(MartialArt art, int sessions = 0)
             => new LearnedArt(art, sessions);
