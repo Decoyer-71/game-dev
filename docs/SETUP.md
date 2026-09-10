@@ -36,7 +36,7 @@
 |---|---|---|---|
 | **Unity Hub + 에디터** | **6000.0.58f1 LTS** — ⚠ 버전을 올리지 말 것 | Hub 기본 위치 | 프로젝트가 이 버전으로 고정돼 있다 |
 | **.NET SDK** | **8.x** | **`D:\Tools\dotnet`** | 검증 1순위 `dotnet test` 가 이걸 쓴다. ⚠ 기존 PC 는 `-NoPath` 로 설치해 **PATH 에 없다** — 문서의 명령이 전부 전체 경로인 이유 |
-| **Python 3** | — | PATH 등록 | `.claude/hooks/` 두 개를 `python` 명령으로 호출한다 |
+| **Python 3** | — | PATH 등록 | `.claude/hooks/` **세 개**(로그 가드 · 밸런스 가드 · **세션 배너**)를 `python` 명령으로 호출한다. ⚠ 세션 배너는 `docs/` 를 스캔해 문서 인덱스를 주입한다(`../CLAUDE.md` §10) — **이게 안 돌면 세션이 문서 목록을 못 본다** |
 | **`gh` CLI** | 2.x | `D:\Tools\gh\bin\gh.exe` | PR 생성용(`../CLAUDE.md` §5-B). 없어도 당장 작업은 된다 |
 | IDE | Visual Studio 2022 또는 VS Code | — | ⚠ Rider 는 안 쓴다(관련 패키지를 제거해 뒀다) |
 
@@ -107,7 +107,7 @@ D:/Tools/dotnet/dotnet.exe run --project D:/GameDev/projects/Jianghu/Tools/Sandb
 
 §1 표의 세 파일을 고친다. **훅과 테스트가 도는지 반드시 §5 로 확인한 뒤 작업을 시작한다.**
 
-1. `.claude/settings.json` — `hooks[].command` 의 경로 2개 + `permissions.allow` 의 dotnet 경로 4개
+1. `.claude/settings.json` — `hooks[].command` 의 경로 **3개** + `permissions.allow` 의 dotnet 경로 **6개**(PowerShell 4 · Bash 2)
 2. `projects/Jianghu/Tools/nuget.config` — `globalPackagesFolder`
 3. `CLAUDE.md` §1·§2 와 `docs/HANDOFF.md` §2·§8 의 경로 기재
 

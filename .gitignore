@@ -88,3 +88,7 @@ desktop.ini
 #                         커밋하는 csproj 는 Tools/ 아래 수제 파일들뿐이다
 #   docs/ CLAUDE.md  ← 설계 문서. **이 저장소에서 가장 값진 부분이다**
 # ─────────────────────────────────────────────────────────────
+
+# Python 훅 캐시 (.claude/hooks/*.py 를 import 하면 생긴다)
+__pycache__/
+*.pyc
