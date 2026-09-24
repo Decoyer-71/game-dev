@@ -29,15 +29,10 @@ namespace Jianghu.Unity
         private const int TeamSize = 4;
         private const int SlotCount = TeamSize * 2;
 
-        /// <summary>
-        /// 슬롯 하나가 담는 무공 수 상한 = **종류 수**. 공격 1 · 내공 1 · 경공 1 (정의서 §0-1).
-        ///
-        /// ⚠⚠ **그전에는 "임시값 3" 이라는 단순 개수 상한이었다.** 3 이라는 수는 같지만 뜻이 다르다 —
-        ///   그때는 *"아무 무공이나 3개까지"* 여서 **공격 무공 3개**가 허용됐고, 그 편성이
-        ///   2026-08-23 에 엔진 결함 셋을 드러냈다. 지금은 **종류당 1개**라 공격은 언제나 하나다.
-        /// ⚠ 그래서 이 상수만 보고 판단하지 말 것 — 진짜 규칙은 <see cref="KindTaken"/> 이 건다.
-        /// </summary>
-        private const int MaxArtsPerSlot = 3;
+        // ⚠⚠ **`MaxArtsPerSlot = 3` 은 없앴다** (2026-09-24). 상한을 개수로 두면 *"아무 무공이나
+        //   3개까지"* 가 되어 **공격 무공 3개**가 허용되는데, 그 편성이 2026-08-23 에 엔진 결함
+        //   셋을 드러냈다. 지금 상한은 개수가 아니라 **종류**이고(<see cref="KindTaken"/>),
+        //   그 수는 `ArtKind` 가 정한다 — 상수로 또 적으면 두 곳이 갈라진다.
 
         /// <summary>
         /// 반복 판수. ⚠⚠ **100 이 아니라 1000 이다.** 실측으로 100판의 1σ 가 약 ±5%p 라
@@ -276,7 +271,7 @@ namespace Jianghu.Unity
             clear.GetComponentInChildren<Text>().alignment = TextAnchor.MiddleCenter;
 
             Text count = UiFactory.Label(head.transform, "Count",
-                slot.Arts.Count + "/" + MaxArtsPerSlot, 13, UiFactory.InkDim, TextAnchor.MiddleLeft);
+                SlotFill(slot), 13, UiFactory.InkDim, TextAnchor.MiddleLeft);
             LayoutHelp.Flexible(count.gameObject);
 
             // ── 무공 줄 : 누르면 빠진다 ──
@@ -318,6 +313,44 @@ namespace Jianghu.Unity
         private static string SlotId(int index)
         {
             return (index < TeamSize ? "A" : "B") + (index % TeamSize + 1);
+        }
+
+        /// <summary>
+        /// 슬롯이 **어느 종류를 채웠는지**. 비었으면 `빈 슬롯`.
+        ///
+        /// ⚠⚠ **그전에는 `1/3` 이었다** (2026-09-24 Play 에서 사용자가 볼 수 있게 된 뒤 교정).
+        ///   공격이 찬 슬롯도 `1/3` 이라 *"두 개 더 넣을 수 있다"* 로 읽혔는데, 실제로 넣을 수
+        ///   있는 것은 **내공·경공뿐**이었다. 거짓은 아니지만 정확하지도 않았다 —
+        ///   `../../CLAUDE.md` §4 지뢰의 *"표시용 수치가 거짓말한다"* 와 같은 계열이다.
+        ///   ⚠ 상수 주석에 *"이 상수만 보고 판단하지 말 것"* 이라 적어 뒀는데 **화면에는 그 상수가
+        ///     그대로 나가고 있었다.** 주석은 코드를 읽는 사람을 지키지 화면을 지키지 않는다.
+        ///
+        /// ⚠ 종류 이름을 그대로 적는다 — 기호·약어를 쓰면 **범례가 필요해진다.**
+        ///   `supportRichText` 가 꺼져 있어(<see cref="UiFactory"/>) 색으로 구분할 수도 없다.
+        /// ⚠ **꽂은 순서가 아니라 공격→내공→경공 고정 순서**로 적는다. 순서가 흔들리면
+        ///   같은 편성이 다르게 보인다.
+        /// </summary>
+        private static string SlotFill(Slot slot)
+        {
+            if (slot.Arts.Count == 0) return "빈 슬롯";
+
+            var sb = new StringBuilder();
+            AppendKind(sb, slot, ArtKind.Attack);
+            AppendKind(sb, slot, ArtKind.Internal);
+            AppendKind(sb, slot, ArtKind.Movement);
+            return sb.ToString();
+        }
+
+        private static void AppendKind(StringBuilder sb, Slot slot, ArtKind kind)
+        {
+            for (int i = 0; i < slot.Arts.Count; i++)
+            {
+                if (slot.Arts[i].Discipline.KindOf() != kind) continue;
+
+                if (sb.Length > 0) sb.Append('·');
+                sb.Append(kind.ToKorean());
+                return;
+            }
         }
 
         /// <summary>
