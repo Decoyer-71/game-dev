@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -851,7 +851,7 @@ namespace Jianghu.Sandbox
             {
                 new DisciplineMastery(attack.Discipline, DisciplineCurve.SessionsToMaster(attack.Discipline)),
             };
-            return new Combatant("내공표본", CharacterStats.MaxLevel(), arts, masteries, lineage);
+            return new Combatant("내공표본", CharacterStats.MaxLevel(), new Loadout(arts.ToArray()), masteries, lineage);
         }
 
         /// <summary>

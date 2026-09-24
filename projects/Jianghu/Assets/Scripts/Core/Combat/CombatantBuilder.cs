@@ -32,8 +32,10 @@ namespace Jianghu.Core.Combat
         /// *"만우쾌사의 만우쾌사 → 만우쾌사"* 가 되므로, 편성하는 쪽이 `A1 만우쾌사` 처럼 자리를 붙인다.
         /// </param>
         /// <param name="arts">
-        /// 익힌 무공들. **첫 번째가 주(主) 무공**이고 성향·유형 숙달·무학분류를 그것에서 읽는다.
-        /// ⚠ 비어 있을 수 없다.
+        /// **이번 전투에 장착할 무공들**(정의서 §0-1). 공격·내공·경공 **각 최대 1개**이고,
+        /// 같은 종류를 둘 넘기면 <see cref="Loadout"/> 이 그 자리에서 던진다.
+        /// 주(主) 무공 — 성향·유형 숙달·무학분류를 읽는 기준 — 은 **공격 슬롯**이다.
+        /// ⚠ 이 빌더에 한해 비어 있을 수 없다. 아래 예외 설명 참조.
         /// </param>
         /// <param name="stage">무공 경지 1~10성.</param>
         /// <param name="stats">캐릭터 능력치. 비우면 <see cref="CharacterStats.MaxLevel"/>.</param>
@@ -43,13 +45,18 @@ namespace Jianghu.Core.Combat
             if (arts == null) throw new System.ArgumentNullException(nameof(arts));
             if (arts.Count == 0)
             {
-                throw new System.ArgumentException("무공이 하나도 없는 대전자는 만들 수 없다.", nameof(arts));
+                // ⚠⚠ **장착 규정(§0-1)은 빈 편성을 허용한다** — 게임 시작 시 무공 0개가 정상이다.
+                //   여기서 던지는 것은 규칙이 아니라 **이 빌더의 전제** 때문이다: 성향·유형 숙달·
+                //   무학분류를 전부 주 무공에서 읽으므로 읽을 대상이 없으면 만들 수가 없다.
+                //   → 무공 없는 대전자가 필요하면 `new Combatant(name, stats, Loadout.Empty)` 를 직접 쓴다.
+                throw new System.ArgumentException(
+                    "이 빌더는 주 무공에서 성향·숙달·분류를 읽으므로 최소 1개가 필요하다. " +
+                    "무공 없는 대전자는 Loadout.Empty 로 직접 만든다(정의서 §0-1).", nameof(arts));
             }
-
-            MartialArt primary = arts[0];
 
             // ⚠ 강호무학은 성향이 없어 익힌 사람의 성향이 필요하다. 측정에서는 정파로 고정한다 —
             //   성향별 비교는 문파 무공으로 하고, 강호무학은 계층 비교용 표본일 뿐이다.
+            MartialArt primary = PrimaryOf(arts);
             Alignment owner = OwnerAlignmentOf(primary);
 
             // ⚠⚠ 경지 → 수련 횟수 환산은 **성향마다 다르다**(정파 0.70/회 · 사파 1.60 → 소프트캡 후 1/5 ·
@@ -79,7 +86,31 @@ namespace Jianghu.Core.Combat
                 new DisciplineMastery(primary.Discipline, DisciplineCurve.SessionsToMaster(primary.Discipline)),
             };
 
-            return new Combatant(name, stats ?? CharacterStats.MaxLevel(), learned, masteries, LineageOf(primary));
+            // ⚠⚠ **여기서 장착 규정이 강제된다** (정의서 §0-1). 같은 종류를 둘 넘기면
+            //   <see cref="Loadout"/> 생성자가 그 자리에서 던진다 — 조용히 하나를 버리지 않는다.
+            //   전투 화면이 슬롯에 무공을 여럿 담으려 하면 여기서 걸린다.
+            return new Combatant(
+                name, stats ?? CharacterStats.MaxLevel(),
+                new Loadout(learned.ToArray()), masteries, LineageOf(primary));
+        }
+
+        /// <summary>
+        /// 주(主) 무공 — 성향·유형 숙달·무학분류를 읽는 기준.
+        ///
+        /// ⚠⚠ **공격 슬롯이 기준이다** (2026-09-24 · 정의서 §0-1). 그전에는 `arts[0]`(넘긴 순서의
+        ///   첫째)이었는데, 그건 *"부르는 쪽이 공격 무공을 먼저 넣는다"* 는 **암묵적 약속**에 기대는
+        ///   것이었다. 장착 규정이 생긴 뒤로는 공격 슬롯이 명시적으로 존재하므로 그것을 읽는다.
+        /// ⚠ 현재 호출부는 전부 공격 무공을 먼저 넘기므로 **동작은 같다** — `--compare` 로 확인한다.
+        /// ⚠ 공격 무공이 없는 편성(내공·경공만)이면 첫째로 물러선다. 그 경우 숙달·분류가
+        ///   보조 무공에서 나오는데, 측정용 빌더에서 실제로 생기는 조합은 아니다.
+        /// </summary>
+        private static MartialArt PrimaryOf(IReadOnlyList<MartialArt> arts)
+        {
+            for (int i = 0; i < arts.Count; i++)
+            {
+                if (arts[i] != null && arts[i].Discipline.KindOf() == ArtKind.Attack) return arts[i];
+            }
+            return arts[0];
         }
 
         /// <summary>무공 하나만 익힌 대전자. 이름은 무공명을 그대로 쓴다.</summary>

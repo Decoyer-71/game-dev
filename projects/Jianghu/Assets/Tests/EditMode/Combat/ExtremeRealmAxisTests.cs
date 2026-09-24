@@ -42,7 +42,7 @@ namespace Jianghu.Tests.Combat
                 alignment, MartialStage.ProficiencyForStage(MartialStage.MaxStage));
 
             return new Combatant(artName, CharacterStats.MaxLevel(),
-                new List<LearnedArt> { new LearnedArt(art, sessions, alignment) },
+                new Loadout(new LearnedArt(art, sessions, alignment)),
                 new List<DisciplineMastery>
                 {
                     new DisciplineMastery(discipline, DisciplineCurve.SessionsToMaster(discipline)),

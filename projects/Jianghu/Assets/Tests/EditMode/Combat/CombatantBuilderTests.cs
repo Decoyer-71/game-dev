@@ -44,7 +44,7 @@ namespace Jianghu.Tests.EditMode.Combat
             Assert.That(CombatantBuilder.OwnerAlignmentOf(wanderer), Is.EqualTo(Alignment.Orthodox));
 
             Combatant c = CombatantBuilder.Build(wanderer, 10);
-            Assert.That(c.Arts[0].EffectiveAlignment, Is.EqualTo(Alignment.Orthodox));
+            Assert.That(c.Equipped[0].EffectiveAlignment, Is.EqualTo(Alignment.Orthodox));
         }
 
         /// <summary>성향이 있는 무공은 그 성향을 그대로 쓴다.</summary>
@@ -106,7 +106,7 @@ namespace Jianghu.Tests.EditMode.Combat
                 "경지가 다른데 유형 숙달이 달라졌다 — 두 축이 다시 뭉쳤다");
 
             // 무공 숙련 쪽은 반대로 **경지를 따라 움직여야** 한다. 안 그러면 경지가 아무 일도 안 한다.
-            Assert.That(low.Arts[0].TrainingSessions, Is.LessThan(high.Arts[0].TrainingSessions));
+            Assert.That(low.Equipped[0].TrainingSessions, Is.LessThan(high.Equipped[0].TrainingSessions));
         }
 
         /// <summary>
@@ -135,22 +135,49 @@ namespace Jianghu.Tests.EditMode.Combat
             Combatant c = CombatantBuilder.Build(
                 "A1", new List<MartialArt> { Find("성뇌후격"), Find("신풍양공") }, 6);
 
-            Assert.That(c.Arts.Count, Is.EqualTo(2));
-            Assert.That(c.Arts[1].TrainingSessions, Is.EqualTo(c.Arts[0].TrainingSessions));
-            Assert.That(c.Arts[1].EffectiveAlignment, Is.EqualTo(c.Arts[0].EffectiveAlignment));
+            Assert.That(c.Equipped.Count, Is.EqualTo(2));
+            Assert.That(c.Equipped[1].TrainingSessions, Is.EqualTo(c.Equipped[0].TrainingSessions));
+            Assert.That(c.Equipped[1].EffectiveAlignment, Is.EqualTo(c.Equipped[0].EffectiveAlignment));
         }
 
         /// <summary>
-        /// **무공을 셋 이상 줄 수 있다.** 전투 화면이 `SelectArt` 를 다중 후보로 돌리려면 필요하다 —
-        /// 설계 §1-1 이 지적한 *"후보 1개 맹점"* 을 걷어내는 자리다.
+        /// **세 종류를 하나씩 들 수 있다** — 공격 1 · 내공 1 · 경공 1 (정의서 §0-1 장착 규정).
+        ///
+        /// ⚠⚠ **이 테스트는 `무공을_셋_이상_들_수_있다` 를 대체한다.** 그 테스트는
+        ///   *"전투 화면이 `SelectArt` 를 다중 후보로 돌리려면 필요하다 — 후보 1개 맹점을 걷어내는
+        ///   자리"* 를 근거로 삼았는데, **그 전제가 틀렸다.** 선택은 엔진이 아니라 **플레이어가
+        ///   전투 전에** 한다(2026-09-10 사용자 확정). 후보를 여럿 만드는 것은 맹점을 걷어내는
+        ///   것이 아니라 **규칙을 어기는 것**이다.
+        ///   ⚠ 옛 표본(`성뇌후격`·`만우쾌사`)은 **둘 다 공격 무공**이라 지금은 만들 수조차 없다 —
+        ///     아래 `같은_종류를_둘_주면_거부한다` 가 그것을 검사한다.
         /// </summary>
         [Test]
-        public void 무공을_셋_이상_들_수_있다()
+        public void 종류별로_하나씩_들_수_있다()
         {
             Combatant c = CombatantBuilder.Build(
-                "A1", new List<MartialArt> { Find("성뇌후격"), Find("만우쾌사"), Find("신풍양공") }, 10);
+                "A1",
+                new List<MartialArt> { Find("성뇌후격"), Find("신풍양공"), Find("반신풍보") },
+                10);
 
-            Assert.That(c.Arts.Count, Is.EqualTo(3));
+            Assert.That(c.Equipped.Count, Is.EqualTo(3));
+            Assert.That(c.Loadout.Attack.Art.Name, Is.EqualTo("성뇌후격"));
+            Assert.That(c.Loadout.Internal.Art.Name, Is.EqualTo("신풍양공"));
+            Assert.That(c.Loadout.Movement.Art.Name, Is.EqualTo("반신풍보"));
+        }
+
+        /// <summary>
+        /// **같은 종류를 둘 주면 거부한다** — 장착 규정이 빌더를 통해서도 강제된다.
+        /// ⚠ 조용히 하나를 버리면 부르는 쪽은 자기가 무엇을 잃었는지 모른다.
+        /// </summary>
+        [Test]
+        public void 같은_종류를_둘_주면_거부한다()
+        {
+            // 성뇌후격(권) · 만우쾌사(비도) — 유형은 다르지만 **둘 다 공격 무공**이다.
+            System.ArgumentException e = Assert.Throws<System.ArgumentException>(
+                () => CombatantBuilder.Build(
+                    "A1", new List<MartialArt> { Find("성뇌후격"), Find("만우쾌사") }, 10));
+
+            StringAssert.Contains("공격", e.Message);
         }
 
         /// <summary>무공이 하나도 없으면 만들 수 없다 — 조용히 넘기지 않는다.</summary>

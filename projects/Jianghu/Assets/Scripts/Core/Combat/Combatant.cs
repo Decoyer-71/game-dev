@@ -19,7 +19,28 @@ namespace Jianghu.Core.Combat
 
         public string Name { get; }
         public CharacterStats Stats { get; }
-        public IReadOnlyList<LearnedArt> Arts { get; }
+
+        /// <summary>
+        /// **이번 전투에 들고 나온 편성**(정의서 §0-1). 공격·내공·경공 각 최대 1개.
+        ///
+        /// ⚠⚠ **이 객체는 "익힌 무공 전부" 를 모른다.** 그 목록은 캐릭터·진행 층의 것이고,
+        ///   전투 층에는 장착한 것만 들어온다. 그래서 미장착 무공의 능력치가 새는 일이
+        ///   **구조적으로 불가능**하다 — 거를 필요가 없다, 닿을 대상이 없다.
+        /// </summary>
+        public Loadout Loadout { get; }
+
+        /// <summary>
+        /// 장착된 무공들. 아래 파생 능력치 전부가 이것만 훑는다.
+        ///
+        /// ⚠⚠ **이름이 `Arts` 였다.** 그 이름이 *"익힌 무공 전부"* 로 읽혀서, 파생 능력치가
+        ///   안 쓰는 무공의 속도·방어까지 합산하는 것을 아무도 이상하게 보지 않았다
+        ///   (실측 +9%p · 2026-08-23). **개명은 그 오독을 막으려는 것이다** — 이 저장소의
+        ///   대원칙이 *"이름에서 성능을 읽는다"* 다(정의서 §0).
+        /// </summary>
+        public IReadOnlyList<LearnedArt> Equipped
+        {
+            get { return Loadout.Equipped; }
+        }
 
         /// <summary>무기 유형별 숙달도(백일창·천일도·만일검). 비워두면 전부 미숙달로 취급한다.</summary>
         public IReadOnlyList<DisciplineMastery> Masteries { get; }
@@ -45,18 +66,24 @@ namespace Jianghu.Core.Combat
         /// </summary>
         public ArtLineage? Lineage { get; }
 
+        /// <summary>
+        /// ⚠⚠ **`IReadOnlyList&lt;LearnedArt&gt;` 를 받지 않는다** (2026-09-10 · 정의서 §0-1).
+        ///   원시 목록을 받으면 호출자가 *익힌 무공 전부*를 무심코 넘길 수 있고, 그 순간
+        ///   미장착 무공의 능력치가 다시 샌다. <see cref="Loadout"/> 만 받으므로 **컴파일 단계에서 막힌다.**
+        ///   ⛔ **레거시 오버로드를 되살리지 마라** — 하나만 남겨도 그것이 우회로가 된다.
+        /// </summary>
         public Combatant(
-            string name, CharacterStats stats, IReadOnlyList<LearnedArt> arts,
+            string name, CharacterStats stats, Loadout loadout,
             IReadOnlyList<DisciplineMastery> masteries = null,
             ArtLineage? lineage = null)
         {
             if (string.IsNullOrEmpty(name)) throw new ArgumentException("이름은 비어 있을 수 없다.", nameof(name));
             if (stats == null) throw new ArgumentNullException(nameof(stats));
-            if (arts == null) throw new ArgumentNullException(nameof(arts));
+            if (loadout == null) throw new ArgumentNullException(nameof(loadout));
 
             Name = name;
             Stats = stats;
-            Arts = arts;
+            Loadout = loadout;
             Masteries = masteries ?? NoMastery;
             Lineage = lineage;
         }
@@ -79,9 +106,9 @@ namespace Jianghu.Core.Combat
             if (target == null) return 0;
 
             int count = 0;
-            for (int i = 0; i < Arts.Count; i++)
+            for (int i = 0; i < Equipped.Count; i++)
             {
-                IReadOnlyList<ArtLineage> targets = Arts[i].Art.CounterTargets;
+                IReadOnlyList<ArtLineage> targets = Equipped[i].Art.CounterTargets;
                 for (int j = 0; j < targets.Count; j++)
                 {
                     if (targets[j] == target.Value) count++;
@@ -106,9 +133,9 @@ namespace Jianghu.Core.Combat
         /// </summary>
         public bool HasRule(AbsoluteRule rule)
         {
-            for (int i = 0; i < Arts.Count; i++)
+            for (int i = 0; i < Equipped.Count; i++)
             {
-                if (Arts[i].Art.Rule == rule) return true;
+                if (Equipped[i].Art.Rule == rule) return true;
             }
             return false;
         }
@@ -171,9 +198,9 @@ namespace Jianghu.Core.Combat
             get
             {
                 double bonus = 0;
-                for (int i = 0; i < Arts.Count; i++)
+                for (int i = 0; i < Equipped.Count; i++)
                 {
-                    LearnedArt learned = Arts[i];
+                    LearnedArt learned = Equipped[i];
 
                     // ⚠ 형태소 무공은 `Delta.MaxQi`(양 +10 · 합 +5 · 식 +3 · 선 +20)에서,
                     //   레거시 무공은 손으로 박은 `MaxQiBonus` 에서 읽는다. 과도기 분기다.
@@ -207,9 +234,9 @@ namespace Jianghu.Core.Combat
             get
             {
                 double sum = 0;
-                for (int i = 0; i < Arts.Count; i++)
+                for (int i = 0; i < Equipped.Count; i++)
                 {
-                    LearnedArt learned = Arts[i];
+                    LearnedArt learned = Equipped[i];
                     if (!learned.Art.IsMorphemeDerived) continue;     // 레거시 무공엔 소모율 필드가 없다
                     if (!learned.Art.Discipline.IsSupport()) continue;
                     sum += learned.Art.Delta.QiCostPercent * learned.PowerMultiplier;
@@ -235,9 +262,9 @@ namespace Jianghu.Core.Combat
             get
             {
                 double bonus = 0;
-                for (int i = 0; i < Arts.Count; i++)
+                for (int i = 0; i < Equipped.Count; i++)
                 {
-                    LearnedArt learned = Arts[i];
+                    LearnedArt learned = Equipped[i];
                     if (!learned.Art.IsMorphemeDerived) continue;   // 레거시 36종엔 방어 필드가 없다
                     bonus += learned.Art.Delta.Defense * learned.PowerMultiplier;
                 }
@@ -289,9 +316,9 @@ namespace Jianghu.Core.Combat
             get
             {
                 double bonus = 0;
-                for (int i = 0; i < Arts.Count; i++)
+                for (int i = 0; i < Equipped.Count; i++)
                 {
-                    LearnedArt learned = Arts[i];
+                    LearnedArt learned = Equipped[i];
                     if (!learned.Art.IsMorphemeDerived) continue;
 
                     bonus += learned.Art.Delta.StatusResist * learned.PowerMultiplier;
@@ -312,9 +339,9 @@ namespace Jianghu.Core.Combat
             get
             {
                 double bonus = 0;
-                for (int i = 0; i < Arts.Count; i++)
+                for (int i = 0; i < Equipped.Count; i++)
                 {
-                    LearnedArt learned = Arts[i];
+                    LearnedArt learned = Equipped[i];
                     if (!learned.Art.IsMorphemeDerived) continue;
 
                     // ⚠ 숙련 배율을 곱한다 — `EffectiveMaxQi` 와 같은 처리다(설계안 §1-C).
@@ -337,9 +364,9 @@ namespace Jianghu.Core.Combat
             get
             {
                 double bonus = 0;
-                for (int i = 0; i < Arts.Count; i++)
+                for (int i = 0; i < Equipped.Count; i++)
                 {
-                    LearnedArt learned = Arts[i];
+                    LearnedArt learned = Equipped[i];
                     if (!learned.Art.IsMorphemeDerived) continue;
                     bonus += learned.Art.Delta.BlockChance;
                 }
@@ -358,9 +385,9 @@ namespace Jianghu.Core.Combat
             get
             {
                 double bonus = 0;
-                for (int i = 0; i < Arts.Count; i++)
+                for (int i = 0; i < Equipped.Count; i++)
                 {
-                    LearnedArt learned = Arts[i];
+                    LearnedArt learned = Equipped[i];
                     if (!learned.Art.IsMorphemeDerived) continue;
                     bonus += learned.Art.Delta.CounterRate;
                 }
@@ -374,9 +401,9 @@ namespace Jianghu.Core.Combat
             get
             {
                 double bonus = 0;
-                for (int i = 0; i < Arts.Count; i++)
+                for (int i = 0; i < Equipped.Count; i++)
                 {
-                    LearnedArt learned = Arts[i];
+                    LearnedArt learned = Equipped[i];
                     if (learned.Art.Discipline == Discipline.InnerArt)
                     {
                         bonus += learned.Art.PowerBonusPercent * learned.PowerMultiplier;
@@ -427,9 +454,9 @@ namespace Jianghu.Core.Combat
             get
             {
                 double bonus = 0;
-                for (int i = 0; i < Arts.Count; i++)
+                for (int i = 0; i < Equipped.Count; i++)
                 {
-                    LearnedArt learned = Arts[i];
+                    LearnedArt learned = Equipped[i];
                     if (learned.Art.IsMorphemeDerived)
                     {
                         bonus += learned.Art.Delta.Evasion * EvasionPointToPercent;
@@ -458,9 +485,9 @@ namespace Jianghu.Core.Combat
             get
             {
                 double bonus = 0;
-                for (int i = 0; i < Arts.Count; i++)
+                for (int i = 0; i < Equipped.Count; i++)
                 {
-                    LearnedArt learned = Arts[i];
+                    LearnedArt learned = Equipped[i];
                     if (learned.Art.IsMorphemeDerived) bonus += learned.Art.Delta.Speed;
                 }
 
@@ -495,9 +522,9 @@ namespace Jianghu.Core.Combat
             get
             {
                 double bonus = 0;
-                for (int i = 0; i < Arts.Count; i++)
+                for (int i = 0; i < Equipped.Count; i++)
                 {
-                    LearnedArt learned = Arts[i];
+                    LearnedArt learned = Equipped[i];
                     if (learned.Art.Discipline == Discipline.Movement && !learned.Art.IsMorphemeDerived)
                     {
                         bonus += learned.Art.InitiativeBonus * learned.PowerMultiplier;

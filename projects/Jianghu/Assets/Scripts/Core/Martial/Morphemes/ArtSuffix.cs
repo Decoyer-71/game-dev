@@ -19,6 +19,37 @@ namespace Jianghu.Core.Martial.Morphemes
     }
 
     /// <summary>
+    /// **유형(類型)에서 무공 종류를 되읽는다** (정의서 §0-1 장착 규정 · 2026-09-10 신설).
+    ///
+    /// ⚠⚠ **왜 이 함수가 필요한가** — <see cref="ArtKind"/> 는 무공명 접미사에서 결정되지만
+    ///   **런타임 객체 <see cref="MartialArt"/> 는 그것을 들고 다니지 않는다.** 갖고 있는 것은
+    ///   <see cref="Discipline"/> 뿐이다. 장착 슬롯(§0-1)은 종류별로 하나씩이므로 되읽어야 한다.
+    ///
+    /// ⚠ **새 enum 을 만들지 않았다.** `ArtSlot` 같은 것을 따로 두면 같은 뜻의 어휘가 둘이 되고,
+    ///   둘이 어긋나는 날이 온다. 접미사 사전이 <see cref="ArtSuffix.Kind"/> 와
+    ///   <see cref="ArtSuffix.Discipline"/> 를 **같은 항목에서 함께** 정하므로 둘은 구조적으로 짝이며,
+    ///   그 짝이 실제로 안 깨지는지는 `접미사사전의_종류와_유형이_어긋나지_않는다` 가 지킨다.
+    /// </summary>
+    public static class ArtKindExtensions
+    {
+        /// <summary>이 유형의 무공이 들어가는 장착 슬롯(정의서 §0-1).</summary>
+        public static ArtKind KindOf(this Discipline discipline)
+        {
+            if (discipline == Discipline.InnerArt) return ArtKind.Internal;
+            if (discipline == Discipline.Movement) return ArtKind.Movement;
+            return ArtKind.Attack;
+        }
+
+        /// <summary>슬롯 이름을 사람이 읽는 한 글자로. 예외 문구에 쓴다.</summary>
+        public static string ToKorean(this ArtKind kind)
+        {
+            if (kind == ArtKind.Internal) return "내공";
+            if (kind == ArtKind.Movement) return "경공";
+            return "공격";
+        }
+    }
+
+    /// <summary>
     /// 무공명 접미사(정의서 §2-4). `천양신공` 의 `신공` 이 여기 해당한다.
     ///
     /// ⚠⚠ **접미사를 본체보다 먼저, 최장일치로 떼어내야 한다.** 그러지 않으면 오독한다:

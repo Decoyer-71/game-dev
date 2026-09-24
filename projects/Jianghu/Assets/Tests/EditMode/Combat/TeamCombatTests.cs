@@ -35,11 +35,11 @@ namespace Jianghu.Tests.Combat
             => new CharacterStats(health, qi, attack, defense, agility);
 
         private static Combatant Man(string name, CharacterStats stats, params LearnedArt[] arts)
-            => new Combatant(name, stats, new List<LearnedArt>(arts));
+            => new Combatant(name, stats, new Loadout(arts));
 
         /// <summary>무공을 하나도 안 익힌 허수아비. 평타만 낸다.</summary>
         private static Combatant Dummy(string name, int health = 5000)
-            => new Combatant(name, Stats(health: health), new List<LearnedArt>());
+            => new Combatant(name, Stats(health: health), Loadout.Empty);
 
         private static LearnedArt Learned(MartialArt art, int sessions = 100)
             => new LearnedArt(art, sessions);

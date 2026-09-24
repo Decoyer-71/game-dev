@@ -29,7 +29,14 @@ namespace Jianghu.Unity
         private const int TeamSize = 4;
         private const int SlotCount = TeamSize * 2;
 
-        /// <summary>슬롯 하나가 담는 무공 수 상한. ⚠ **임시값 3** — 실제 제자가 몇 개 들지는 미정이다(설계 §11-6).</summary>
+        /// <summary>
+        /// 슬롯 하나가 담는 무공 수 상한 = **종류 수**. 공격 1 · 내공 1 · 경공 1 (정의서 §0-1).
+        ///
+        /// ⚠⚠ **그전에는 "임시값 3" 이라는 단순 개수 상한이었다.** 3 이라는 수는 같지만 뜻이 다르다 —
+        ///   그때는 *"아무 무공이나 3개까지"* 여서 **공격 무공 3개**가 허용됐고, 그 편성이
+        ///   2026-08-23 에 엔진 결함 셋을 드러냈다. 지금은 **종류당 1개**라 공격은 언제나 하나다.
+        /// ⚠ 그래서 이 상수만 보고 판단하지 말 것 — 진짜 규칙은 <see cref="KindTaken"/> 이 건다.
+        /// </summary>
         private const int MaxArtsPerSlot = 3;
 
         /// <summary>
@@ -313,14 +320,36 @@ namespace Jianghu.Unity
             return (index < TeamSize ? "A" : "B") + (index % TeamSize + 1);
         }
 
+        /// <summary>
+        /// <paramref name="art"/> 와 **같은 종류**로 이미 슬롯에 들어 있는 무공. 없으면 null.
+        /// 정의서 §0-1 — 공격·내공·경공 각 최대 1개다.
+        /// </summary>
+        private static MartialArt KindTaken(Slot slot, MartialArt art)
+        {
+            ArtKind kind = art.Discipline.KindOf();
+            for (int i = 0; i < slot.Arts.Count; i++)
+            {
+                if (slot.Arts[i].Discipline.KindOf() == kind) return slot.Arts[i];
+            }
+            return null;
+        }
+
         private void AddToSelectedSlot(MartialArt art)
         {
             if (art == null) return;
 
             Slot slot = slots[selectedSlot];
-            if (slot.Arts.Count >= MaxArtsPerSlot)
+
+            // ⚠⚠ **종류당 하나다** (정의서 §0-1 장착 규정). 개수가 아니라 종류로 막는다 —
+            //   `CombatantBuilder` 가 어차피 거부하므로 여기서 안 막으면 **Play 중에 예외로 터진다.**
+            //   막는 김에 *무엇이 이미 그 자리에 있는지*까지 말한다. 안 그러면 사용자가
+            //   왜 안 들어가는지 알 수 없다(§6 — 찾는 비용을 내가 진다).
+            MartialArt taken = KindTaken(slot, art);
+            if (taken != null)
             {
-                ShowMessage(SlotId(selectedSlot) + " 는 이미 " + MaxArtsPerSlot + "개다 — 하나를 눌러 뺀다.");
+                ShowMessage(
+                    SlotId(selectedSlot) + " 의 " + art.Discipline.KindOf().ToKorean() +
+                    " 자리엔 이미 " + taken.Name + " 이(가) 있다 — 그것을 눌러 빼고 넣는다.");
                 return;
             }
             if (slot.Arts.Contains(art))
