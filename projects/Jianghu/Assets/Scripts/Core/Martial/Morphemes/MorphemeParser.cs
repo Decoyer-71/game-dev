@@ -146,14 +146,38 @@ namespace Jianghu.Core.Martial.Morphemes
             return true;
         }
 
-        private static ParsedArtName Assemble(string name, ArtSuffix suffix, ArtKind kind, List<Morpheme> body)
+        /// <summary>
+        /// 이 본체에 **종(宗)** 이 들어 있는가 — 무공형태의 효과를 페널티까지 함께 2배로 만드는 글자다(정의서 §3-8).
+        ///
+        /// ⚠⚠ **공개해 둔 이유는 표시 계층 때문이다.** 무공 상세 화면은 *"글자 하나가 얼마를 넣었는가"* 를
+        ///   보여야 하는데, 그 값이 종(宗) 유무에 따라 달라진다. 화면이 규칙을 다시 적으면
+        ///   **합계와 글자별 값이 어긋나는 화면**이 나온다 — 이 저장소가 상성·범위·열·종류에서
+        ///   네 번 겪은 *"두 곳에 따로 두면 갈라진다"* 와 같은 형태다.
+        /// </summary>
+        public static bool HasFormDoubler(IReadOnlyList<Morpheme> body)
         {
-            // 종(宗) — 무공형태의 효과를 페널티까지 함께 2배로 만든다(정의서 §3-8).
-            bool doublesForm = false;
+            if (body == null) return false;
             for (int i = 0; i < body.Count; i++)
             {
-                if (body[i].DoublesFormEffect) doublesForm = true;
+                if (body[i].DoublesFormEffect) return true;
             }
+            return false;
+        }
+
+        /// <summary>
+        /// 형태소 하나가 **실제로 합계에 넣는** 수치. 종(宗)이 있으면 무공형태만 2배가 된다(§3-8).
+        /// <see cref="Assemble"/> 의 합산과 표시 계층이 **같은 이 함수**를 쓴다.
+        /// </summary>
+        public static ArtStatDelta EffectiveDelta(Morpheme morpheme, bool doublesForm)
+        {
+            return (doublesForm && morpheme.Category == MorphemeCategory.Form)
+                ? morpheme.Delta * 2
+                : morpheme.Delta;
+        }
+
+        private static ParsedArtName Assemble(string name, ArtSuffix suffix, ArtKind kind, List<Morpheme> body)
+        {
+            bool doublesForm = HasFormDoubler(body);
 
             ArtStatDelta total = ArtStatDelta.Zero;
             int backgroundCount = 0;
@@ -166,7 +190,7 @@ namespace Jianghu.Core.Martial.Morphemes
 
                 if (m.IsBackground) backgroundCount++;
 
-                total += (doublesForm && m.Category == MorphemeCategory.Form) ? m.Delta * 2 : m.Delta;
+                total += EffectiveDelta(m, doublesForm);
 
                 if (m.Lineage == ArtLineage.None) continue;
 

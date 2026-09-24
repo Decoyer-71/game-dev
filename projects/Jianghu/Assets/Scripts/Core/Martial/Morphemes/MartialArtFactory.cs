@@ -86,10 +86,37 @@ namespace Jianghu.Core.Martial.Morphemes
             // ⚠⚠ **열(진형)도 실어 보낸다** (2026-08-09 2차). 범위와 같은 통로다 —
             //   `parsed.PreferredRow` 는 이름을 앞에서부터 훑어 얻은 값이고(설계 §D3-3-a),
             //   여기서 버려지면 *"던지기가 후열을 친다"* 는 규칙이 엔진에 닿지 않는다.
+            // ⚠⚠ **종류도 실어 보낸다** (2026-08-09 3차). 그전까지 `parseKind` 를 여기서 쓰고 버렸는데,
+            //   그러면 **무공을 다시 분해할 수가 없다** — `MorphemeParser.Parse(name)` 의 1인자 오버로드는
+            //   접미사에서 종류를 읽는 강호무학 전용이라 나머지 129종이 예외를 낸다. 상성·범위·열과
+            //   **똑같은 형태의 누락**이었고, Phase 4 무공 상세 화면을 설계하다 `verify` 가 잡았다.
+            //   ⚠ `parseKind`(강호무학은 null)가 아니라 **`parsed.Kind`** 를 넘긴다 — 파서가 접미사에서
+            //     읽어낸 값이라 강호무학도 올바른 종류를 갖는다.
             art = MartialArt.FromMorphemes(
                 id, name, school, discipline, alignment, parsed.Delta, parsed.QiCost, tier, hitCount,
-                parsed.CounterTargets, parsed.Rule, parsed.Scope, parsed.PreferredRow, effects);
+                parsed.CounterTargets, parsed.Rule, parsed.Scope, parsed.PreferredRow, parsed.Kind, effects);
             return true;
+        }
+
+        /// <summary>
+        /// **이미 만들어진 무공을 다시 분해한다** — 무공 상세 화면처럼 *"이름의 어느 글자가 어느 수치를
+        /// 넣었는가"* 를 보여야 할 때 쓴다.
+        ///
+        /// ⚠⚠ **파서를 직접 부르지 말고 이것을 쓴다.** 강호무학이냐 아니냐로 갈리는 규칙
+        /// (강호무학은 **접미사에서** 종류를 읽으므로 `kind` 를 넘기지 않는다)이 <see cref="TryCreate"/> 와
+        /// **똑같아야** 하는데, 두 곳에서 따로 쓰면 언젠가 갈라진다 — 이 저장소가 여러 번 겪은 병이다.
+        /// 그래서 그 한 줄을 여기 한 곳에만 둔다.
+        ///
+        /// ⚠ 만들 때 통과한 이름이므로 **정상적으로는 실패하지 않는다.** 실패하면 그것은 카탈로그와
+        ///   사전이 어긋났다는 뜻이므로 <b>조용히 넘기지 않고 예외를 던진다.</b>
+        /// </summary>
+        public static ParsedArtName Decompose(MartialArt art)
+        {
+            if (art == null) throw new ArgumentNullException(nameof(art));
+
+            // 강호무학만 무기 접미사로 종류를 밝힌다(정의서 §2-4). `TryCreate` 와 같은 줄이다.
+            ArtKind? parseKind = art.Tier == ArtTier.Wanderer ? (ArtKind?)null : art.Kind;
+            return MorphemeParser.Parse(art.Name, parseKind);
         }
     }
 }

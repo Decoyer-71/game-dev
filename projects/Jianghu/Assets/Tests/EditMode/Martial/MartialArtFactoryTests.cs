@@ -137,7 +137,7 @@ namespace Jianghu.Tests.Martial
         {
             // 군(群) = 3인. 대문파 이상만 범위를 쓸 수 있다(정의서 §3-12 · ArtCompositionRule).
             MartialArt group = MartialArtFactory.Create(
-                "g", "정천창군", ArtKind.Attack, ArtTier.Major,
+                "g", "유천창군", ArtKind.Attack, ArtTier.Major,
                 Discipline.Spear, Alignment.Orthodox, "소림사");
             Assert.AreEqual(AttackScope.Three, group.Scope,
                 "군(群) 을 문 무공인데 Scope 가 안 왔다 — 팩토리가 parsed.Scope 를 또 버렸는지 볼 것.");

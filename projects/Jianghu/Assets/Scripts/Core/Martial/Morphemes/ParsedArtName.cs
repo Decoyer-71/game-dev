@@ -164,17 +164,6 @@ namespace Jianghu.Core.Martial.Morphemes
             return count;
         }
 
-        private string KindLabel()
-        {
-            switch (Kind)
-            {
-                case ArtKind.Attack: return "공격";
-                case ArtKind.Internal: return "내공";
-                case ArtKind.Movement: return "경공";
-                default: return "?";
-            }
-        }
-
         /// <summary>같은 카테고리 형태소가 본체에 몇 자 있는가. 조합 규칙 판정이 쓴다.</summary>
         public int CountOf(MorphemeCategory category)
         {
@@ -197,7 +186,7 @@ namespace Jianghu.Core.Martial.Morphemes
                 sb.Append(Body[i].ToString());
             }
             if (Body.Count == 0) sb.Append("(본체 없음)");
-            sb.Append(" [").Append(HasSuffix ? Suffix.ToString() : KindLabel()).Append(']');
+            sb.Append(" [").Append(HasSuffix ? Suffix.ToString() : Display.KoreanNames.Of(Kind)).Append(']');
             return sb.ToString();
         }
     }

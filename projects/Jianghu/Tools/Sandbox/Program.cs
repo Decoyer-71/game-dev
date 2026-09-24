@@ -1,10 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Jianghu.Core.Characters;
 using Jianghu.Core.Combat;
 using Jianghu.Core.Martial;
+using Jianghu.Core.Martial.Display;
 using Jianghu.Core.Martial.Morphemes;
 using Jianghu.Core.Rng;
 
@@ -43,21 +44,6 @@ namespace Jianghu.Sandbox
         ///   비용은 12s → 15.7s 로 거의 늘지 않는다(민감도 블록은 대상이 수십 개뿐이라).
         /// </summary>
         private const int SensitivityFights = 1600;
-
-        /// <summary>
-        /// ⚠⚠ **측정에서 움직이는 변수는 무공 경지 하나뿐이다** (2026-07-31 사용자 교정).
-        ///
-        /// 그전에는 `sessions` 하나로 **무공 숙련과 유형 숙달을 동시에** 올리고 있었다.
-        /// 둘은 다른 축이다 — 무공 경지는 무공마다 따로 쌓고(1~10성), 유형 숙달(백일창·천일도·
-        /// 만일검)은 **사람이 그 무기를 얼마나 다뤘는가**로 캐릭터 쪽에 가깝다.
-        /// 뭉쳐서 재면 *"무공이 세진 것인지 사람이 세진 것인지"* 를 분리할 수 없다.
-        ///
-        /// → **유형 숙달은 만렙(숙련 100)으로 고정**한다. 캐릭터 능력치를 만렙으로 고정한 것과 같은 이유다.
-        /// </summary>
-        private static int MasteredSessions(Discipline discipline)
-        {
-            return DisciplineCurve.SessionsToMaster(discipline);
-        }
 
         private const double DominantThreshold = 0.65;
         private const double DeadThreshold = 0.35;
@@ -1152,39 +1138,11 @@ namespace Jianghu.Sandbox
         /// </summary>
         private static Combatant ToCombatant(MartialArt art, int stage, CharacterStats stats)
         {
-            // ⚠ 강호무학은 성향이 없어 익힌 사람의 성향이 필요하다. 측정에서는 정파로 고정한다 —
-            //   성향별 비교는 문파 무공으로 하고, 강호무학은 계층 비교용 표본일 뿐이다.
-            Alignment owner = art.Alignment ?? Alignment.Orthodox;
-
-            int sessions = AlignmentCurve.SessionsToReach(owner, MartialStage.ProficiencyForStage(stage));
-            var arts = new List<LearnedArt> { new LearnedArt(art, sessions, owner) };
-
-            // ⚠ 유형 숙달은 **만렙 고정**이다(위 `MasteredSessions` 주석). 무공 경지와 같이 움직이면
-            //   두 축이 섞여, 형태소 민감도가 무공 때문인지 무기 숙달 때문인지 갈리지 않는다.
-            var masteries = new List<DisciplineMastery>
-            {
-                new DisciplineMastery(art.Discipline, MasteredSessions(art.Discipline)),
-            };
-            return new Combatant(art.Name, stats, new Loadout(arts.ToArray()), masteries, LineageOf(art));
-        }
-
-        /// <summary>
-        /// 무공의 **소속 문파에서 무학분류를 읽는다**(정의서 §6-4). 상성(§4)이 겨누는 과녁이다.
-        ///
-        /// ⚠⚠ 2026-08-02 신설. 그전에는 `Combatant` 에 분류를 담을 자리 자체가 없어서
-        ///   상성 무공 4종(창천낙월·참천멸월·절해망혼·절지낙월)이 **대가만 치르고 보상을 못 받았다.**
-        ///
-        /// ⚠ **대형세력(무림맹·사도련·제천성·천마신교 연맹)은 `SchoolCatalog` 에 없어 `null` 이 된다.**
-        ///   정의서 §6-4 의 분류표도 문파 16곳만 배정하고 대형세력은 비워 뒀다. 데이터가 없는 것을
-        ///   여기서 지어내지 않는다 — 그래서 **`절지낙월`(무림맹)은 방어 상성만 얻고 공격 상성은
-        ///   상대가 문파 소속일 때만 발동한다.** 이건 구현 누락이 아니라 **정의서의 빈칸**이다.
-        /// </summary>
-        private static ArtLineage? LineageOf(MartialArt art)
-        {
-            if (string.IsNullOrEmpty(art.School)) return null;
-
-            School school = SchoolCatalog.ByName(art.School);
-            return school == null ? (ArtLineage?)null : school.Lineage;
+            // ⚠⚠ 규칙 본체는 **Core 의 `CombatantBuilder`** 로 옮겼다 (2026-08-23). 전투 화면이
+            //   같은 대전자를 만들어야 하는데, 여기 private 로 두면 그쪽이 규칙을 다시 쓰게 되고
+            //   **언젠가 갈라진다** — 이 저장소가 다섯 번 겪은 형태다(그쪽 주석에 목록이 있다).
+            //   옮기면서 동작은 한 톨도 바꾸지 않았고, 기준선 `--compare` 로 확인했다.
+            return CombatantBuilder.Build(art, stage, stats);
         }
 
         // ─────────────────────────── 측정 ───────────────────────────
@@ -1316,7 +1274,7 @@ namespace Jianghu.Sandbox
             //   ⚠ `--compare` 에 **사라짐 12건**으로 뜬다(4계층 × 3경지 중 범위가 있던 조합). 정상이다.
             //
             //   옛 경위 — 2026-08-04 에 이 지표를 만든 이유는 *"죽은 무공 하나가 계층 격차 전체를
-            //   정의해 버린다"* 였다(대문파 `정천창군` 10.4% · 전승 `만우쾌사` 3.6%). 그 진단은
+            //   정의해 버린다"* 였다(대문파 `정천창군`[→`유천창군`, 2026-09-24 개명] 10.4% · 전승 `만우쾌사` 3.6%). 그 진단은
             //   맞았지만 처방이 절반이었다 — **범위 무공을 계산에서만 빼고 토너먼트에는 남겨 둬서**
             //   다른 무공이 그 샌드백을 이겨 얻은 승률은 그대로 남았다(위 `group` 주석의 2차 오염).
             {
@@ -1642,18 +1600,11 @@ namespace Jianghu.Sandbox
                    || d.ParalysisStack > 0;
         }
 
-        private static string DisciplineName(Discipline d)
-        {
-            switch (d)
-            {
-                case Discipline.Sword: return "검";
-                case Discipline.Blade: return "도";
-                case Discipline.Spear: return "창";
-                case Discipline.Fist: return "권";
-                case Discipline.Dagger: return "비도";
-                default: return d.ToString();
-            }
-        }
+        // ⚠⚠ 이름표는 Core(`KoreanNames`)에 있다. 여기 있던 표는 **같은 파일 안에서만 두 번**
+        //   (`DisciplineName` · `Short(Discipline)`) 중복이었고 `ArtCompositionRule` · `ParsedArtName`
+        //   까지 넷이었다. 지표 키가 이 문자열로 만들어지므로(`tier.전승무학.유형.비도....`)
+        //   갈라지면 `docs/baseline-metrics.txt` 와의 대조가 끊긴다.
+        private static string DisciplineName(Discipline d) => KoreanNames.Of(d);
 
         /// <summary>
         /// 이름에 **범위 형태소**(다多·군群·전全·만萬)가 들어 있는가 — 2026-08-04 신설.
@@ -2031,30 +1982,22 @@ namespace Jianghu.Sandbox
         /// <summary>공격 초식 + 보조 무공 하나를 함께 익힌 대전자. <see cref="ToCombatant"/> 와 같은 규칙이다.</summary>
         private static Combatant ToCombatantWith(MartialArt art, MartialArt support, int stage)
         {
-            Alignment owner = art.Alignment ?? Alignment.Orthodox;
-            int sessions = AlignmentCurve.SessionsToReach(owner, MartialStage.ProficiencyForStage(stage));
-
-            var arts = new List<LearnedArt>
-            {
-                new LearnedArt(art, sessions, owner),
-                new LearnedArt(support, sessions, owner),
-            };
-            var masteries = new List<DisciplineMastery>
-            {
-                new DisciplineMastery(art.Discipline, MasteredSessions(art.Discipline)),
-            };
-            return new Combatant(art.Name, Stats(), new Loadout(arts.ToArray()), masteries, LineageOf(art));
+            // ⚠ 첫 번째가 주(主) 무공이다 — 성향·유형 숙달·무학분류를 그것에서 읽는다.
+            return CombatantBuilder.Build(art.Name, new[] { art, support }, stage, Stats());
         }
 
+        /// <summary>
+        /// ⚠⚠ 승률 공식(무승부 0.5점 · 시드 1부터)은 **Core 의 `TeamBattleRunner`** 에 있다
+        ///   (2026-08-23 이관). 전투 화면도 같은 것을 쓴다 — 두 곳에 두면 갈라지고, 그러면
+        ///   **화면과 측정표가 서로 다른 승률을 말하면서 둘 다 "승률" 이라고 부르게** 된다.
+        /// ⚠ 여기 남은 것은 요약에 없는 집계(반격 횟수)뿐이고, `onEach` 갈고리로 얹는다.
+        /// </summary>
         private static double TeamWinRate(
             List<BattlePlacement> a, List<BattlePlacement> b, MultiTally tally)
         {
-            double score = 0;
-            for (uint seed = 1; seed <= MultiFights; seed++)
+            TeamBattleSummary summary = TeamBattleRunner.Run(a, b, MultiFights, onEach: r =>
             {
-                TeamCombatResult r = CombatResolver.ResolveTeams(a, b, new XorShiftRandom(seed));
-                if (r.Outcome == TeamOutcome.TeamAWin) score += 1.0;
-                else if (r.Outcome == TeamOutcome.Draw) { score += 0.5; tally.Draws++; }
+                if (r.Outcome == TeamOutcome.Draw) tally.Draws++;
 
                 tally.Fights++;
                 tally.Rounds += r.Rounds;
@@ -2067,8 +2010,8 @@ namespace Jianghu.Sandbox
                         tally.Counters++;
                     }
                 }
-            }
-            return score / MultiFights;
+            });
+            return summary.TeamAWinRate;
         }
 
         private static bool HasCounterMorpheme(MartialArt art)
@@ -2155,44 +2098,12 @@ namespace Jianghu.Sandbox
 
         // ─────────────────────────── 표시 도우미 ───────────────────────────
 
-        private static string TierName(ArtTier t)
-        {
-            switch (t)
-            {
-                case ArtTier.Wanderer: return "강호무학";
-                case ArtTier.Minor: return "소문파";
-                case ArtTier.Major: return "대문파·세력";
-                case ArtTier.Legacy: return "전승무학";
-                case ArtTier.Absolute: return "절대경지";
-                default: return "?";
-            }
-        }
+        private static string TierName(ArtTier t) => KoreanNames.Of(t);
 
-        private static string Short(Discipline d)
-        {
-            switch (d)
-            {
-                case Discipline.Sword: return "검";
-                case Discipline.Blade: return "도";
-                case Discipline.Fist: return "권";
-                case Discipline.Spear: return "창";
-                case Discipline.Dagger: return "비도";
-                default: return "?";
-            }
-        }
+        private static string Short(Discipline d) => KoreanNames.Of(d);
 
         /// <summary>⚠ 성향이 null 이면 강호무학이다 — 익힌 사람의 성향을 따르므로 무공 자체에는 성향이 없다.</summary>
-        private static string Short(Alignment? a)
-        {
-            switch (a)
-            {
-                case Alignment.Orthodox: return "정";
-                case Alignment.Unorthodox: return "사";
-                case Alignment.Demonic: return "마";
-                case null: return "-";
-                default: return "?";
-            }
-        }
+        private static string Short(Alignment? a) => KoreanNames.Short(a);
 
         /// <summary>한글이 콘솔에서 2칸을 차지하는 것을 감안해 폭을 맞춘다.</summary>
         private static string Pad(string s, int width)
