@@ -215,6 +215,7 @@ namespace Jianghu.Sandbox
                 {
                     PrintMultiCombat(techniques, tier, stage);
                     PrintCounterProbe(techniques, tier, stage);
+                    PrintMixedScopeProbe(techniques, tier, stage);
                 }
 
                 PrintSensitivity(stage);
@@ -1979,6 +1980,126 @@ namespace Jianghu.Sandbox
             return team;
         }
 
+        /// <summary>
+        /// **혼합 편성 팀** — 범위 무공 1명 + 대조 무공 3명. 진형은 <see cref="HomogeneousTeam"/> 과
+        /// 같은 **전열 2 · 후열 2** 다(설계 §D1).
+        ///
+        /// ⚠ 범위 보유자를 그 열의 **첫 자리**에 놓는데, 열 안의 인덱스는 결과에 영향을 주지 않는다 —
+        ///   `CombatResolver.PickTargets` 가 같은 열의 생존자를 모은 뒤 `ShufflePick` 으로 섞기 때문이다
+        ///   (2026-09-24 `verify` 가 코드로 확인). 지켜야 하는 것은 **열별 인원수 불변식**뿐이다.
+        /// </summary>
+        private static List<BattlePlacement> MixedTeam(
+            MartialArt scoped, MartialArt filler, int stage, BattleRow scopeRow)
+        {
+            var team = new List<BattlePlacement>(MultiTeamSize);
+            bool placed = false;
+            for (int i = 0; i < MultiTeamSize; i++)
+            {
+                BattleRow row = i < MultiTeamSize / 2 ? BattleRow.Front : BattleRow.Rear;
+                bool useScoped = !placed && row == scopeRow;
+                if (useScoped) placed = true;
+
+                team.Add(new BattlePlacement(ToCombatant(useScoped ? scoped : filler, stage), row));
+            }
+            return team;
+        }
+
+        /// <summary>
+        /// **혼합 편성 탐침 — 범위 무공을 "한 명만" 들었을 때의 값** (2026-09-24 신설 · `verify` 통과).
+        ///
+        /// ⚠⚠ **왜 별도 탐침인가** — 설계 §D8 의 동질 팀 측정은 **넷 전부가 범위를 드는** 조건이라
+        ///   그 문서가 스스로 *"범위 형태소 가치의 **상한**이다. '실전 값' 이 아니다"* 라고 못박았다.
+        ///   실제 편성은 한둘만 범위를 든다. 그 값이 여태 없었다.
+        ///
+        /// ⚠⚠ **§D8 이 기각한 "혼합 편성" 과 다르다.** 그 기각 사유는 *"편성 자체가 변수가 된다 ·
+        ///   조합 폭발"* 인데, 이 탐침은 **편성을 하나로 못박는다** — 팀 4인 · 전2후2 · 범위 정확히 1명 ·
+        ///   나머지와 상대 전원이 같은 대조 무공. 변수는 ⓐ 어느 범위 무공 ⓑ 전열/후열 **둘뿐**이다.
+        ///
+        /// ⚠⚠ **거울(대조)을 반드시 측정해서 뺀다.** 같은 무공끼리 붙여도 승률이 정확히 50% 가 아니다
+        ///   (`TeamBattleSummary` 주석의 실측: 100판에서 43%). 50 을 가정하고 빼면 그 편차가
+        ///   범위 무공의 값으로 잘못 잡힌다.
+        ///
+        /// ⚠ **정밀도** — `기여` 는 서로 다른 두 추정치의 **차**라 분산을 더해야 한다. 무공별 절대 판정은
+        ///   약 **±2.8%p**, 무공끼리의 **상대 비교**는 거울 항이 상쇄되므로 약 ±1.6%p 다.
+        ///   → **`기여` 절대값이 ±3%p 이내면 "판별 불가"** 로 읽는다(2026-09-24 `verify` 조건).
+        /// </summary>
+        private static void PrintMixedScopeProbe(List<MartialArt> all, ArtTier tier, int stage)
+        {
+            var scoped = new List<MartialArt>();
+            var plain = new List<MartialArt>();
+            for (int i = 0; i < all.Count; i++)
+            {
+                if (all[i].Tier != tier) continue;
+                if (HasScopeMorpheme(all[i])) scoped.Add(all[i]); else plain.Add(all[i]);
+            }
+            if (scoped.Count == 0 || plain.Count == 0) return;
+
+            List<MartialArt> fillers = SampleEvenly(plain, MultiControlSample, TierName(tier) + " 혼합 대조");
+            var tally = new MultiTally();
+
+            // ── 거울 — 대조 무공끼리. 범위 무공과 무관하므로 **필러당 한 번만** 잰다.
+            //    (러너가 완전 결정론이라 같은 쌍을 다시 재도 같은 값이다 — `verify` 코드 확인)
+            double mirrorSum = 0, mirrorVar = 0;
+            for (int f = 0; f < fillers.Count; f++)
+            {
+                mirrorSum += TeamWinRate(
+                    HomogeneousTeam(fillers[f], stage), HomogeneousTeam(fillers[f], stage), tally, out double se);
+                mirrorVar += se * se;
+            }
+            double mirror = mirrorSum / fillers.Count;
+            double mirrorSe = Math.Sqrt(mirrorVar) / fillers.Count;
+
+            Console.WriteLine();
+            Console.WriteLine("  ── 혼합 편성 탐침 (" + TierName(tier) + " · " + stage + "성) — 범위 1명 + 대조 3명 vs 대조 4명");
+            Console.WriteLine("     범위 " + scoped.Count + "종 · 대조 필러 " + fillers.Count + "종"
+                              + (fillers.Count < MultiControlSample ? " ⚠ 표본이 " + MultiControlSample + " 미만이다" : "")
+                              + (scoped.Count == 1 ? " ⚠ 범위가 1종이라 계층 집계 = 그 무공의 값이다" : ""));
+            Console.WriteLine("     거울(기준) " + (mirror * 100).ToString("F1") + "% ±" + (mirrorSe * 100).ToString("F1") + "%p");
+
+            double frontAll = 0, rearAll = 0;
+            for (int i = 0; i < scoped.Count; i++)
+            {
+                double frontSum = 0, rearSum = 0, mixVar = 0;
+                for (int f = 0; f < fillers.Count; f++)
+                {
+                    frontSum += TeamWinRate(
+                        MixedTeam(scoped[i], fillers[f], stage, BattleRow.Front),
+                        HomogeneousTeam(fillers[f], stage), tally, out double seF);
+                    rearSum += TeamWinRate(
+                        MixedTeam(scoped[i], fillers[f], stage, BattleRow.Rear),
+                        HomogeneousTeam(fillers[f], stage), tally, out double seR);
+                    mixVar += seF * seF + seR * seR;
+                }
+
+                double front = frontSum / fillers.Count;
+                double rear = rearSum / fillers.Count;
+                double mixed = (front + rear) / 2.0;
+                double gain = mixed - mirror;
+
+                // ⚠ 두 추정치의 차라 분산을 더한다. 거울 항을 빼먹으면 정밀도를 과소평가한다.
+                double gainSe = Math.Sqrt(mixVar / (4.0 * fillers.Count * fillers.Count) + mirrorSe * mirrorSe);
+                string verdict = Math.Abs(gain) * 100 <= 3.0 ? "  ⚠ 판별 불가(±3%p)" : (gain > 0 ? "  ✅ 이득" : "  ⛔ 손해");
+
+                Metrics.Add("multi.혼합." + scoped[i].Name + ".기여." + stage + "성", gain * 100);
+                Console.WriteLine("     " + scoped[i].Name.PadRight(10)
+                                  + " 전열 " + (front * 100).ToString("F1").PadLeft(5)
+                                  + " · 후열 " + (rear * 100).ToString("F1").PadLeft(5)
+                                  + " → 기여 " + (gain * 100).ToString("+0.0;-0.0").PadLeft(6)
+                                  + "%p ±" + (gainSe * 100).ToString("F1") + verdict);
+
+                frontAll += front;
+                rearAll += rear;
+            }
+
+            double tierFront = frontAll / scoped.Count;
+            double tierRear = rearAll / scoped.Count;
+            Metrics.Add("multi.혼합." + TierName(tier) + ".거울." + stage + "성", mirror * 100);
+            Metrics.Add("multi.혼합." + TierName(tier) + ".범위전열." + stage + "성", tierFront * 100);
+            Metrics.Add("multi.혼합." + TierName(tier) + ".범위후열." + stage + "성", tierRear * 100);
+            Metrics.Add("multi.혼합." + TierName(tier) + ".기여." + stage + "성",
+                        ((tierFront + tierRear) / 2.0 - mirror) * 100);
+        }
+
         /// <summary>공격 초식 + 보조 무공 하나를 함께 익힌 대전자. <see cref="ToCombatant"/> 와 같은 규칙이다.</summary>
         private static Combatant ToCombatantWith(MartialArt art, MartialArt support, int stage)
         {
@@ -1994,6 +2115,20 @@ namespace Jianghu.Sandbox
         /// </summary>
         private static double TeamWinRate(
             List<BattlePlacement> a, List<BattlePlacement> b, MultiTally tally)
+        {
+            return TeamWinRate(a, b, tally, out _);
+        }
+
+        /// <summary>
+        /// 승률과 **표준오차**를 함께 낸다.
+        ///
+        /// ⚠⚠ `TeamBattleSummary` 가 `StandardError` 를 이미 계산해 두는데 그전 이 함수가
+        ///   **버리고 있었다**(2026-09-24 `verify` 가 지적). 손으로 다시 계산하면 러너와 갈라지므로
+        ///   러너가 낸 값을 그대로 쓴다 — 이 저장소가 `ArtPower` 에서 겪은 *"한 값을 두 곳에서
+        ///   따로 계산하면 언젠가 갈라진다"* 와 같은 선이다.
+        /// </summary>
+        private static double TeamWinRate(
+            List<BattlePlacement> a, List<BattlePlacement> b, MultiTally tally, out double standardError)
         {
             TeamBattleSummary summary = TeamBattleRunner.Run(a, b, MultiFights, onEach: r =>
             {
@@ -2011,6 +2146,7 @@ namespace Jianghu.Sandbox
                     }
                 }
             });
+            standardError = summary.StandardError;
             return summary.TeamAWinRate;
         }
 
