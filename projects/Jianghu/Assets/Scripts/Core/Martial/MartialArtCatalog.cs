@@ -143,7 +143,7 @@ namespace Jianghu.Core.Martial
             // ═══ 문파무학 72 (9대문파 × 8) ═══
             const ArtTier MAJ = ArtTier.Major;
             Atk("중뇌창", MAJ, Discipline.Spear, "소림사");
-            Atk("정천창군", MAJ, Discipline.Spear, "소림사");
+            Atk("유천창군", MAJ, Discipline.Spear, "소림사");
             Atk("후뇌격비", MAJ, Discipline.Fist, "소림사");
             Atk("직뇌타비", MAJ, Discipline.Fist, "소림사");
             Inr("중뇌양공", MAJ, "소림사");
@@ -217,7 +217,7 @@ namespace Jianghu.Core.Martial
             Atk("환화격혈", MAJ, Discipline.Fist, "혈교");
             Atk("궤화박경", MAJ, Discipline.Fist, "혈교");
             Atk("환몽자혈", MAJ, Discipline.Spear, "혈교");
-            Atk("환창혈만", MAJ, Discipline.Spear, "혈교");
+            Atk("정창혈만", MAJ, Discipline.Spear, "혈교");
             Inr("환화양공", MAJ, "혈교");
             Inr("휘음궤결", MAJ, "혈교");
             Stp("어환화보", MAJ, "혈교");

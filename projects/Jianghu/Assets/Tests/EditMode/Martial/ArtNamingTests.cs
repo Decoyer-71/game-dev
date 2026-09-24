@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Jianghu.Core.Martial;
 using Jianghu.Core.Martial.Morphemes;
 using NUnit.Framework;
@@ -303,7 +303,7 @@ namespace Jianghu.Tests.Martial
             // 특징: '무거운' '때리기' 권법과 '찌르기' 창술. 나한진 — 여럿을 동시에 상대한다. 색은 벼락(雷).
             // ⚠⚠ **정파인데 마비를 건다** — 점혈(點穴) 수법. 사천당가에 이어 두 번째 예외다.
             new Draft("소림사", "중뇌창", ArtKind.Attack),      // 重雷槍 — 무겁게 벼락처럼 찌른다
-            new Draft("소림사", "정천창군", ArtKind.Attack),    // 正天槍群 — 하늘을 정직하게 찔러 무리를 친다 [광역 3인]
+            new Draft("소림사", "유천창군", ArtKind.Attack),    // 柔天槍群 — 하늘을 부드럽게 찔러 무리를 친다 [광역 3인]
             new Draft("소림사", "후뇌격비", ArtKind.Attack),    // 厚雷擊痺 — 벼락처럼 두텁게 쳐서 혈을 짚는다
             new Draft("소림사", "직뇌타비", ArtKind.Attack),    // 直雷打痺 — 벼락같이 곧게 쳐서 마비시킨다
             new Draft("소림사", "중뇌양공", ArtKind.Internal),  // 重雷陽功
@@ -398,7 +398,7 @@ namespace Jianghu.Tests.Martial
             new Draft("혈교", "환화격혈", ArtKind.Attack),      // 幻火擊血 — 불처럼 현혹하며 쳐서 피를 낸다
             new Draft("혈교", "궤화박경", ArtKind.Attack),      // 詭火拍硬 — 불처럼 속이며 쳐서 굳게 만든다
             new Draft("혈교", "환몽자혈", ArtKind.Attack),      // 幻夢刺血 — 꿈처럼 현혹해 찔러 피를 낸다
-            new Draft("혈교", "환창혈만", ArtKind.Attack),      // 幻槍血萬 — 만인을 현혹해 찔러 피를 낸다 [광역 전원·기력 3배]
+            new Draft("혈교", "정창혈만", ArtKind.Attack),      // 正槍血萬 — 만인을 정직하게 찔러 피를 낸다 [광역 전원·기력 3배]
             new Draft("혈교", "환화양공", ArtKind.Internal),    // 幻火陽功
             new Draft("혈교", "휘음궤결", ArtKind.Internal),    // 輝陰詭訣
             new Draft("혈교", "어환화보", ArtKind.Movement),    // 禦幻火步
