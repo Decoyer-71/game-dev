@@ -54,7 +54,7 @@ namespace Jianghu.Tests.Combat
             {
                 new DisciplineMastery(Discipline.Sword, DisciplineCurve.SessionsToMaster(Discipline.Sword)),
             };
-            return new Combatant("t", CharacterStats.MaxLevel(), arts, masteries);
+            return new Combatant("t", CharacterStats.MaxLevel(), new Loadout(arts.ToArray()), masteries);
         }
 
         // ─────────────────────── 결함 ⓐ — 최대기력은 어느 무공에 있든 붙는다 ───────────────────────
@@ -136,18 +136,18 @@ namespace Jianghu.Tests.Combat
             };
 
             Combatant low = new Combatant("t", CharacterStats.MaxLevel(),
-                new List<LearnedArt>
+                new Loadout(new[]
                 {
                     new LearnedArt(Build("참정", ArtKind.Attack, Discipline.Sword), novice, Alignment.Orthodox),
                     new LearnedArt(Build("식공", ArtKind.Internal, Discipline.InnerArt), novice, Alignment.Orthodox),
-                }, masteries);
+                }), masteries);
 
             Combatant high = new Combatant("t", CharacterStats.MaxLevel(),
-                new List<LearnedArt>
+                new Loadout(new[]
                 {
                     new LearnedArt(Build("참정", ArtKind.Attack, Discipline.Sword), master, Alignment.Orthodox),
                     new LearnedArt(Build("식공", ArtKind.Internal, Discipline.InnerArt), master, Alignment.Orthodox),
-                }, masteries);
+                }), masteries);
 
             Assert.Less(high.SupportQiCostPercent, low.SupportQiCostPercent,
                 "무공을 더 익혔는데 기력 효율이 나아지지 않는다.");

@@ -56,7 +56,7 @@ namespace Jianghu.Tests.Combat
             }
 
             return new Combatant(
-                attackArtName + (absoluteName ?? ""), CharacterStats.MaxLevel(), arts,
+                attackArtName + (absoluteName ?? ""), CharacterStats.MaxLevel(), new Loadout(arts.ToArray()),
                 new List<DisciplineMastery>
                 {
                     new DisciplineMastery(Discipline.Sword, DisciplineCurve.SessionsToMaster(Discipline.Sword)),

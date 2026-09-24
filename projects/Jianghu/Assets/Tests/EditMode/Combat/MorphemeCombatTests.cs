@@ -34,7 +34,7 @@ namespace Jianghu.Tests.Combat
 
             var arts = new List<LearnedArt> { new LearnedArt(art, sessions, alignment) };
             var masteries = new List<DisciplineMastery> { new DisciplineMastery(discipline, sessions) };
-            return new Combatant(name, SpecStats(), arts, masteries);
+            return new Combatant(name, SpecStats(), new Loadout(arts.ToArray()), masteries);
         }
 
         [Test]
@@ -96,7 +96,7 @@ namespace Jianghu.Tests.Combat
                 "old", "옛검법", Discipline.Sword, Alignment.Orthodox, basePower: 25, qiCost: 8);
 
             var legacyFighter = new Combatant("레거시", SpecStats(),
-                new List<LearnedArt> { new LearnedArt(legacy, 200) },
+                new Loadout(new LearnedArt(legacy, 200)),
                 new List<DisciplineMastery> { new DisciplineMastery(Discipline.Sword, 200) });
 
             Combatant derived = Fighter("형태소", "정화참탈", ArtTier.Major, Discipline.Sword, Alignment.Orthodox, "남궁세가", 200);
